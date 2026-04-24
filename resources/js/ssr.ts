@@ -7,6 +7,10 @@ import { renderToString } from 'vue/server-renderer';
 
 const appName = import.meta.env.VITE_APP_NAME || 'Anime HD Zero';
 
+// Port chosen via INERTIA_SSR_PORT env so the server can avoid colliding with
+// kurokami's SSR (default 13714). Falls back to Inertia's default for dev.
+const ssrPort = Number(process.env.INERTIA_SSR_PORT) || 13714;
+
 createServer(
     (page) =>
         createInertiaApp({
@@ -36,5 +40,5 @@ createServer(
                 return app;
             },
         }),
-    { cluster: true },
+    { cluster: true, port: ssrPort },
 );

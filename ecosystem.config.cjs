@@ -3,7 +3,7 @@
  *
  * Usage:
  *   pnpm install --prod=false   # build deps
- *   pnpm build:ssr              # emits bootstrap/ssr/ssr.js
+ *   PHP_BIN=php84 pnpm build:ssr
  *   composer84 install --no-dev --optimize-autoloader
  *   PHP_BIN=php84 pm2 start ecosystem.config.cjs --env production
  *   pm2 save
@@ -16,11 +16,14 @@
  *   pm2 logs ahd-ssr
  *   pm2 logs ahd-queue
  *
- * The shared host uses non-default PHP/Composer binaries. Override the PHP
- * interpreter for the queue worker via the PHP_BIN env var (defaults to `php`
- * for local dev). Composer is only used at deploy time, not by PM2.
+ * Shared host conventions:
+ *   - PHP/Composer binaries are `php84` / `composer84` (set PHP_BIN=php84).
+ *   - The Inertia SSR daemon listens on INERTIA_SSR_PORT, default 13715 here
+ *     so it doesn't collide with kurokami's SSR (which uses 13714).
+ *     Make sure config/inertia.php / .env's INERTIA_SSR_URL matches.
  */
 const PHP_BIN = process.env.PHP_BIN || 'php';
+const INERTIA_SSR_PORT = process.env.INERTIA_SSR_PORT || '13715';
 
 module.exports = {
     apps: [
@@ -39,6 +42,7 @@ module.exports = {
             env: {
                 NODE_ENV: 'production',
                 APP_ENV: 'production',
+                INERTIA_SSR_PORT,
             },
             error_file: 'storage/logs/ssr.error.log',
             out_file: 'storage/logs/ssr.out.log',
