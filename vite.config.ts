@@ -3,7 +3,11 @@ import tailwindcss from '@tailwindcss/vite';
 import vue from '@vitejs/plugin-vue';
 import laravel from 'laravel-vite-plugin';
 import { defineConfig } from 'vite';
-import vueDevTools from 'vite-plugin-vue-devtools'
+
+// The shared production host uses non-default PHP/Composer binaries
+// (`php84`, `composer84`). Set `PHP_BIN=php84` in the deploy environment so
+// build-time artisan invocations (Wayfinder type generation) work.
+const PHP_BIN = process.env.PHP_BIN || 'php';
 
 export default defineConfig({
     plugins: [
@@ -15,6 +19,7 @@ export default defineConfig({
         tailwindcss(),
         wayfinder({
             formVariants: true,
+            command: `${PHP_BIN} artisan wayfinder:generate`,
         }),
         vue({
             template: {
@@ -24,6 +29,5 @@ export default defineConfig({
                 },
             },
         }),
-        
     ],
 });
