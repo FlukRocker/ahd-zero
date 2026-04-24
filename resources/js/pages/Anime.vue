@@ -136,6 +136,13 @@ useAutoReveal();
 <template>
     <Head :title="anime.cat_title" />
     <FrontLayout>
+        <section
+            v-if="adsBanners && adsBanners.length"
+            class="mx-auto mt-6 max-w-[1440px] px-6 lg:px-10"
+        >
+            <AdsBanner :banners="adsBanners" />
+        </section>
+
         <section class="relative overflow-hidden">
             <div v-if="heroImg" class="absolute inset-0">
                 <img
@@ -306,13 +313,6 @@ useAutoReveal();
                     </dl>
                 </div>
             </div>
-        </section>
-
-        <section
-            v-if="adsBanners && adsBanners.length"
-            class="mx-auto mt-10 max-w-[720px] px-6 lg:px-0"
-        >
-            <AdsBanner :banners="adsBanners" />
         </section>
 
         <section
