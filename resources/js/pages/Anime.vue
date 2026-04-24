@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import AdsBanner, {
+    type BannerItem,
+} from '@/components/ahd/AdsBanner.vue';
 import AhdIcon from '@/components/ahd/AhdIcon.vue';
 import Rail from '@/components/ahd/Rail.vue';
 import SectionHeader from '@/components/ahd/SectionHeader.vue';
@@ -79,7 +82,10 @@ interface AnimeDetail extends AnimeRecord {
     }>;
 }
 
-const props = defineProps<{ anime: AnimeDetail }>();
+const props = defineProps<{
+    anime: AnimeDetail;
+    adsBanners?: BannerItem[];
+}>();
 
 const firstEp = computed(() => props.anime.episode_list?.[0]);
 const heroImg = computed(
@@ -300,6 +306,13 @@ useAutoReveal();
                     </dl>
                 </div>
             </div>
+        </section>
+
+        <section
+            v-if="adsBanners && adsBanners.length"
+            class="mx-auto mt-10 max-w-[720px] px-6 lg:px-0"
+        >
+            <AdsBanner :banners="adsBanners" title="โฆษณา" />
         </section>
 
         <section

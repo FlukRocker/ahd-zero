@@ -10,6 +10,7 @@ use App\Models\Staff;
 use App\Models\Studio;
 use App\Models\Tag;
 use App\Models\VoiceActor;
+use App\Support\AdsBanner;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Inertia\Inertia;
@@ -28,7 +29,10 @@ class AnimeController extends Controller
         /** @var array<string, mixed> $animeData */
         $animeData = Cache::remember("anime:detail:v2:{$id}", 600, fn () => $this->buildAnimeDetail($id));
 
-        return Inertia::render('Anime', ['anime' => $animeData]);
+        return Inertia::render('Anime', [
+            'anime' => $animeData,
+            'adsBanners' => AdsBanner::all(),
+        ]);
     }
 
     /**
@@ -270,6 +274,7 @@ class AnimeController extends Controller
             ],
             'episodes' => $episodes,
             'relatedAnime' => $allRelated->values(),
+            'adsBanners' => AdsBanner::all(),
         ]);
     }
 

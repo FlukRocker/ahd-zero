@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import AdsBanner, {
+    type BannerItem,
+} from '@/components/ahd/AdsBanner.vue';
 import AhdIcon from '@/components/ahd/AhdIcon.vue';
 import Rail from '@/components/ahd/Rail.vue';
 import SectionHeader from '@/components/ahd/SectionHeader.vue';
@@ -48,6 +51,7 @@ const props = defineProps<{
     currentEpisode: CurrentEpisode;
     episodes: EpisodeItem[];
     relatedAnime?: AnimeRecord[];
+    adsBanners?: BannerItem[];
 }>();
 
 const page = usePage<{ playerConfig?: { adsEmbedUrl?: string | null } }>();
@@ -268,6 +272,13 @@ useAutoReveal();
                             </li>
                         </ul>
                     </div>
+
+                    <AdsBanner
+                        v-if="adsBanners && adsBanners.length"
+                        class="mt-4"
+                        :banners="adsBanners"
+                        title="โฆษณา"
+                    />
                 </aside>
             </div>
         </section>
