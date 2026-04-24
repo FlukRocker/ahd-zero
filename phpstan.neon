@@ -1,0 +1,22 @@
+includes:
+    - vendor/larastan/larastan/extension.neon
+
+parameters:
+    paths:
+        - app
+        - database/factories
+        - database/seeders
+        - routes
+        - tests
+
+    level: 4
+
+    excludePaths:
+        - bootstrap/cache/*
+        - vendor/*
+
+    # Legacy Eloquent models declare HasFactory generic references to factory
+    # classes that don't exist yet — pure docblock noise, not a bug.
+    ignoreErrors:
+        - '#PHPDoc tag @use has invalid type Database\\Factories\\.+Factory#'
+        - '#in generic type Illuminate\\Database\\Eloquent\\Factories\\HasFactory<Database\\Factories\\.+Factory>#'

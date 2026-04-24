@@ -13,6 +13,12 @@ export function urlIsActive(
     return toUrl(urlToCheck) === currentUrl;
 }
 
+
 export function toUrl(href: NonNullable<InertiaLinkProps['href']>) {
     return typeof href === 'string' ? href : href?.url;
+}
+
+export function stripHtml(html: string | null | undefined): string {
+    if (!html) return '';
+    return html.replace(/<[^>]*>?/gm, '').replace(/&nbsp;/g, ' ').replace(/['"]/g, '');
 }

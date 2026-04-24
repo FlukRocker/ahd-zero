@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Support\SiteSettings;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
@@ -41,9 +42,24 @@ class HandleInertiaRequests extends Middleware
         return [
             ...parent::share($request),
             'name' => config('app.name'),
+            'appUrl' => config('app.url'),
             'quote' => ['message' => trim($message), 'author' => trim($author)],
             'auth' => [
                 'user' => $request->user(),
+            ],
+            'memberAuth' => [
+                'member' => $request->user('member') ? [
+                    'id' => $request->user('member')->uuid,
+                    'name' => $request->user('member')->name,
+                    'email' => $request->user('member')->email,
+                    'avatar' => $request->user('member')->avatar,
+                ] : null,
+            ],
+            'playerConfig' => [
+                'adsEmbedUrl' => config('services.akuma_player.ads_embed_url'),
+            ],
+            'siteConfig' => [
+                'registrationEnabled' => SiteSettings::registrationEnabled(),
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
         ];

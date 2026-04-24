@@ -35,4 +35,11 @@ return [
         ],
     ],
 
+    'akuma_player' => [
+        'url' => env('AKUMA_PLAYER_URL', 'http://65.108.61.69:3002'),
+        'token' => env('AKUMA_PLAYER_TOKEN'),
+        'player_domain' => env('AKUMA_PLAYER_DOMAIN', 'https://akuma-player.xyz'),
+        'ads_embed_url' => env('AKUMA_PLAYER_ADS_EMBED', 'https://anime-hdzero.com/player/embed.php'),
+    ],
+
 ];

@@ -2,35 +2,45 @@ import '../css/app.css';
 
 import { createInertiaApp } from '@inertiajs/vue3';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
-import type { DefineComponent } from 'vue';
-import Aura from '@primeuix/themes/aura';
-import PrimeVue from 'primevue/config';
-import { createApp, h } from 'vue';
+import { createHead } from '@unhead/vue/client';
+import { createApp, h, type DefineComponent } from 'vue';
+import { ZiggyVue } from 'ziggy-js';
+
 import { initializeTheme } from './composables/useAppearance';
 
-const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
+// Inertia 2 rejects pending visit promises with a "cancelled" sentinel when a
+// new visit is triggered before the previous one resolves. These bubble as
+// unhandled rejections and clutter the console without indicating an error.
+if (typeof window !== 'undefined') {
+    window.addEventListener('unhandledrejection', (event) => {
+        const reason = event.reason as { cancelled?: boolean; message?: string } | undefined;
+        if (reason && (reason.cancelled === true || reason.message === 'cancelled')) {
+            event.preventDefault();
+        }
+    });
+}
+
+const appName = import.meta.env.VITE_APP_NAME || 'Anime HD Zero';
 
 createInertiaApp({
-    title: (title) => (title ? `${title} - ${appName}` : appName),
+    title: (title) => (title ? `${title} — ${appName}` : appName),
     resolve: (name) =>
         resolvePageComponent(
             `./pages/${name}.vue`,
             import.meta.glob<DefineComponent>('./pages/**/*.vue'),
         ),
     setup({ el, App, props, plugin }) {
+        const head = createHead();
+
         createApp({ render: () => h(App, props) })
             .use(plugin)
-            .use(PrimeVue, {
-                theme: {
-                    preset: Aura,
-                },
-            })
+            .use(head)
+            .use(ZiggyVue)
             .mount(el);
     },
     progress: {
-        color: '#4B5563',
+        color: 'hsl(350 80% 68%)',
     },
 });
 
-// This will set light / dark mode on page load...
 initializeTheme();
