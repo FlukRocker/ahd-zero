@@ -312,7 +312,7 @@ useAutoReveal();
             v-if="adsBanners && adsBanners.length"
             class="mx-auto mt-10 max-w-[720px] px-6 lg:px-0"
         >
-            <AdsBanner :banners="adsBanners" title="โฆษณา" />
+            <AdsBanner :banners="adsBanners" />
         </section>
 
         <section

@@ -139,6 +139,13 @@ useAutoReveal();
 <template>
     <Head :title="pageTitle" />
     <FrontLayout>
+        <section
+            v-if="adsBanners && adsBanners.length"
+            class="mx-auto mt-6 max-w-[1440px] px-6 lg:px-10"
+        >
+            <AdsBanner :banners="adsBanners" />
+        </section>
+
         <section class="mx-auto max-w-[1440px] px-6 pt-10 pb-16 lg:px-10">
             <div class="mb-6">
                 <Link
@@ -273,12 +280,6 @@ useAutoReveal();
                         </ul>
                     </div>
 
-                    <AdsBanner
-                        v-if="adsBanners && adsBanners.length"
-                        class="mt-4"
-                        :banners="adsBanners"
-                        title="โฆษณา"
-                    />
                 </aside>
             </div>
         </section>
