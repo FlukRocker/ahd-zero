@@ -14,6 +14,17 @@ type PlayerMode = 'ads' | 'direct';
 const STORAGE_KEY = 'ahd.playerMode';
 const ADS_EMBED_FALLBACK = 'https://anime-hdzero.com/player/embed.php';
 
+// SSR-safe base64. Browsers + Node 18+ both expose `btoa` globally; Buffer is
+// the explicit Node fallback. Keeps SSR + client output identical so Vue
+// doesn't hydrate-mismatch on the iframe src.
+function b64encode(s: string): string {
+    if (typeof globalThis.btoa === 'function') return globalThis.btoa(s);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const B = (globalThis as any).Buffer;
+    if (B?.from) return B.from(s, 'utf8').toString('base64');
+    return s;
+}
+
 interface AnimeSummary extends AnimeRecord {
     cat_desc?: string | null;
 }
@@ -61,8 +72,7 @@ const playerSrc = computed(() => {
     const url = props.currentEpisode.player_url;
     if (!url) return null;
     if (playerMode.value === 'ads') {
-        if (typeof window === 'undefined') return null;
-        const encoded = window.btoa(url);
+        const encoded = b64encode(url);
         return `${adsEmbedUrl.value}?link=${encodeURIComponent(encoded)}`;
     }
     return url;
