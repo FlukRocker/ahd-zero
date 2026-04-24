@@ -237,7 +237,9 @@
     padding: 10px 16px;
     border-radius: 999px;
     font-weight: 500;
-    transition: transform 0.2s, background 0.2s;
+    transition:
+        transform 0.2s,
+        background 0.2s;
 }
 
 .btn-primary {
@@ -308,7 +310,12 @@
     position: absolute;
     inset: 0;
     background:
-        linear-gradient(90deg, hsl(var(--bg)) 0%, hsl(var(--bg) / 0.2) 50%, hsl(var(--bg) / 0.6) 100%),
+        linear-gradient(
+            90deg,
+            hsl(var(--bg)) 0%,
+            hsl(var(--bg) / 0.2) 50%,
+            hsl(var(--bg) / 0.6) 100%
+        ),
         linear-gradient(180deg, hsl(var(--bg) / 0.1) 0%, hsl(var(--bg)) 100%);
     pointer-events: none;
 }
@@ -356,7 +363,11 @@
 .halo {
     position: absolute;
     inset: -30%;
-    background: radial-gradient(circle at center, hsl(var(--accent) / 0.45), transparent 55%);
+    background: radial-gradient(
+        circle at center,
+        hsl(var(--accent) / 0.45),
+        transparent 55%
+    );
     filter: blur(40px);
     opacity: 0;
     transition: opacity 0.4s;
@@ -384,7 +395,9 @@
     height: 4px;
     background: hsl(var(--fg) / 0.15);
     border-radius: 999px;
-    transition: background 0.3s, width 0.3s;
+    transition:
+        background 0.3s,
+        width 0.3s;
     cursor: pointer;
 }
 
@@ -422,7 +435,9 @@
     padding: 20px;
     border: 1px solid hsl(var(--border-ahd));
     background: hsl(var(--bg-elev));
-    transition: transform 0.3s, border-color 0.3s;
+    transition:
+        transform 0.3s,
+        border-color 0.3s;
 }
 
 .genre-tile:hover {
@@ -437,7 +452,11 @@
     border-radius: 50%;
     opacity: 0;
     transition: opacity 0.4s;
-    background: radial-gradient(circle at 50% 50%, hsl(var(--hue) 70% 70% / 0.4), transparent 60%);
+    background: radial-gradient(
+        circle at 50% 50%,
+        hsl(var(--hue) 70% 70% / 0.4),
+        transparent 60%
+    );
     filter: blur(20px);
 }
 
@@ -497,7 +516,12 @@ input:focus-visible {
 }
 
 .shimmer {
-    background: linear-gradient(90deg, hsl(var(--bg-soft)) 0%, hsl(var(--bg-elev)) 50%, hsl(var(--bg-soft)) 100%);
+    background: linear-gradient(
+        90deg,
+        hsl(var(--bg-soft)) 0%,
+        hsl(var(--bg-elev)) 50%,
+        hsl(var(--bg-soft)) 100%
+    );
     background-size: 200% 100%;
     animation: shimmer 1.6s linear infinite;
 }
@@ -618,7 +642,10 @@ input:focus-visible {
 }
 
 .dot-pattern {
-    background-image: radial-gradient(hsl(var(--fg) / 0.12) 1px, transparent 1px);
+    background-image: radial-gradient(
+        hsl(var(--fg) / 0.12) 1px,
+        transparent 1px
+    );
     background-size: 16px 16px;
 }
 
@@ -697,7 +724,9 @@ input:focus-visible {
 
 .fade-enter-active,
 .fade-leave-active {
-    transition: opacity 0.35s, transform 0.35s;
+    transition:
+        opacity 0.35s,
+        transform 0.35s;
 }
 
 .fade-enter-from,
@@ -707,11 +736,15 @@ input:focus-visible {
 }
 
 .page-slide-enter-active {
-    transition: opacity 0.5s, transform 0.5s;
+    transition:
+        opacity 0.5s,
+        transform 0.5s;
 }
 
 .page-slide-leave-active {
-    transition: opacity 0.3s, transform 0.3s;
+    transition:
+        opacity 0.3s,
+        transform 0.3s;
 }
 
 .page-slide-enter-from {

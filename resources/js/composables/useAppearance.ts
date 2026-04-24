@@ -40,7 +40,9 @@ function setCookie(name: string, value: string, days = 365) {
 }
 
 function mediaQuery() {
-    return isBrowser() ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+    return isBrowser()
+        ? window.matchMedia('(prefers-color-scheme: dark)')
+        : null;
 }
 
 function resolveTheme(value: Appearance): 'light' | 'dark' {
@@ -61,7 +63,10 @@ export function updateTheme(value: Appearance) {
 export function applyDesignConfig(config: DesignConfig) {
     if (!isBrowser()) return;
     const root = document.documentElement;
-    root.setAttribute('data-type', config.typePairing === 'fraunces' ? 'alt' : 'default');
+    root.setAttribute(
+        'data-type',
+        config.typePairing === 'fraunces' ? 'alt' : 'default',
+    );
     root.setAttribute('data-density', config.density);
     const accent = ACCENTS[config.accent] ?? ACCENTS.rose;
     root.style.setProperty('--accent', accent);
@@ -117,7 +122,10 @@ export function useAppearance() {
         updateTheme(value);
     }
 
-    function updateConfig<K extends keyof DesignConfig>(key: K, value: DesignConfig[K]) {
+    function updateConfig<K extends keyof DesignConfig>(
+        key: K,
+        value: DesignConfig[K],
+    ) {
         designConfig[key] = value;
         localStorage.setItem(STORAGE_KEYS.config, JSON.stringify(designConfig));
         applyDesignConfig(designConfig);
@@ -138,6 +146,10 @@ export function useAppearance() {
 }
 
 // Keep changes in sync if multiple components call updateConfig at once
-watch(designConfig, (cfg) => {
-    if (isBrowser()) applyDesignConfig(cfg);
-}, { deep: true });
+watch(
+    designConfig,
+    (cfg) => {
+        if (isBrowser()) applyDesignConfig(cfg);
+    },
+    { deep: true },
+);

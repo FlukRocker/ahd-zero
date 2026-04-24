@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref } from 'vue';
 import { useStaggerInView } from '@/composables/useReveal';
+import { ref } from 'vue';
 
 withDefaults(
     defineProps<{
@@ -8,7 +8,12 @@ withDefaults(
         gridStyle?: string;
         gap?: number;
     }>(),
-    { as: 'div', gridStyle: 'grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));', gap: 0.03 },
+    {
+        as: 'div',
+        gridStyle:
+            'grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));',
+        gap: 0.03,
+    },
 );
 
 const root = ref<HTMLElement | null>(null);

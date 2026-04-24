@@ -1,6 +1,6 @@
-import { computed } from 'vue';
 import { usePage } from '@inertiajs/vue3';
 import { useHead, useSeoMeta } from '@unhead/vue';
+import { computed } from 'vue';
 
 interface SharedProps {
     name?: string;
@@ -13,7 +13,9 @@ export function useAppMeta() {
     const appUrl = computed(() => (page.props.appUrl ?? '').replace(/\/$/, ''));
     const currentPath = computed(() => page.url);
     const canonical = computed(() => {
-        const base = appUrl.value || (typeof window !== 'undefined' ? window.location.origin : '');
+        const base =
+            appUrl.value ||
+            (typeof window !== 'undefined' ? window.location.origin : '');
         if (!base) return currentPath.value;
         // Strip query for canonical unless page is search
         const path = currentPath.value.split('?')[0];
@@ -40,7 +42,9 @@ export function useSeo(input: () => SeoInput) {
 
     useHead(() => {
         const cfg = input();
-        const title = cfg.title ? `${cfg.title} — ${appName.value}` : appName.value;
+        const title = cfg.title
+            ? `${cfg.title} — ${appName.value}`
+            : appName.value;
 
         return {
             link: [{ rel: 'canonical', href: canonical.value }],
@@ -50,7 +54,9 @@ export function useSeo(input: () => SeoInput) {
 
     useSeoMeta(() => {
         const cfg = input();
-        const title = cfg.title ? `${cfg.title} — ${appName.value}` : appName.value;
+        const title = cfg.title
+            ? `${cfg.title} — ${appName.value}`
+            : appName.value;
         return {
             title,
             description: cfg.description,

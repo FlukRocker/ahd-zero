@@ -1,14 +1,14 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
-import { Head, Link, usePage } from '@inertiajs/vue3';
-import FrontLayout from '@/layouts/FrontLayout.vue';
 import AhdIcon from '@/components/ahd/AhdIcon.vue';
 import Rail from '@/components/ahd/Rail.vue';
 import SectionHeader from '@/components/ahd/SectionHeader.vue';
-import { toCardItems, type AnimeRecord } from '@/lib/animeCard';
 import { useAutoReveal } from '@/composables/useReveal';
 import { useSeo } from '@/composables/useSeo';
+import FrontLayout from '@/layouts/FrontLayout.vue';
+import { toCardItems, type AnimeRecord } from '@/lib/animeCard';
 import { breadcrumbJsonLd, videoObjectJsonLd } from '@/lib/schema';
+import { Head, Link, usePage } from '@inertiajs/vue3';
+import { computed, onMounted, ref, watch } from 'vue';
 
 type PlayerMode = 'ads' | 'direct';
 const STORAGE_KEY = 'ahd.playerMode';
@@ -107,7 +107,10 @@ useSeo(() => ({
         }),
         breadcrumbJsonLd([
             { name: 'หน้าแรก', url: '/' },
-            { name: props.anime.cat_title, url: `/anime/${props.anime.cat_id}` },
+            {
+                name: props.anime.cat_title,
+                url: `/anime/${props.anime.cat_id}`,
+            },
             {
                 name: props.currentEpisode.list_title,
                 url: `/anime/${props.anime.cat_id}/episode/${props.currentEpisode.list_id}`,
@@ -122,16 +125,19 @@ useAutoReveal();
 <template>
     <Head :title="pageTitle" />
     <FrontLayout>
-        <section class="max-w-[1440px] mx-auto px-6 lg:px-10 pt-10 pb-16">
+        <section class="mx-auto max-w-[1440px] px-6 pt-10 pb-16 lg:px-10">
             <div class="mb-6">
                 <Link
                     :href="`/anime/${anime.cat_id}`"
-                    class="inline-flex items-center gap-2 text-[13px] font-mono uppercase tracking-widest u-grow"
-                    style="color: hsl(var(--fg-muted));"
+                    class="u-grow inline-flex items-center gap-2 font-mono text-[13px] tracking-widest uppercase"
+                    style="color: hsl(var(--fg-muted))"
                 >
                     <AhdIcon name="back" :size="14" /> {{ anime.cat_title }}
                 </Link>
-                <h1 class="font-display italic leading-tight mt-3" style="font-size: clamp(32px, 4vw, 52px);">
+                <h1
+                    class="font-display mt-3 leading-tight italic"
+                    style="font-size: clamp(32px, 4vw, 52px)"
+                >
                     {{ currentEpisode.list_title }}
                 </h1>
             </div>
@@ -140,18 +146,25 @@ useAutoReveal();
                 <div class="col-span-12 lg:col-span-8">
                     <div
                         class="relative w-full overflow-hidden rounded-2xl"
-                        style="aspect-ratio: 16/9; background: #000;"
+                        style="aspect-ratio: 16/9; background: #000"
                     >
                         <iframe
                             v-if="playerSrc"
                             :key="playerMode + ':' + currentEpisode.list_id"
                             :src="playerSrc"
                             referrerpolicy="strict-origin-when-cross-origin"
-                            class="absolute inset-0 w-full h-full"
+                            class="absolute inset-0 h-full w-full"
                             scrolling="no"
                             frameborder="0"
                             allowfullscreen
-                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                            allow="
+                                accelerometer;
+                                autoplay;
+                                clipboard-write;
+                                encrypted-media;
+                                gyroscope;
+                                picture-in-picture;
+                            "
                         />
                         <div
                             v-else
@@ -161,7 +174,7 @@ useAutoReveal();
                         </div>
                     </div>
 
-                    <div class="flex flex-wrap items-center gap-3 mt-5">
+                    <div class="mt-5 flex flex-wrap items-center gap-3">
                         <Link
                             v-if="prevEp"
                             :href="`/anime/${anime.cat_id}/episode/${prevEp.list_id}`"
@@ -182,23 +195,29 @@ useAutoReveal();
                                 type="button"
                                 :class="playerMode === 'ads' ? 'on' : ''"
                                 @click="playerMode = 'ads'"
-                            >มีโฆษณา</button>
+                            >
+                                มีโฆษณา
+                            </button>
                             <button
                                 type="button"
                                 :class="playerMode === 'direct' ? 'on' : ''"
                                 @click="playerMode = 'direct'"
-                            >ไม่มีโฆษณา</button>
+                            >
+                                ไม่มีโฆษณา
+                            </button>
                         </div>
                     </div>
 
                     <div v-if="anime.cat_desc" class="mt-8">
                         <div
-                            class="font-mono text-[10px] tracking-[0.22em] uppercase mb-2"
-                            style="color: hsl(var(--fg-faint));"
-                        >เรื่องย่อ</div>
+                            class="mb-2 font-mono text-[10px] tracking-[0.22em] uppercase"
+                            style="color: hsl(var(--fg-faint))"
+                        >
+                            เรื่องย่อ
+                        </div>
                         <div
-                            class="text-[14px] max-w-3xl anime-desc"
-                            style="color: hsl(var(--fg-muted));"
+                            class="anime-desc max-w-3xl text-[14px]"
+                            style="color: hsl(var(--fg-muted))"
                             v-html="anime.cat_desc"
                         />
                     </div>
@@ -207,17 +226,24 @@ useAutoReveal();
                 <aside class="col-span-12 lg:col-span-4">
                     <div
                         class="rounded-2xl p-4"
-                        style="background: hsl(var(--bg-elev)); border: 1px solid hsl(var(--border-ahd)); max-height: 640px; overflow: auto;"
+                        style="
+                            background: hsl(var(--bg-elev));
+                            border: 1px solid hsl(var(--border-ahd));
+                            max-height: 640px;
+                            overflow: auto;
+                        "
                     >
                         <div
-                            class="font-mono text-[10px] tracking-[0.22em] uppercase mb-3"
-                            style="color: hsl(var(--fg-faint));"
-                        >รายการตอน</div>
+                            class="mb-3 font-mono text-[10px] tracking-[0.22em] uppercase"
+                            style="color: hsl(var(--fg-faint))"
+                        >
+                            รายการตอน
+                        </div>
                         <ul class="space-y-1">
                             <li v-for="ep in episodes" :key="ep.list_id">
                                 <Link
                                     :href="`/anime/${anime.cat_id}/episode/${ep.list_id}`"
-                                    class="ep-row flex items-center gap-3 p-2 rounded-lg text-[13px]"
+                                    class="ep-row flex items-center gap-3 rounded-lg p-2 text-[13px]"
                                     :style="
                                         ep.list_id === currentEpisode.list_id
                                             ? 'background: hsl(var(--accent) / 0.15); color: hsl(var(--fg));'
@@ -225,7 +251,9 @@ useAutoReveal();
                                     "
                                 >
                                     <AhdIcon name="play" :size="12" />
-                                    <span class="truncate">{{ ep.list_title }}</span>
+                                    <span class="truncate">{{
+                                        ep.list_title
+                                    }}</span>
                                 </Link>
                             </li>
                         </ul>
@@ -234,7 +262,10 @@ useAutoReveal();
             </div>
         </section>
 
-        <section v-if="relatedCards.length" class="max-w-[1440px] mx-auto px-6 lg:px-10 mt-8 reveal">
+        <section
+            v-if="relatedCards.length"
+            class="reveal mx-auto mt-8 max-w-[1440px] px-6 lg:px-10"
+        >
             <SectionHeader eyebrow="คุณอาจชอบ" title="อนิเมะที่เกี่ยวข้อง" />
             <Rail :items="relatedCards" layout="poster" />
         </section>

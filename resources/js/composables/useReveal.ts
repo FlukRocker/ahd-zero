@@ -1,8 +1,11 @@
+import { animate, inView, stagger } from 'motion';
 import { onBeforeUnmount, onMounted, type Ref } from 'vue';
-import { animate, stagger, inView } from 'motion';
 
 function prefersReducedMotion() {
-    return typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    return (
+        typeof window !== 'undefined' &&
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    );
 }
 
 export interface RevealOptions {
@@ -62,7 +65,11 @@ export function useReveal(options: RevealOptions = {}) {
                     );
                     return () => {
                         if (!once) {
-                            animate(target, { opacity: [1, 0], y: [0, y] }, { duration: 0.3 });
+                            animate(
+                                target,
+                                { opacity: [1, 0], y: [0, y] },
+                                { duration: 0.3 },
+                            );
                         }
                     };
                 },
@@ -110,9 +117,19 @@ export function useAutoReveal(options: RevealOptions = {}) {
  */
 export function useStaggerInView(
     containerRef: Ref<HTMLElement | null>,
-    options: { childSelector?: string; y?: number; duration?: number; gap?: number } = {},
+    options: {
+        childSelector?: string;
+        y?: number;
+        duration?: number;
+        gap?: number;
+    } = {},
 ) {
-    const { childSelector = ':scope > *', y = 18, duration = 0.6, gap = 0.05 } = options;
+    const {
+        childSelector = ':scope > *',
+        y = 18,
+        duration = 0.6,
+        gap = 0.05,
+    } = options;
     let stop: (() => void) | null = null;
     let failsafe: number | null = null;
 
@@ -120,7 +137,9 @@ export function useStaggerInView(
         const el = containerRef.value;
         if (!el || prefersReducedMotion()) return;
 
-        const children = Array.from(el.querySelectorAll<HTMLElement>(childSelector));
+        const children = Array.from(
+            el.querySelectorAll<HTMLElement>(childSelector),
+        );
         if (!children.length) return;
 
         children.forEach((c) => {
@@ -146,7 +165,11 @@ export function useStaggerInView(
                 animate(
                     children,
                     { opacity: [0, 1], y: [y, 0] },
-                    { duration, delay: stagger(gap), easing: [0.2, 0.7, 0.2, 1] },
+                    {
+                        duration,
+                        delay: stagger(gap),
+                        easing: [0.2, 0.7, 0.2, 1],
+                    },
                 );
             },
             { amount: 0.05 },

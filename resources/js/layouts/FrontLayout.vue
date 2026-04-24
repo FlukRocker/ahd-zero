@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from 'vue';
-import SiteHeader from '@/components/ahd/SiteHeader.vue';
 import Footer from '@/components/ahd/Footer.vue';
 import SearchOverlay from '@/components/ahd/SearchOverlay.vue';
+import SiteHeader from '@/components/ahd/SiteHeader.vue';
 import { usePageTransition } from '@/composables/usePageTransition';
+import { onBeforeUnmount, onMounted, ref } from 'vue';
 
 const searchOpen = ref(false);
 const mainEl = ref<HTMLElement | null>(null);
@@ -22,7 +22,7 @@ usePageTransition(() => mainEl.value);
 </script>
 
 <template>
-    <div class="min-h-screen flex flex-col">
+    <div class="flex min-h-screen flex-col">
         <SiteHeader @open-search="searchOpen = true" />
         <main ref="mainEl" class="flex-1">
             <slot />

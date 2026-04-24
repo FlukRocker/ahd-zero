@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { ref } from 'vue';
-import { Head, router } from '@inertiajs/vue3';
-import { debouncedWatch } from '@vueuse/core';
-import FrontLayout from '@/layouts/FrontLayout.vue';
 import Pagination from '@/components/Pagination.vue';
 import AhdIcon from '@/components/ahd/AhdIcon.vue';
 import { useAutoReveal } from '@/composables/useReveal';
 import { useSeo } from '@/composables/useSeo';
+import FrontLayout from '@/layouts/FrontLayout.vue';
+import { Head, router } from '@inertiajs/vue3';
+import { debouncedWatch } from '@vueuse/core';
+import { ref } from 'vue';
 
 interface StaffItem {
     id: number;
@@ -31,7 +31,11 @@ const q = ref(props.query || '');
 debouncedWatch(
     q,
     (val) => {
-        router.get('/staff', { q: val }, { preserveScroll: true, preserveState: true, replace: true });
+        router.get(
+            '/staff',
+            { q: val },
+            { preserveScroll: true, preserveState: true, replace: true },
+        );
     },
     { debounce: 350 },
 );
@@ -44,45 +48,69 @@ useAutoReveal();
 <template>
     <Head title="ทีมงาน" />
     <FrontLayout>
-        <section class="max-w-[1440px] mx-auto px-6 lg:px-10 pt-16 pb-6">
-            <div class="font-mono text-[11px] tracking-[0.25em] uppercase mb-3" style="color: hsl(var(--fg-muted));">
+        <section class="mx-auto max-w-[1440px] px-6 pt-16 pb-6 lg:px-10">
+            <div
+                class="mb-3 font-mono text-[11px] tracking-[0.25em] uppercase"
+                style="color: hsl(var(--fg-muted))"
+            >
                 ไดเรกทอรี
             </div>
-            <h1 class="font-display italic leading-none mb-6" style="font-size: clamp(48px, 7vw, 80px);">
+            <h1
+                class="font-display mb-6 leading-none italic"
+                style="font-size: clamp(48px, 7vw, 80px)"
+            >
                 ทีมงาน
             </h1>
             <div
-                class="flex items-center gap-3 px-4 py-2 rounded-full max-w-md"
-                style="background: hsl(var(--bg-soft)); border: 1px solid hsl(var(--border-ahd));"
+                class="flex max-w-md items-center gap-3 rounded-full px-4 py-2"
+                style="
+                    background: hsl(var(--bg-soft));
+                    border: 1px solid hsl(var(--border-ahd));
+                "
             >
                 <AhdIcon name="search" :size="16" />
                 <input
                     v-model="q"
                     type="text"
                     placeholder="ค้นหาทีมงาน…"
-                    class="flex-1 bg-transparent outline-none text-[14px]"
+                    class="flex-1 bg-transparent text-[14px] outline-none"
                 />
             </div>
         </section>
 
-        <section class="max-w-[1440px] mx-auto px-6 lg:px-10 reveal">
-            <div class="grid gap-3" style="grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));">
+        <section class="reveal mx-auto max-w-[1440px] px-6 lg:px-10">
+            <div
+                class="grid gap-3"
+                style="
+                    grid-template-columns: repeat(
+                        auto-fill,
+                        minmax(220px, 1fr)
+                    );
+                "
+            >
                 <div
                     v-for="s in staffList.data"
                     :key="s.id"
-                    class="flex items-center gap-3 p-3 rounded-xl"
-                    style="background: hsl(var(--bg-elev)); border: 1px solid hsl(var(--border-ahd));"
+                    class="flex items-center gap-3 rounded-xl p-3"
+                    style="
+                        background: hsl(var(--bg-elev));
+                        border: 1px solid hsl(var(--border-ahd));
+                    "
                 >
                     <img
                         v-if="s.image_url"
                         :src="s.image_url"
                         :alt="s.name"
-                        class="w-12 h-12 rounded-full object-cover shrink-0"
+                        class="h-12 w-12 shrink-0 rounded-full object-cover"
                         loading="lazy"
                     />
                     <div class="min-w-0 flex-1">
-                        <div class="font-medium truncate">{{ s.name }}</div>
-                        <div v-if="s.name_japanese" class="text-[12px] font-mono truncate" style="color: hsl(var(--fg-muted));">
+                        <div class="truncate font-medium">{{ s.name }}</div>
+                        <div
+                            v-if="s.name_japanese"
+                            class="truncate font-mono text-[12px]"
+                            style="color: hsl(var(--fg-muted))"
+                        >
                             {{ s.name_japanese }}
                         </div>
                     </div>

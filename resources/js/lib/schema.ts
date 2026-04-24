@@ -28,7 +28,11 @@ export function siteJsonLd(appName: string, appUrl: string) {
     };
 }
 
-export function organizationJsonLd(appName: string, appUrl: string, logo?: string) {
+export function organizationJsonLd(
+    appName: string,
+    appUrl: string,
+    logo?: string,
+) {
     return {
         type: 'application/ld+json' as const,
         innerHTML: JSON.stringify({
@@ -65,13 +69,21 @@ export function tvSeriesJsonLd(input: TvSeriesInput) {
     if (input.alternateName) payload.alternateName = input.alternateName;
     if (input.description) payload.description = input.description;
     if (input.image) payload.image = input.image;
-    if (input.numberOfEpisodes != null) payload.numberOfEpisodes = input.numberOfEpisodes;
+    if (input.numberOfEpisodes != null)
+        payload.numberOfEpisodes = input.numberOfEpisodes;
     if (input.startDate) payload.startDate = input.startDate;
     if (input.endDate) payload.endDate = input.endDate;
     if (input.genre?.length) payload.genre = input.genre;
-    if (input.actor?.length) payload.actor = input.actor.map((a) => ({ '@type': 'Person', name: a.name }));
+    if (input.actor?.length)
+        payload.actor = input.actor.map((a) => ({
+            '@type': 'Person',
+            name: a.name,
+        }));
     if (input.productionCompany?.length)
-        payload.productionCompany = input.productionCompany.map((c) => ({ '@type': 'Organization', name: c.name }));
+        payload.productionCompany = input.productionCompany.map((c) => ({
+            '@type': 'Organization',
+            name: c.name,
+        }));
 
     return {
         type: 'application/ld+json' as const,

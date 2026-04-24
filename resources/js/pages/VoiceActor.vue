@@ -1,14 +1,14 @@
 <script setup lang="ts">
-import { computed } from 'vue';
-import { Head } from '@inertiajs/vue3';
-import FrontLayout from '@/layouts/FrontLayout.vue';
 import PosterCard from '@/components/ahd/PosterCard.vue';
 import StaggerGrid from '@/components/ahd/StaggerGrid.vue';
 import Pagination from '@/components/Pagination.vue';
-import { toCardItems, type AnimeRecord } from '@/lib/animeCard';
 import { useAutoReveal } from '@/composables/useReveal';
 import { useSeo } from '@/composables/useSeo';
+import FrontLayout from '@/layouts/FrontLayout.vue';
+import { toCardItems, type AnimeRecord } from '@/lib/animeCard';
 import { breadcrumbJsonLd } from '@/lib/schema';
+import { Head } from '@inertiajs/vue3';
+import { computed } from 'vue';
 
 interface Paginator<T> {
     data: T[];
@@ -39,7 +39,10 @@ useSeo(() => ({
         breadcrumbJsonLd([
             { name: 'หน้าแรก', url: '/' },
             { name: 'นักพากย์', url: '/voice-actors' },
-            { name: props.voiceActor.name, url: `/voice-actor/${props.voiceActor.id}` },
+            {
+                name: props.voiceActor.name,
+                url: `/voice-actor/${props.voiceActor.id}`,
+            },
         ]),
     ],
 }));
@@ -50,28 +53,45 @@ useAutoReveal();
 <template>
     <Head :title="voiceActor.name" />
     <FrontLayout>
-        <section class="max-w-[1440px] mx-auto px-6 lg:px-10 pt-16 pb-8 flex items-start gap-6">
+        <section
+            class="mx-auto flex max-w-[1440px] items-start gap-6 px-6 pt-16 pb-8 lg:px-10"
+        >
             <img
                 v-if="voiceActor.image_url"
                 :src="voiceActor.image_url"
                 :alt="voiceActor.name"
-                class="w-28 h-28 rounded-full object-cover shrink-0"
+                class="h-28 w-28 shrink-0 rounded-full object-cover"
             />
             <div>
-                <div class="font-mono text-[11px] tracking-[0.25em] uppercase mb-2" style="color: hsl(var(--fg-muted));">
+                <div
+                    class="mb-2 font-mono text-[11px] tracking-[0.25em] uppercase"
+                    style="color: hsl(var(--fg-muted))"
+                >
                     นักพากย์
                 </div>
-                <h1 class="font-display italic leading-none mb-2" style="font-size: clamp(40px, 6vw, 64px);">
+                <h1
+                    class="font-display mb-2 leading-none italic"
+                    style="font-size: clamp(40px, 6vw, 64px)"
+                >
                     {{ voiceActor.name }}
                 </h1>
-                <div v-if="voiceActor.name_japanese" class="font-display text-[22px] italic mb-1" style="color: hsl(var(--accent));">
+                <div
+                    v-if="voiceActor.name_japanese"
+                    class="font-display mb-1 text-[22px] italic"
+                    style="color: hsl(var(--accent))"
+                >
                     {{ voiceActor.name_japanese }}
                 </div>
-                <div v-if="voiceActor.language" class="chip font-mono inline-flex">{{ voiceActor.language }}</div>
+                <div
+                    v-if="voiceActor.language"
+                    class="chip inline-flex font-mono"
+                >
+                    {{ voiceActor.language }}
+                </div>
             </div>
         </section>
 
-        <section class="max-w-[1440px] mx-auto px-6 lg:px-10 reveal">
+        <section class="reveal mx-auto max-w-[1440px] px-6 lg:px-10">
             <StaggerGrid>
                 <PosterCard v-for="item in items" :key="item.id" :item="item" />
             </StaggerGrid>

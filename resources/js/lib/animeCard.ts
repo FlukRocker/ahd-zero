@@ -47,7 +47,8 @@ function resolveLandscape(a: AnimeRecord): string {
 }
 
 function resolveTag(a: AnimeRecord): string | null {
-    if (a.anime_status === 'Currently Airing' || a.anime_status === 'airing') return 'AIRING';
+    if (a.anime_status === 'Currently Airing' || a.anime_status === 'airing')
+        return 'AIRING';
     if (a.cat_type === 1) return 'SUB';
     if (a.cat_type === 2) return 'DUB';
     if (a.cat_type === 3) return 'MOVIE';
@@ -82,7 +83,9 @@ export function toCardItem(a: AnimeRecord): CardItem {
     };
 }
 
-export function toCardItems(list: AnimeRecord[] | undefined | null): CardItem[] {
+export function toCardItems(
+    list: AnimeRecord[] | undefined | null,
+): CardItem[] {
     if (!list) return [];
     return list.map(toCardItem);
 }

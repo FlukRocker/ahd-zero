@@ -1,8 +1,8 @@
 import '../css/app.css';
 
 import { createInertiaApp } from '@inertiajs/vue3';
-import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { createHead } from '@unhead/vue/client';
+import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { createApp, h, type DefineComponent } from 'vue';
 import { ZiggyVue } from 'ziggy-js';
 
@@ -13,8 +13,13 @@ import { initializeTheme } from './composables/useAppearance';
 // unhandled rejections and clutter the console without indicating an error.
 if (typeof window !== 'undefined') {
     window.addEventListener('unhandledrejection', (event) => {
-        const reason = event.reason as { cancelled?: boolean; message?: string } | undefined;
-        if (reason && (reason.cancelled === true || reason.message === 'cancelled')) {
+        const reason = event.reason as
+            | { cancelled?: boolean; message?: string }
+            | undefined;
+        if (
+            reason &&
+            (reason.cancelled === true || reason.message === 'cancelled')
+        ) {
             event.preventDefault();
         }
     });

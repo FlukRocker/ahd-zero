@@ -11,19 +11,22 @@ defineProps<{
 </script>
 
 <template>
-    <nav v-if="links.length > 3" class="flex flex-wrap items-center justify-center gap-1 mt-10">
+    <nav
+        v-if="links.length > 3"
+        class="mt-10 flex flex-wrap items-center justify-center gap-1"
+    >
         <template v-for="(link, key) in links" :key="key">
             <span
                 v-if="link.url === null"
-                class="px-3 py-2 text-[13px] font-mono opacity-40"
-                style="color: hsl(var(--fg-muted));"
+                class="px-3 py-2 font-mono text-[13px] opacity-40"
+                style="color: hsl(var(--fg-muted))"
             >
                 <span v-html="link.label" />
             </span>
             <Link
                 v-else
                 :href="link.url"
-                class="px-3 py-2 text-[13px] font-mono rounded-full transition-colors inline-block"
+                class="inline-block rounded-full px-3 py-2 font-mono text-[13px] transition-colors"
                 :style="
                     link.active
                         ? 'background: hsl(var(--fg)); color: hsl(var(--bg));'

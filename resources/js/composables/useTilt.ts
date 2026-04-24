@@ -1,8 +1,11 @@
-import { onBeforeUnmount, onMounted, type Ref } from 'vue';
 import { animate } from 'motion';
+import { onBeforeUnmount, onMounted, type Ref } from 'vue';
 
 function prefersReducedMotion() {
-    return typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    return (
+        typeof window !== 'undefined' &&
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    );
 }
 
 export interface TiltOptions {
@@ -14,7 +17,10 @@ export interface TiltOptions {
 /**
  * Pointer-driven 3D tilt. Snaps back on leave. No-op if reduced motion.
  */
-export function useTilt(target: Ref<HTMLElement | null>, options: TiltOptions = {}) {
+export function useTilt(
+    target: Ref<HTMLElement | null>,
+    options: TiltOptions = {},
+) {
     const { max = 6, scale = 1.02, perspective = 800 } = options;
     let rafId = 0;
     let el: HTMLElement | null = null;
@@ -38,7 +44,9 @@ export function useTilt(target: Ref<HTMLElement | null>, options: TiltOptions = 
         cancelAnimationFrame(rafId);
         animate(
             el,
-            { transform: `perspective(${perspective}px) rotateX(0deg) rotateY(0deg) scale(1)` },
+            {
+                transform: `perspective(${perspective}px) rotateX(0deg) rotateY(0deg) scale(1)`,
+            },
             { duration: 0.4, easing: [0.2, 0.7, 0.2, 1] },
         );
     }

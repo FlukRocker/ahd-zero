@@ -1,9 +1,12 @@
-import { onBeforeUnmount, onMounted } from 'vue';
 import { router } from '@inertiajs/vue3';
 import { animate } from 'motion';
+import { onBeforeUnmount, onMounted } from 'vue';
 
 function prefersReducedMotion() {
-    return typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    return (
+        typeof window !== 'undefined' &&
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    );
 }
 
 function animateEl(el: HTMLElement | null) {

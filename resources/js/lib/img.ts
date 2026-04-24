@@ -38,6 +38,8 @@ export interface ImgOptions {
     height?: number | string;
 }
 
-export const POSTER_SIZES = '(max-width: 600px) 45vw, (max-width: 1200px) 25vw, 200px';
-export const LANDSCAPE_SIZES = '(max-width: 800px) 90vw, (max-width: 1400px) 45vw, 340px';
+export const POSTER_SIZES =
+    '(max-width: 600px) 45vw, (max-width: 1200px) 25vw, 200px';
+export const LANDSCAPE_SIZES =
+    '(max-width: 800px) 90vw, (max-width: 1400px) 45vw, 340px';
 export const HERO_SIZES = '100vw';

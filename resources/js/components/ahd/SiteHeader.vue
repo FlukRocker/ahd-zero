@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
-import { Link, usePage } from '@inertiajs/vue3';
 import { useAppearance } from '@/composables/useAppearance';
+import { Link, usePage } from '@inertiajs/vue3';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import AhdIcon from './AhdIcon.vue';
 
 interface MemberInfo {
@@ -48,26 +48,46 @@ function isActive(href: string): boolean {
     <header
         class="sticky top-0 z-50 transition-all"
         :class="scrolled ? 'glass' : 'bg-transparent'"
-        :style="scrolled ? 'border-bottom: 1px solid hsl(var(--border-ahd));' : 'border-bottom: 1px solid transparent;'"
+        :style="
+            scrolled
+                ? 'border-bottom: 1px solid hsl(var(--border-ahd));'
+                : 'border-bottom: 1px solid transparent;'
+        "
     >
-        <div class="max-w-[1440px] mx-auto px-6 lg:px-10 flex items-center gap-8 h-[68px]">
-            <Link href="/" class="flex items-center gap-2 shrink-0">
+        <div
+            class="mx-auto flex h-[68px] max-w-[1440px] items-center gap-8 px-6 lg:px-10"
+        >
+            <Link href="/" class="flex shrink-0 items-center gap-2">
                 <div
-                    class="relative w-8 h-8 rounded-lg flex items-center justify-center"
-                    style="background: linear-gradient(135deg, hsl(var(--accent)), hsl(var(--accent) / 0.6));"
+                    class="relative flex h-8 w-8 items-center justify-center rounded-lg"
+                    style="
+                        background: linear-gradient(
+                            135deg,
+                            hsl(var(--accent)),
+                            hsl(var(--accent) / 0.6)
+                        );
+                    "
                 >
-                    <span class="text-white font-display text-xl italic leading-none" style="transform: translateY(-1px);">z</span>
+                    <span
+                        class="font-display text-xl leading-none text-white italic"
+                        style="transform: translateY(-1px)"
+                        >z</span
+                    >
                 </div>
                 <div class="leading-tight">
-                    <div class="font-display text-[22px] italic leading-none">Zero</div>
+                    <div class="font-display text-[22px] leading-none italic">
+                        Zero
+                    </div>
                     <div
                         class="font-mono text-[9px] tracking-[0.22em] uppercase"
-                        style="color: hsl(var(--fg-muted));"
-                    >anime · hd</div>
+                        style="color: hsl(var(--fg-muted))"
+                    >
+                        anime · hd
+                    </div>
                 </div>
             </Link>
 
-            <nav class="hidden lg:flex items-center gap-6 text-[14px]">
+            <nav class="hidden items-center gap-6 text-[14px] lg:flex">
                 <Link
                     v-for="n in nav"
                     :key="n.id"
@@ -78,32 +98,43 @@ function isActive(href: string): boolean {
                             ? 'color: hsl(var(--fg)); font-weight: 500;'
                             : 'color: hsl(var(--fg-muted));'
                     "
-                >{{ n.label }}</Link>
+                    >{{ n.label }}</Link
+                >
             </nav>
 
-            <div class="flex-1 hidden md:flex justify-center">
+            <div class="hidden flex-1 justify-center md:flex">
                 <button
                     type="button"
-                    class="flex items-center gap-3 px-4 py-2 rounded-full w-[340px]"
-                    style="background: hsl(var(--bg-soft)); border: 1px solid hsl(var(--border-ahd));"
+                    class="flex w-[340px] items-center gap-3 rounded-full px-4 py-2"
+                    style="
+                        background: hsl(var(--bg-soft));
+                        border: 1px solid hsl(var(--border-ahd));
+                    "
                     @click="emit('open-search')"
                 >
                     <AhdIcon name="search" :size="16" />
-                    <span class="text-[13px]" style="color: hsl(var(--fg-faint));">
+                    <span
+                        class="text-[13px]"
+                        style="color: hsl(var(--fg-faint))"
+                    >
                         ค้นหาอนิเมะ สตูดิโอ นักพากย์…
                     </span>
                     <span
-                        class="ml-auto font-mono text-[10px] px-1.5 py-0.5 rounded"
-                        style="background: hsl(var(--bg-elev)); border: 1px solid hsl(var(--border-ahd));"
-                    >⌘K</span>
+                        class="ml-auto rounded px-1.5 py-0.5 font-mono text-[10px]"
+                        style="
+                            background: hsl(var(--bg-elev));
+                            border: 1px solid hsl(var(--border-ahd));
+                        "
+                        >⌘K</span
+                    >
                 </button>
             </div>
 
-            <div class="flex items-center gap-2 ml-auto">
+            <div class="ml-auto flex items-center gap-2">
                 <button
                     type="button"
-                    class="w-10 h-10 rounded-full flex items-center justify-center"
-                    style="background: hsl(var(--bg-soft));"
+                    class="flex h-10 w-10 items-center justify-center rounded-full"
+                    style="background: hsl(var(--bg-soft))"
                     title="สลับธีม"
                     @click="toggleTheme"
                 >
@@ -112,8 +143,8 @@ function isActive(href: string): boolean {
                 </button>
                 <button
                     type="button"
-                    class="w-10 h-10 rounded-full flex items-center justify-center md:hidden"
-                    style="background: hsl(var(--bg-soft));"
+                    class="flex h-10 w-10 items-center justify-center rounded-full md:hidden"
+                    style="background: hsl(var(--bg-soft))"
                     @click="emit('open-search')"
                 >
                     <AhdIcon name="search" :size="18" />
@@ -122,27 +153,32 @@ function isActive(href: string): boolean {
                 <template v-if="member">
                     <Link
                         href="#"
-                        class="flex items-center gap-2 pr-3 pl-1 py-1 rounded-full"
-                        style="background: hsl(var(--bg-soft));"
+                        class="flex items-center gap-2 rounded-full py-1 pr-3 pl-1"
+                        style="background: hsl(var(--bg-soft))"
                     >
                         <div
-                            class="w-8 h-8 rounded-full bg-cover flex items-center justify-center font-display italic"
+                            class="font-display flex h-8 w-8 items-center justify-center rounded-full bg-cover italic"
                             :style="
                                 member.avatar
                                     ? `background-image: url('${member.avatar}');`
                                     : `background: hsl(var(--accent)); color: hsl(var(--accent-fg));`
                             "
                         >
-                            <span v-if="!member.avatar">{{ member.name.charAt(0) }}</span>
+                            <span v-if="!member.avatar">{{
+                                member.name.charAt(0)
+                            }}</span>
                         </div>
-                        <span class="text-[13px] hidden md:inline">{{ member.name.split(' ')[0] }}</span>
+                        <span class="hidden text-[13px] md:inline">{{
+                            member.name.split(' ')[0]
+                        }}</span>
                     </Link>
                 </template>
                 <template v-else>
                     <Link
                         href="/member/login"
-                        class="hidden md:inline-flex btn btn-ghost text-[13px] py-2 px-3"
-                    >เข้าสู่ระบบ</Link>
+                        class="btn btn-ghost hidden px-3 py-2 text-[13px] md:inline-flex"
+                        >เข้าสู่ระบบ</Link
+                    >
                 </template>
             </div>
         </div>
