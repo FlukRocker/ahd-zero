@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Support\AdsNavbar;
 use App\Support\SiteSettings;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Http\Request;
@@ -60,6 +61,9 @@ class HandleInertiaRequests extends Middleware
             ],
             'siteConfig' => [
                 'registrationEnabled' => SiteSettings::registrationEnabled(),
+            ],
+            'ads' => [
+                'navbar' => AdsNavbar::all(),
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
         ];
