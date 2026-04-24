@@ -8,6 +8,8 @@
 /storage/pail
 /storage/debugbar
 /storage/ads
+/.pm2
+/storage/logs/*.log
 /resources/js/actions
 /resources/js/routes
 /resources/js/wayfinder
