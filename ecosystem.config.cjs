@@ -4,18 +4,24 @@
  * Usage:
  *   pnpm install --prod=false   # build deps
  *   pnpm build:ssr              # emits bootstrap/ssr/ssr.js
- *   composer install --no-dev --optimize-autoloader
- *   pm2 start ecosystem.config.cjs --env production
+ *   composer84 install --no-dev --optimize-autoloader
+ *   PHP_BIN=php84 pm2 start ecosystem.config.cjs --env production
  *   pm2 save
  *   pm2 startup       # one-time, to register systemd unit
  *
  * Reload after deploy:
- *   pm2 reload ecosystem.config.cjs --update-env
+ *   PHP_BIN=php84 pm2 reload ecosystem.config.cjs --update-env
  *
  * Logs:
  *   pm2 logs ahd-ssr
  *   pm2 logs ahd-queue
+ *
+ * The shared host uses non-default PHP/Composer binaries. Override the PHP
+ * interpreter for the queue worker via the PHP_BIN env var (defaults to `php`
+ * for local dev). Composer is only used at deploy time, not by PM2.
  */
+const PHP_BIN = process.env.PHP_BIN || 'php';
+
 module.exports = {
     apps: [
         {
@@ -44,7 +50,7 @@ module.exports = {
             // Restart every 1000 jobs or 60min to recycle memory leaks.
             name: 'ahd-queue',
             script: 'artisan',
-            interpreter: 'php',
+            interpreter: PHP_BIN,
             args: 'queue:work --tries=3 --max-time=3600 --max-jobs=1000 --sleep=3',
             exec_mode: 'fork',
             instances: 1,
