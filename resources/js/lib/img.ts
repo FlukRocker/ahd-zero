@@ -13,14 +13,12 @@
  */
 
 const BUNNY_PROXY = 'https://img-cdn-proxy.shirokami.me';
-const BUNNY_PROXY_HOST = 'img-cdn-proxy.shirokami.me';
 
-// Only URLs that are ALREADY on the Bunny pull zone get optimizer params
-// appended. Everything else (img.shirokami.me, img-cdn.shirokami.me,
-// images.shirokami.me, cdn.myanimelist.net, ...) passes through unchanged
-// so the browser fetches direct from the origin host. Upstream is expected
-// to store image URLs already pointing at img-cdn-proxy.shirokami.me when
-// optimization is desired.
+// Only `img-cdn.shirokami.me` URLs get rewritten to the Bunny pull zone
+// (`img-cdn-proxy.shirokami.me`) with optimizer params appended.
+// Every other host (img.shirokami.me, images.shirokami.me, external CDNs,
+// or URLs already on the proxy) passes through unchanged.
+const PROXIED_SOURCE_HOST = 'img-cdn.shirokami.me';
 
 /**
  * Strip an existing Chevereto variant suffix (.md / .th) so we always feed
@@ -60,8 +58,9 @@ export function bunnyImg(
         return url;
     }
 
-    if (parsed.hostname !== BUNNY_PROXY_HOST) {
-        // Not on the Bunny pull zone — pass through unchanged.
+    if (parsed.hostname !== PROXIED_SOURCE_HOST) {
+        // Only img-cdn.shirokami.me gets rewritten through the Bunny proxy.
+        // Everything else passes through.
         return url;
     }
 
