@@ -242,16 +242,12 @@ class AnimeController extends Controller
 
         $allRelated = $relatedFromDb->concat($recommendedAnime)->take(6);
 
-        // Resolve a player URL. Try PlayerService (Drive ID → akuma-player) on
-        // both list_url and file_src; if all that fails, fall back to the raw
-        // list_url / file_src so a usable embed URL still reaches the iframe.
+        // Drive ID → akuma-player.xyz/play/{uid} (mirrors kurokami exactly).
+        // Do NOT fall back to the raw Drive URL — Google refuses to iframe it,
+        // which produces a broken/blocked embed instead of a working player.
         $playerService = app(\App\Services\PlayerService::class);
-        $rawList = $currentEpisode->list_url ?? null;
-        $rawFile = $currentEpisode->file_src ?? null;
-        $playerUrl = $playerService->getPlayerUrl($rawList)
-            ?? $playerService->getPlayerUrl($rawFile)
-            ?? $rawList
-            ?? $rawFile;
+        $playerUrl = $playerService->getPlayerUrl($currentEpisode->list_url ?? null)
+            ?? $playerService->getPlayerUrl($currentEpisode->file_src ?? null);
 
         return Inertia::render('Episode', [
             'anime' => [

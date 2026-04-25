@@ -37,7 +37,9 @@ return [
 
     'akuma_player' => [
         'url' => env('AKUMA_PLAYER_URL', 'http://65.108.61.69:3002'),
-        'token' => env('AKUMA_PLAYER_TOKEN'),
+        // Default token kept inline so the API can resolve Drive IDs without
+        // requiring an env var on every host (matches kurokami's behavior).
+        'token' => env('AKUMA_PLAYER_TOKEN', '23xSO2aBkri5yY35sjA9'),
         'player_domain' => env('AKUMA_PLAYER_DOMAIN', 'https://akuma-player.xyz'),
         'ads_embed_url' => env('AKUMA_PLAYER_ADS_EMBED', 'https://anime-hdzero.com/player/embed.php'),
     ],
