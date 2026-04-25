@@ -711,6 +711,22 @@ input:focus-visible {
     margin: 0.5em 0;
 }
 
+/* CSS-driven page transition (composables/usePageTransition.ts). Pure CSS so
+ * the GPU compositor handles it — zero JS layout reads, zero forced reflow on
+ * every Inertia navigation. */
+.page-tx-pre {
+    opacity: 0;
+    transform: translate3d(0, 16px, 0);
+}
+
+.page-tx-in {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+    transition:
+        opacity 0.45s cubic-bezier(0.2, 0.7, 0.2, 1),
+        transform 0.45s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
 /* Page transitions — used by <transition name="..."> on the Inertia outlet */
 .crossfade-enter-active,
 .crossfade-leave-active {

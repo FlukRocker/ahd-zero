@@ -38,46 +38,51 @@ export function useReveal(options: RevealOptions = {}) {
     function init(root: HTMLElement | Document = document) {
         if (prefersReducedMotion()) return;
 
-        const targets = root.querySelectorAll<HTMLElement>(selector);
-        targets.forEach((target) => {
-            // Pre-hide right before observing. Done synchronously so the
-            // browser doesn't paint the visible state first.
-            target.style.opacity = '0';
-            target.style.transform = `translateY(${y}px)`;
-            target.style.willChange = 'opacity, transform';
+        const targets = Array.from(
+            root.querySelectorAll<HTMLElement>(selector),
+        );
+        if (!targets.length) return;
 
-            // Failsafe: if for any reason inView never fires within 1.2s, force
-            // the element visible. Better to skip the animation than hide data.
-            const failsafe = window.setTimeout(() => {
-                target.style.opacity = '1';
-                target.style.transform = '';
-                target.style.willChange = '';
-            }, 1200);
+        // Defer DOM writes to next animation frame so we don't bisect Vue's
+        // mount layout pass — prevents forced reflow when Motion later reads
+        // element bounds for the animate() call.
+        requestAnimationFrame(() => {
+            targets.forEach((target) => {
+                target.style.opacity = '0';
+                target.style.transform = `translateY(${y}px)`;
+                target.style.willChange = 'opacity, transform';
 
-            const stop = inView(
-                target,
-                () => {
+                const failsafe = window.setTimeout(() => {
+                    target.style.opacity = '1';
+                    target.style.transform = '';
+                    target.style.willChange = '';
+                }, 1200);
+
+                const stop = inView(
+                    target,
+                    () => {
+                        window.clearTimeout(failsafe);
+                        animate(
+                            target,
+                            { opacity: [0, 1], y: [y, 0] },
+                            { duration, delay, easing: [0.2, 0.7, 0.2, 1] },
+                        );
+                        return () => {
+                            if (!once) {
+                                animate(
+                                    target,
+                                    { opacity: [1, 0], y: [0, y] },
+                                    { duration: 0.3 },
+                                );
+                            }
+                        };
+                    },
+                    { amount: 0.1 },
+                );
+                stops.push(() => {
                     window.clearTimeout(failsafe);
-                    animate(
-                        target,
-                        { opacity: [0, 1], y: [y, 0] },
-                        { duration, delay, easing: [0.2, 0.7, 0.2, 1] },
-                    );
-                    return () => {
-                        if (!once) {
-                            animate(
-                                target,
-                                { opacity: [1, 0], y: [0, y] },
-                                { duration: 0.3 },
-                            );
-                        }
-                    };
-                },
-                { amount: 0.1 },
-            );
-            stops.push(() => {
-                window.clearTimeout(failsafe);
-                stop();
+                    stop();
+                });
             });
         });
     }
@@ -137,43 +142,45 @@ export function useStaggerInView(
         const el = containerRef.value;
         if (!el || prefersReducedMotion()) return;
 
-        const children = Array.from(
-            el.querySelectorAll<HTMLElement>(childSelector),
-        );
-        if (!children.length) return;
+        // Defer reads + writes to next frame — see useReveal.init() comment.
+        requestAnimationFrame(() => {
+            const children = Array.from(
+                el.querySelectorAll<HTMLElement>(childSelector),
+            );
+            if (!children.length) return;
 
-        children.forEach((c) => {
-            c.style.opacity = '0';
-            c.style.transform = `translateY(${y}px)`;
-        });
-
-        // Failsafe: force-show children after 1.2s if observer never fires.
-        failsafe = window.setTimeout(() => {
             children.forEach((c) => {
-                c.style.opacity = '1';
-                c.style.transform = '';
+                c.style.opacity = '0';
+                c.style.transform = `translateY(${y}px)`;
             });
-        }, 1200);
 
-        stop = inView(
-            el,
-            () => {
-                if (failsafe !== null) {
-                    window.clearTimeout(failsafe);
-                    failsafe = null;
-                }
-                animate(
-                    children,
-                    { opacity: [0, 1], y: [y, 0] },
-                    {
-                        duration,
-                        delay: stagger(gap),
-                        easing: [0.2, 0.7, 0.2, 1],
-                    },
-                );
-            },
-            { amount: 0.05 },
-        );
+            failsafe = window.setTimeout(() => {
+                children.forEach((c) => {
+                    c.style.opacity = '1';
+                    c.style.transform = '';
+                });
+            }, 1200);
+
+            stop = inView(
+                el,
+                () => {
+                    if (failsafe !== null) {
+                        window.clearTimeout(failsafe);
+                        failsafe = null;
+                    }
+                    animate(
+                        children,
+                        { opacity: [0, 1], y: [y, 0] },
+                        {
+                            duration,
+                            delay: stagger(gap),
+                            easing: [0.2, 0.7, 0.2, 1],
+                        },
+                    );
+                },
+                { amount: 0.05 },
+            );
+        });
     });
 
     onBeforeUnmount(() => {
