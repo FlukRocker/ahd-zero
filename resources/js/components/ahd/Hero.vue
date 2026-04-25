@@ -117,6 +117,9 @@ watch(
                         :src="cur.landscape"
                         class="h-full w-full object-cover"
                         :alt="cur.title"
+                        loading="eager"
+                        decoding="async"
+                        fetchpriority="high"
                     />
                 </Transition>
                 <div class="grad-hero" />
@@ -203,6 +206,9 @@ watch(
                                 :src="cur.poster"
                                 class="h-full w-full object-cover"
                                 :alt="cur.title"
+                                loading="eager"
+                                decoding="async"
+                                fetchpriority="high"
                             />
                         </div>
                     </div>
@@ -289,6 +295,7 @@ watch(
                             :alt="cur.title"
                             loading="eager"
                             decoding="async"
+                            fetchpriority="high"
                         />
                         <div
                             class="absolute top-4 right-4 left-4 flex justify-between"

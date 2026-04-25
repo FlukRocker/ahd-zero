@@ -2,17 +2,17 @@
 
 @import 'tw-animate-css';
 
-/* Fonts — self-hosted */
+/* Fonts — self-hosted. Trimmed weights: dropped geist-sans/300 (no
+ * font-light usage in the codebase). Fraunces is loaded only when the
+ * admin tweaks-panel switches to typePairing=fraunces (defer). */
 @import '@fontsource/instrument-serif/400.css';
 @import '@fontsource/instrument-serif/400-italic.css';
-@import '@fontsource/geist-sans/300.css';
 @import '@fontsource/geist-sans/400.css';
 @import '@fontsource/geist-sans/500.css';
 @import '@fontsource/geist-sans/600.css';
 @import '@fontsource/geist-sans/700.css';
 @import '@fontsource/geist-mono/400.css';
 @import '@fontsource/geist-mono/500.css';
-@import '@fontsource-variable/fraunces';
 
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 @source '../../storage/framework/views/*.php';

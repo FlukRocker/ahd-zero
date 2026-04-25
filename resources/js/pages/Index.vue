@@ -11,6 +11,7 @@ import FrontLayout from '@/layouts/FrontLayout.vue';
 import { toCardItem, toCardItems, type AnimeRecord } from '@/lib/animeCard';
 import { organizationJsonLd, siteJsonLd } from '@/lib/schema';
 import { Head } from '@inertiajs/vue3';
+import { useHead } from '@unhead/vue';
 import { computed } from 'vue';
 
 interface Paginator<T> {
@@ -51,6 +52,23 @@ useSeo(() => ({
         organizationJsonLd(appName.value, appUrl.value),
     ],
 }));
+
+// Preload the first hero poster — that <img> is the LCP element. Telling the
+// browser early shaves 1-2s off the LCP metric on slow mobile.
+useHead(() => {
+    const first = heroItems.value[0];
+    if (!first?.poster) return {};
+    return {
+        link: [
+            {
+                rel: 'preload',
+                as: 'image',
+                href: first.poster,
+                fetchpriority: 'high',
+            },
+        ],
+    };
+});
 
 useAutoReveal();
 </script>
