@@ -13,12 +13,14 @@
  */
 
 const BUNNY_PROXY = 'https://img-cdn-proxy.shirokami.me';
+const BUNNY_PROXY_HOST = 'img-cdn-proxy.shirokami.me';
 
-// Hosts whose images go through the Bunny Optimizer proxy. Note:
-// `images.shirokami.me` is intentionally NOT on this list — that origin
-// serves files Bunny can't proxy (different pull zone), so the helper
-// returns the URL untouched and the browser fetches the original.
-const PROXIED_SOURCE_HOSTS = new Set(['img.shirokami.me', 'img-cdn.shirokami.me']);
+// Only URLs that are ALREADY on the Bunny pull zone get optimizer params
+// appended. Everything else (img.shirokami.me, img-cdn.shirokami.me,
+// images.shirokami.me, cdn.myanimelist.net, ...) passes through unchanged
+// so the browser fetches direct from the origin host. Upstream is expected
+// to store image URLs already pointing at img-cdn-proxy.shirokami.me when
+// optimization is desired.
 
 /**
  * Strip an existing Chevereto variant suffix (.md / .th) so we always feed
@@ -58,8 +60,8 @@ export function bunnyImg(
         return url;
     }
 
-    if (!PROXIED_SOURCE_HOSTS.has(parsed.hostname)) {
-        // External origin — Bunny pull zone won't proxy it. Return as-is.
+    if (parsed.hostname !== BUNNY_PROXY_HOST) {
+        // Not on the Bunny pull zone — pass through unchanged.
         return url;
     }
 
@@ -76,6 +78,14 @@ export function bunnyImg(
     if (opts.format && opts.format !== 'auto') {
         params.set('format', opts.format);
     }
+
+    // Preserve any pre-existing query params the upstream URL already had
+    // (e.g. signed-URL signatures) — only append our optimizer params.
+    parsed.search.replace(/^\?/, '').split('&').forEach((kv) => {
+        if (!kv) return;
+        const [k, v = ''] = kv.split('=');
+        if (k && !params.has(k)) params.append(k, v);
+    });
 
     return `${BUNNY_PROXY}${path}?${params.toString()}`;
 }
