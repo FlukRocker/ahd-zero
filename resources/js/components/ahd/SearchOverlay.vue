@@ -69,6 +69,7 @@ function onKey(e: KeyboardEvent) {
                     <button
                         type="button"
                         class="ml-2 opacity-60 hover:opacity-100"
+                        aria-label="ปิดค้นหา"
                         @click="emit('close')"
                     >
                         <AhdIcon name="close" :size="18" />

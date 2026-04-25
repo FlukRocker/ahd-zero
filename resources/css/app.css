@@ -29,8 +29,11 @@
     --bg-elev: 0 0% 100%;
     --bg-soft: 30 30% 94%;
     --fg: 340 25% 12%;
-    --fg-muted: 340 12% 40%;
-    --fg-faint: 340 8% 60%;
+    --fg-muted: 340 12% 38%;
+    /* WCAG AA contrast on cream bg requires lightness ≤46%. Was 60% which
+     * gave ~2.8:1 ratio — Lighthouse flagged it. Bumped darker so faint
+     * captions/labels still pass 4.5:1. */
+    --fg-faint: 340 10% 42%;
     --border-ahd: 340 15% 88%;
     --border-strong: 340 15% 78%;
     --accent: 350 80% 68%;
@@ -90,8 +93,10 @@
     --bg-elev: 0 0% 8%;
     --bg-soft: 0 0% 11%;
     --fg: 0 0% 98%;
-    --fg-muted: 0 0% 68%;
-    --fg-faint: 0 0% 48%;
+    --fg-muted: 0 0% 78%;
+    /* Same AA contrast fix on dark bg (raised from 48% — failed 4.5:1
+     * against the 4% near-black bg). 65% lightness clears it. */
+    --fg-faint: 0 0% 65%;
     --border-ahd: 0 0% 16%;
     --border-strong: 0 0% 26%;
     --accent-soft: 350 50% 18%;

@@ -136,15 +136,17 @@ function isActive(href: string): boolean {
                     class="flex h-10 w-10 items-center justify-center rounded-full"
                     style="background: hsl(var(--bg-soft))"
                     title="สลับธีม"
+                    aria-label="สลับธีมสว่าง/มืด"
                     @click="toggleTheme"
                 >
-                    <span v-if="appearance === 'dark'">☼</span>
-                    <span v-else>☾</span>
+                    <span v-if="appearance === 'dark'" aria-hidden="true">☼</span>
+                    <span v-else aria-hidden="true">☾</span>
                 </button>
                 <button
                     type="button"
                     class="flex h-10 w-10 items-center justify-center rounded-full md:hidden"
                     style="background: hsl(var(--bg-soft))"
+                    aria-label="ค้นหา"
                     @click="emit('open-search')"
                 >
                     <AhdIcon name="search" :size="18" />

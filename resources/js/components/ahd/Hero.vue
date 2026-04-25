@@ -354,6 +354,8 @@ watch(
                         type="button"
                         class="pager-dot"
                         :class="{ active: i === idx }"
+                        :aria-label="`ไปยังสไลด์ ${i + 1}`"
+                        :aria-current="i === idx ? 'true' : undefined"
                         @click="go(i)"
                     />
                 </div>
