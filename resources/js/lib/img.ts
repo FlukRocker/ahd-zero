@@ -14,11 +14,11 @@
 
 const BUNNY_PROXY = 'https://img-cdn-proxy.shirokami.me';
 
-const PROXIED_SOURCE_HOSTS = new Set([
-    'img.shirokami.me',
-    'img-cdn.shirokami.me',
-    'images.shirokami.me',
-]);
+// Hosts whose images go through the Bunny Optimizer proxy. Note:
+// `images.shirokami.me` is intentionally NOT on this list — that origin
+// serves files Bunny can't proxy (different pull zone), so the helper
+// returns the URL untouched and the browser fetches the original.
+const PROXIED_SOURCE_HOSTS = new Set(['img.shirokami.me', 'img-cdn.shirokami.me']);
 
 /**
  * Strip an existing Chevereto variant suffix (.md / .th) so we always feed

@@ -18,6 +18,12 @@ describe('bunnyImg', () => {
         ).toBe('https://cdn.myanimelist.net/images/anime/1/abc.jpg');
     });
 
+    it('passes images.shirokami.me through unchanged (not on Bunny zone)', () => {
+        expect(
+            bunnyImg('https://images.shirokami.me/i/abc.gif', { width: 360 }),
+        ).toBe('https://images.shirokami.me/i/abc.gif');
+    });
+
     it('rewrites img.shirokami.me to the proxy host with width + quality', () => {
         const out = bunnyImg(
             'https://img.shirokami.me/images/2024/abc.png',
