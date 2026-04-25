@@ -40,5 +40,9 @@ createServer(
                 return app;
             },
         }),
-    { cluster: true, port: ssrPort },
+    // Single-process SSR. PM2 supervises the master (fork mode); avoid
+    // Node cluster on top, which leaks memory under sustained traffic and
+    // was triggering the 5-9min restart loop. Scale by adding more PM2
+    // instances on different ports if the single worker saturates a CPU.
+    { cluster: false, port: ssrPort },
 );

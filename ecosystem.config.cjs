@@ -33,24 +33,41 @@
 const PHP_BIN = process.env.PHP_BIN || 'php';
 const INERTIA_SSR_PORT = process.env.INERTIA_SSR_PORT || '13715';
 const QUEUE_WORKER_ENABLED = process.env.QUEUE_WORKER === '1';
+const SSR_MEMORY_LIMIT = process.env.SSR_MEMORY_LIMIT || '1024M';
 
 const apps = [
     {
         // Inertia SSR — serves pre-rendered HTML on INERTIA_SSR_PORT.
         // Laravel's Inertia::render() forwards to this node process when
         // config('inertia.ssr.url') points here.
+        //
+        // Run in `fork` mode (NOT `cluster`). The Inertia createServer call
+        // already spawns its own Node `cluster` worker pool when given
+        // { cluster: true } (see resources/js/ssr.ts). Wrapping that in PM2
+        // cluster mode produces double-forking, port-bind races, and the
+        // memory churn that was triggering a restart every 5-9 minutes.
+        //
+        // Memory limit raised to 1G — Vue SSR on a 1M-row anime DB spikes
+        // hard per render and the previous 512M cap was being hit cleanly.
+        // Override via SSR_MEMORY_LIMIT env if needed.
         name: 'ahd-ssr',
         script: 'bootstrap/ssr/ssr.js',
         interpreter: 'node',
-        exec_mode: 'cluster',
+        exec_mode: 'fork',
         instances: 1,
         autorestart: true,
         watch: false,
-        max_memory_restart: '512M',
+        max_memory_restart: SSR_MEMORY_LIMIT,
+        kill_timeout: 5000,
+        listen_timeout: 10000,
         env: {
             NODE_ENV: 'production',
             APP_ENV: 'production',
             INERTIA_SSR_PORT,
+            // Cap V8 old-space at 80% of the PM2 cap so V8 GCs hard before
+            // PM2 SIGTERMs the process. Cleaner shutdown, no in-flight
+            // render losses.
+            NODE_OPTIONS: '--max-old-space-size=820',
         },
         error_file: 'storage/logs/ssr.error.log',
         out_file: 'storage/logs/ssr.out.log',
