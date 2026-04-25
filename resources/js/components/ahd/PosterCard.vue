@@ -12,8 +12,15 @@ const props = defineProps<{ item: CardItem; rank?: number | null }>();
 const tiltEl = ref<HTMLElement | null>(null);
 useTilt(tiltEl, { max: 5, scale: 1.03 });
 
-const src = computed(() => bunnyImg(props.item.poster, { width: 360 }));
-const srcset = computed(() => bunnySrcset(props.item.poster, POSTER_WIDTHS));
+// Force WebP on listing posters — they fill the viewport in dense grids,
+// total bytes matter more than format flexibility. Bunny re-encodes from
+// the source on demand and edge-caches per (width, format) tuple.
+const src = computed(() =>
+    bunnyImg(props.item.poster, { width: 360, format: 'webp' }),
+);
+const srcset = computed(() =>
+    bunnySrcset(props.item.poster, POSTER_WIDTHS, { format: 'webp' }),
+);
 </script>
 
 <template>

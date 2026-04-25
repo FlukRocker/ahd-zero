@@ -210,6 +210,7 @@ useAutoReveal();
                             v-if="prevEp"
                             :href="`/anime/${anime.cat_id}/episode/${prevEp.list_id}`"
                             class="btn btn-ghost"
+                            preserve-scroll
                         >
                             <AhdIcon name="back" :size="14" /> ก่อนหน้า
                         </Link>
@@ -217,6 +218,7 @@ useAutoReveal();
                             v-if="nextEp"
                             :href="`/anime/${anime.cat_id}/episode/${nextEp.list_id}`"
                             class="btn btn-primary"
+                            preserve-scroll
                         >
                             ถัดไป <AhdIcon name="skip" :size="14" />
                         </Link>
@@ -286,6 +288,7 @@ useAutoReveal();
                                             ? 'background: hsl(var(--accent) / 0.15); color: hsl(var(--fg));'
                                             : ''
                                     "
+                                    preserve-scroll
                                 >
                                     <AhdIcon name="play" :size="12" />
                                     <span class="truncate">{{
