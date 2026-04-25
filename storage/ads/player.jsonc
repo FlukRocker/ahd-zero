@@ -1,0 +1,16 @@
+// Single-banner ad slots flanking the player on /anime/{id}/episode/{id}.
+// Each slot is one banner — set to null or remove to hide.
+//   top:    rendered above the iframe
+//   bottom: rendered between the player controls row and the synopsis
+{
+    "top": {
+        "href": "https://7893233.com/Register?f=1033293",
+        "src": "https://img.shirokami.me/images/2025/09/22/2646824d9f0ddf28212a07f5b0107f58.gif",
+        "alt": "7893233"
+    },
+    "bottom": {
+        "href": "https://djun88.vip/?uagt=bookinga001&path=signup",
+        "src": "https://img.shirokami.me/images/2025/05/09/3364d735a0d25ff9427a097f636130a2.gif",
+        "alt": "djun88"
+    }
+}

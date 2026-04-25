@@ -3,6 +3,9 @@ import AdsBanner, {
     type BannerItem,
 } from '@/components/ahd/AdsBanner.vue';
 import AhdIcon from '@/components/ahd/AhdIcon.vue';
+import PlayerAdSlot, {
+    type PlayerAdItem,
+} from '@/components/ahd/PlayerAdSlot.vue';
 import Rail from '@/components/ahd/Rail.vue';
 import SectionHeader from '@/components/ahd/SectionHeader.vue';
 import { useAutoReveal } from '@/composables/useReveal';
@@ -52,6 +55,7 @@ const props = defineProps<{
     episodes: EpisodeItem[];
     relatedAnime?: AnimeRecord[];
     adsBanners?: BannerItem[];
+    playerAds?: { top: PlayerAdItem | null; bottom: PlayerAdItem | null };
 }>();
 
 const page = usePage<{ playerConfig?: { adsEmbedUrl?: string | null } }>();
@@ -165,6 +169,12 @@ useAutoReveal();
 
             <div class="grid grid-cols-12 gap-6">
                 <div class="col-span-12 lg:col-span-8">
+                    <PlayerAdSlot
+                        v-if="playerAds?.top"
+                        :ad="playerAds.top"
+                        class="mb-3"
+                    />
+
                     <div
                         class="relative w-full overflow-hidden rounded-2xl"
                         style="aspect-ratio: 16/9; background: #000"
@@ -228,6 +238,12 @@ useAutoReveal();
                             </button>
                         </div>
                     </div>
+
+                    <PlayerAdSlot
+                        v-if="playerAds?.bottom"
+                        :ad="playerAds.bottom"
+                        class="mt-4"
+                    />
 
                     <div v-if="anime.cat_desc" class="mt-8">
                         <div

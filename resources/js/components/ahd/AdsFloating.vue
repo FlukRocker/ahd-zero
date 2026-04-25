@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, ref } from 'vue';
 import { usePage } from '@inertiajs/vue3';
 
 interface FloatingItem {
@@ -15,32 +15,32 @@ interface FloatingPayload {
     bottom: FloatingItem[];
 }
 
-const STORAGE_KEY = 'ahd.adsFloating.dismissed';
-
-const page = usePage<{ ads?: { floating?: FloatingPayload } }>();
+const page = usePage<{ floatingAds?: FloatingPayload }>();
 const data = computed<FloatingPayload>(
     () =>
-        page.props.ads?.floating ?? {
+        page.props.floatingAds ?? {
             left: null,
             right: null,
             bottom: [],
         },
 );
 
+// Dismiss is page-local only — no localStorage / sessionStorage. Refresh
+// or new page = ads reappear. Keeps revenue intact while letting the
+// user temporarily clear screen real-estate.
 const visible = ref(true);
-
-onMounted(() => {
-    if (typeof window === 'undefined') return;
-    if (window.sessionStorage.getItem(STORAGE_KEY) === '1') {
-        visible.value = false;
-    }
-});
 
 function dismissAll() {
     visible.value = false;
-    if (typeof window !== 'undefined') {
-        window.sessionStorage.setItem(STORAGE_KEY, '1');
-    }
+}
+
+// Always force a sponsored rel even if upstream config left it empty —
+// missing rel="sponsored" tanks SEO score and PSI flags it as a security
+// concern. Falls back to a sensible default if config has no rel set.
+function safeRel(rel: string | undefined): string {
+    return (rel && rel.trim() !== '')
+        ? rel
+        : 'nofollow noopener sponsored noreferrer ugc';
 }
 
 const hasAny = computed(
@@ -62,7 +62,7 @@ const hasAny = computed(
             >×</button>
             <a
                 :href="data.left.href"
-                :rel="data.left.rel"
+                :rel="safeRel(data.left.rel)"
                 target="_blank"
                 class="rail-link"
             >
@@ -84,7 +84,7 @@ const hasAny = computed(
             >×</button>
             <a
                 :href="data.right.href"
-                :rel="data.right.rel"
+                :rel="safeRel(data.right.rel)"
                 target="_blank"
                 class="rail-link"
             >
@@ -108,7 +108,7 @@ const hasAny = computed(
                 v-for="(it, i) in data.bottom"
                 :key="i"
                 :href="it.href"
-                :rel="it.rel"
+                :rel="safeRel(it.rel)"
                 target="_blank"
                 class="floating-b-item"
             >
