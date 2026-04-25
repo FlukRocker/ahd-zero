@@ -42,9 +42,9 @@ const latestItems = computed(() => toCardItems(props.anime.data));
 const { appName, appUrl } = useAppMeta();
 
 useSeo(() => ({
-    title: 'ดูอนิเมะออนไลน์',
+    title: 'ดูอนิเมะออนไลน์ ซับไทย พากย์ไทย เดอะมูฟวี่ HD',
     description:
-        'ดูอนิเมะออนไลน์ ทั้งซับไทย พากย์ไทย เดอะมูฟวี่ คุณภาพ HD รับชมได้ทุกเรื่อง',
+        'ดูอนิเมะออนไลน์ฟรี รวมอนิเมะใหม่ล่าสุด ทั้งซับไทย พากย์ไทย เดอะมูฟวี่ คุณภาพ HD ดูง่าย ลื่นไหล อัปเดตทุกวัน รับชมได้ทุกอุปกรณ์ผ่าน Anime HD Zero',
     type: 'website',
     schema: [
         siteJsonLd(appName.value, appUrl.value),

@@ -30,4 +30,24 @@ export default defineConfig({
             },
         }),
     ],
+    build: {
+        rollupOptions: {
+            output: {
+                manualChunks(id) {
+                    // Pull motion into its own long-cacheable chunk so swapping
+                    // app code doesn't bust the animation lib cache, and the
+                    // front pages share one motion fetch across navigations.
+                    if (id.includes('node_modules/motion') || id.includes('node_modules/framer-motion')) {
+                        return 'motion';
+                    }
+                    if (id.includes('node_modules/@inertiajs')) {
+                        return 'inertia';
+                    }
+                    if (id.includes('node_modules/reka-ui')) {
+                        return 'reka';
+                    }
+                },
+            },
+        },
+    },
 });

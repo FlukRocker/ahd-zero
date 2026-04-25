@@ -42,8 +42,18 @@
 
     <title inertia>{{ config('app.name', 'Anime HD Zero') }}</title>
 
+    {{-- Fallback description so the page is never indexed without one if the
+         per-page useSeo() prop somehow skips a write. Inertia head will
+         override this on hydration. --}}
+    <meta name="description" content="ดูอนิเมะออนไลน์ฟรี ทั้งซับไทย พากย์ไทย เดอะมูฟวี่ คุณภาพ HD อัปเดตทุกวัน รับชมได้ทุกอุปกรณ์ผ่าน Anime HD Zero">
+
     <meta name="application-name" content="{{ config('app.name', 'Anime HD Zero') }}">
     <meta name="apple-mobile-web-app-title" content="{{ config('app.name', 'Anime HD Zero') }}">
+
+    {{-- DNS + TCP early so card poster requests don't pay full handshake cost. --}}
+    <link rel="preconnect" href="https://img.shirokami.me" crossorigin>
+    <link rel="preconnect" href="https://img-cdn.shirokami.me" crossorigin>
+    <link rel="dns-prefetch" href="https://akuma-player.xyz">
 
     <link rel="icon" type="image/png" href="/favicon.png">
     <link rel="icon" href="/favicon.ico" sizes="any">
