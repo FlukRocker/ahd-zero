@@ -84,12 +84,19 @@ const hasAny = computed(
         </a>
 
         <div v-if="data.bottom.length" class="floating-b">
+            <button
+                type="button"
+                class="floating-close"
+                aria-label="Close all ads"
+                @click="dismissAll"
+            >X</button>
             <a
                 v-for="(it, i) in data.bottom"
                 :key="i"
                 :href="it.href"
                 :rel="it.rel"
                 target="_blank"
+                class="floating-b-item"
             >
                 <img
                     :src="it.src"
@@ -99,13 +106,6 @@ const hasAny = computed(
                 />
             </a>
         </div>
-
-        <button
-            type="button"
-            class="floating-close"
-            aria-label="Close ads"
-            @click="dismissAll"
-        >×</button>
     </div>
 </template>
 
@@ -143,55 +143,54 @@ const hasAny = computed(
     height: auto;
 }
 
+/* Bottom strip stretches full viewport width. Close button sits as the first
+ * column at the left edge — same 90px height as the 728x90 banners. */
 .floating-b {
     position: fixed;
+    left: 0;
+    right: 0;
     bottom: 0;
-    left: 50%;
-    transform: translateX(-50%);
     display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-    justify-content: center;
+    align-items: stretch;
+    justify-content: flex-start;
     pointer-events: auto;
-    background: hsl(var(--bg) / 0.85);
-    backdrop-filter: blur(8px);
-    padding: 6px 10px;
-    border-top-left-radius: 12px;
-    border-top-right-radius: 12px;
-    box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.15);
-    max-width: calc(100vw - 24px);
+    background: #000;
+    box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.4);
+    height: 90px;
+    overflow: hidden;
 }
 
-.floating-b img {
+.floating-b-item {
+    display: flex;
+    align-items: center;
+    flex: 0 0 auto;
+}
+
+.floating-b-item img {
     display: block;
-    height: 60px;
+    height: 90px;
     width: auto;
-    border-radius: 4px;
 }
 
 .floating-close {
-    position: fixed;
-    top: 56px;
-    right: 12px;
-    width: 24px;
-    height: 24px;
+    flex: 0 0 90px;
+    height: 90px;
+    width: 90px;
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: 50%;
-    background: hsl(0 0% 0% / 0.7);
+    background: hsl(354 78% 56%);
     color: white;
-    font-size: 14px;
-    font-weight: 700;
+    font-size: 36px;
+    font-weight: 800;
     line-height: 1;
-    pointer-events: auto;
-    z-index: 1;
     cursor: pointer;
     border: none;
+    transition: background 0.15s;
 }
 
 .floating-close:hover {
-    background: hsl(0 0% 0%);
+    background: hsl(354 78% 48%);
 }
 
 /* Hide all floating ads on smaller viewports — too cramped to be useful. */
