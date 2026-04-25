@@ -167,8 +167,7 @@ watch(
                         <h1
                             data-hero-anim
                             class="font-display mb-6 text-[56px] leading-[0.95] italic md:text-[92px]"
-                            style="text-wrap: balance"
-                        >
+                            >
                             {{ cur.title }}
                         </h1>
                         <div
@@ -245,10 +244,7 @@ watch(
                     <h1
                         data-hero-anim
                         class="font-display mb-6 leading-[0.9] italic"
-                        style="
-                            font-size: clamp(60px, 10vw, 160px);
-                            text-wrap: balance;
-                        "
+                        style="font-size: clamp(60px, 10vw, 160px)"
                     >
                         {{ cur.title }}
                     </h1>

@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\AuthenticateMemberOrAdmin;
+use App\Http\Middleware\CacheBuildAssets;
 use App\Http\Middleware\HandleAppearance;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\SecurityHeaders;
@@ -24,6 +25,11 @@ return Application::configure(basePath: dirname(__DIR__))
             AddLinkHeadersForPreloadedAssets::class,
             SecurityHeaders::class,
         ]);
+
+        // Long-lived cache headers for hashed Vite assets in /build/*
+        // (covers `php artisan serve` / php-fpm-served static; nginx fronts
+        // typically serve these directly and need a separate config block).
+        $middleware->prepend(CacheBuildAssets::class);
 
         $middleware->alias([
             'auth.memberOrAdmin' => AuthenticateMemberOrAdmin::class,
