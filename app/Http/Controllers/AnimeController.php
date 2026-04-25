@@ -27,8 +27,12 @@ class AnimeController extends Controller
 {
     public function show(int $id): Response
     {
+        // 60s TTL — keeps episode count fresh against upstream kurokami
+        // updates. Was 600s (10 min) and users hit stale episode lists.
+        // Anime detail is heavy (10+ relation queries) so don't drop below
+        // 60s without checking DB CPU.
         /** @var array<string, mixed> $animeData */
-        $animeData = Cache::remember("anime:detail:v2:{$id}", 600, fn () => $this->buildAnimeDetail($id));
+        $animeData = Cache::remember("anime:detail:v2:{$id}", 60, fn () => $this->buildAnimeDetail($id));
 
         return Inertia::render('Anime', [
             'anime' => $animeData,

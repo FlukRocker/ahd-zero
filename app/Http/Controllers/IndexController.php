@@ -15,7 +15,9 @@ class IndexController extends Controller
         $page = request()->input('page', 1);
         $cacheKey = "index:page:{$page}";
 
-        $anime = Cache::remember($cacheKey, 300, function () {
+        // 60s TTL — admin updates from kurokami land within a minute. Was
+        // 300s; users were seeing stale episode counts on the listing.
+        $anime = Cache::remember($cacheKey, 60, function () {
             $result = Anime::query()->select('cat_id', 'cat_title', 'cat_image', 'cat_type', 'cat_update', 'anime_status', 'episodes', 'anime_type', 'cat_banner')
                 ->withCount('episodeList')
                 ->orderByDesc('cat_update')
@@ -31,8 +33,8 @@ class IndexController extends Controller
             return $result;
         });
 
-        $recommended = Cache::remember('featured:recommended', 300, fn () => $this->getFeatured('recommended'));
-        $popular = Cache::remember('featured:popular', 300, fn () => $this->getFeatured('popular'));
+        $recommended = Cache::remember('featured:recommended', 60, fn () => $this->getFeatured('recommended'));
+        $popular = Cache::remember('featured:popular', 60, fn () => $this->getFeatured('popular'));
 
         return Inertia::render('Index', [
             'anime' => $anime,
