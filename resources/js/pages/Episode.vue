@@ -217,14 +217,14 @@ useAutoReveal();
                                 :class="playerMode === 'ads' ? 'on' : ''"
                                 @click="playerMode = 'ads'"
                             >
-                                มีโฆษณา
+                                ตัวเล่นหลัก
                             </button>
                             <button
                                 type="button"
                                 :class="playerMode === 'direct' ? 'on' : ''"
                                 @click="playerMode = 'direct'"
                             >
-                                ไม่มีโฆษณา
+                                ตัวเล่นสำรอง
                             </button>
                         </div>
                     </div>
