@@ -55,6 +55,22 @@ class PlayerServiceTest extends TestCase
         $this->assertNull($service->getPlayerUrl(''));
     }
 
+    public function test_unrecognized_drive_url_does_not_leak_through(): void
+    {
+        $service = new PlayerService;
+
+        // Drive URL the regex doesn't match (folder share, viewer URL, etc).
+        // Strict mode must return null instead of passing the raw URL through
+        // to the iframe — Drive blocks iframes anyway and the URL itself is
+        // sensitive (exposes folder/file IDs).
+        $this->assertNull(
+            $service->getPlayerUrl('https://drive.google.com/drive/folders/1abcXYZ'),
+        );
+        $this->assertNull(
+            $service->getPlayerUrl('https://Drive.Google.com/some/new/format'),
+        );
+    }
+
     public function test_fetch_caches_successful_response(): void
     {
         Cache::flush();

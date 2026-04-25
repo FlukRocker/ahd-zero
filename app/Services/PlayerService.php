@@ -22,7 +22,14 @@ class PlayerService
 
         $driveId = $this->extractDriveId($listUrl);
         if ($driveId === null) {
-            // Not a Google Drive URL — return as-is (might be a direct player URL)
+            // Strict: never expose a Drive URL the regex didn't recognize.
+            // The DB stores raw Drive links — leaking one to the iframe would
+            // both fail (X-Frame-Options) AND expose private file IDs.
+            // Pass through ONLY non-Drive URLs (direct embed targets).
+            if (str_contains(strtolower($listUrl), 'drive.google.com')) {
+                return null;
+            }
+
             return $listUrl;
         }
 
