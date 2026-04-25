@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useTilt } from '@/composables/useTilt';
 import type { CardItem } from '@/lib/animeCard';
-import { chevSrcset, POSTER_SIZES } from '@/lib/img';
+import { bunnyImg, bunnySrcset, POSTER_SIZES, POSTER_WIDTHS } from '@/lib/img';
 import { Link } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 import AhdIcon from './AhdIcon.vue';
@@ -12,7 +12,8 @@ const props = defineProps<{ item: CardItem; rank?: number | null }>();
 const tiltEl = ref<HTMLElement | null>(null);
 useTilt(tiltEl, { max: 5, scale: 1.03 });
 
-const srcset = computed(() => chevSrcset(props.item.poster));
+const src = computed(() => bunnyImg(props.item.poster, { width: 360 }));
+const srcset = computed(() => bunnySrcset(props.item.poster, POSTER_WIDTHS));
 </script>
 
 <template>
@@ -20,7 +21,7 @@ const srcset = computed(() => chevSrcset(props.item.poster));
         <div ref="tiltEl" class="poster-card tilt">
             <div class="halo" />
             <img
-                :src="item.poster"
+                :src="src ?? item.poster"
                 :srcset="srcset || undefined"
                 :sizes="srcset ? POSTER_SIZES : undefined"
                 :alt="item.title"

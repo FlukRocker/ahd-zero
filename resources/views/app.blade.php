@@ -51,8 +51,9 @@
     <meta name="apple-mobile-web-app-title" content="{{ config('app.name', 'Anime HD Zero') }}">
 
     {{-- DNS + TCP early so card poster requests don't pay full handshake cost. --}}
-    <link rel="preconnect" href="https://img.shirokami.me" crossorigin>
-    <link rel="preconnect" href="https://img-cdn.shirokami.me" crossorigin>
+    <link rel="preconnect" href="https://img-cdn-proxy.shirokami.me" crossorigin>
+    <link rel="dns-prefetch" href="https://img.shirokami.me">
+    <link rel="dns-prefetch" href="https://img-cdn.shirokami.me">
     <link rel="dns-prefetch" href="https://akuma-player.xyz">
 
     <link rel="icon" type="image/png" href="/favicon.png">

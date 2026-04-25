@@ -9,6 +9,7 @@ import { useAutoReveal } from '@/composables/useReveal';
 import { useAppMeta, useSeo } from '@/composables/useSeo';
 import FrontLayout from '@/layouts/FrontLayout.vue';
 import { toCardItem, toCardItems, type AnimeRecord } from '@/lib/animeCard';
+import { bunnyImg } from '@/lib/img';
 import { organizationJsonLd, siteJsonLd } from '@/lib/schema';
 import { Head } from '@inertiajs/vue3';
 import { useHead } from '@unhead/vue';
@@ -53,17 +54,20 @@ useSeo(() => ({
     ],
 }));
 
-// Preload the first hero poster — that <img> is the LCP element. Telling the
-// browser early shaves 1-2s off the LCP metric on slow mobile.
+// Preload the first hero image — that <img> is the LCP element. Use the
+// Bunny-optimized URL at the same width the Hero <img> requests so the
+// preload exactly matches the eventual src (otherwise the browser fetches
+// both the original and the optimized variant — wasted bytes).
 useHead(() => {
     const first = heroItems.value[0];
     if (!first?.poster) return {};
+    const optimized = bunnyImg(first.poster, { width: 480 }) ?? first.poster;
     return {
         link: [
             {
                 rel: 'preload',
                 as: 'image',
-                href: first.poster,
+                href: optimized,
                 fetchpriority: 'high',
             },
         ],

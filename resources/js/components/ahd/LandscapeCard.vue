@@ -1,19 +1,27 @@
 <script setup lang="ts">
 import type { CardItem } from '@/lib/animeCard';
-import { chevSrcset, LANDSCAPE_SIZES } from '@/lib/img';
+import {
+    bunnyImg,
+    bunnySrcset,
+    LANDSCAPE_SIZES,
+    LANDSCAPE_WIDTHS,
+} from '@/lib/img';
 import { Link } from '@inertiajs/vue3';
 import { computed } from 'vue';
 import StarIcon from './StarIcon.vue';
 
 const props = defineProps<{ item: CardItem }>();
-const srcset = computed(() => chevSrcset(props.item.landscape));
+const src = computed(() => bunnyImg(props.item.landscape, { width: 520 }));
+const srcset = computed(() =>
+    bunnySrcset(props.item.landscape, LANDSCAPE_WIDTHS),
+);
 </script>
 
 <template>
     <Link :href="item.href" class="group block">
         <div class="land-card">
             <img
-                :src="item.landscape"
+                :src="src ?? item.landscape"
                 :srcset="srcset || undefined"
                 :sizes="srcset ? LANDSCAPE_SIZES : undefined"
                 :alt="item.title"

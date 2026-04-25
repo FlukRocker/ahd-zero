@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { CardItem } from '@/lib/animeCard';
+import { bunnyImg, bunnySrcset, HERO_WIDTHS, POSTER_WIDTHS } from '@/lib/img';
 import { Link } from '@inertiajs/vue3';
 import { animate, scroll, stagger } from 'motion';
 import {
@@ -34,6 +35,20 @@ function prefersReducedMotion() {
 }
 
 const cur = computed(() => props.items[idx.value] ?? props.items[0]);
+
+// Bunny-optimized variants for the active hero item.
+const heroBackdropSrc = computed(() =>
+    bunnyImg(cur.value?.landscape, { width: 1600, quality: 75 }),
+);
+const heroBackdropSrcset = computed(() =>
+    bunnySrcset(cur.value?.landscape, HERO_WIDTHS, { quality: 75 }),
+);
+const heroPosterSrc = computed(() =>
+    bunnyImg(cur.value?.poster, { width: 480 }),
+);
+const heroPosterSrcset = computed(() =>
+    bunnySrcset(cur.value?.poster, POSTER_WIDTHS),
+);
 
 function start() {
     stop();
@@ -114,7 +129,9 @@ watch(
                 <Transition name="crossfade" mode="out-in">
                     <img
                         :key="cur.id"
-                        :src="cur.landscape"
+                        :src="heroBackdropSrc ?? cur.landscape"
+                        :srcset="heroBackdropSrcset || undefined"
+                        sizes="100vw"
                         class="h-full w-full object-cover"
                         :alt="cur.title"
                         loading="eager"
@@ -202,7 +219,9 @@ watch(
                             "
                         >
                             <img
-                                :src="cur.poster"
+                                :src="heroPosterSrc ?? cur.poster"
+                                :srcset="heroPosterSrcset || undefined"
+                                sizes="320px"
                                 class="h-full w-full object-cover"
                                 :alt="cur.title"
                                 loading="eager"
@@ -286,7 +305,9 @@ watch(
                         style="box-shadow: 0 40px 80px -30px rgba(0, 0, 0, 0.3)"
                     >
                         <img
-                            :src="cur.poster"
+                            :src="heroPosterSrc ?? cur.poster"
+                            :srcset="heroPosterSrcset || undefined"
+                            sizes="(max-width: 1024px) 60vw, 480px"
                             class="h-full w-full object-cover"
                             :alt="cur.title"
                             loading="eager"

@@ -1,18 +1,26 @@
 <script setup lang="ts">
 import type { CardItem } from '@/lib/animeCard';
+import { bunnyImg, bunnySrcset, POSTER_WIDTHS } from '@/lib/img';
 import { Link } from '@inertiajs/vue3';
+import { computed } from 'vue';
 import StarIcon from './StarIcon.vue';
 
-defineProps<{ item: CardItem }>();
+const props = defineProps<{ item: CardItem }>();
+const src = computed(() => bunnyImg(props.item.poster, { width: 360 }));
+const srcset = computed(() => bunnySrcset(props.item.poster, POSTER_WIDTHS));
 </script>
 
 <template>
     <Link :href="item.href" class="ed-card group flex overflow-hidden">
         <div class="relative w-[40%] shrink-0" style="aspect-ratio: 2/3">
             <img
-                :src="item.poster"
+                :src="src ?? item.poster"
+                :srcset="srcset || undefined"
+                sizes="(max-width: 600px) 40vw, 220px"
                 class="h-full w-full object-cover"
                 :alt="item.title"
+                loading="lazy"
+                decoding="async"
             />
             <span v-if="item.tag" class="sticker">{{ item.tag }}</span>
         </div>
