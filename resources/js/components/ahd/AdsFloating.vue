@@ -194,14 +194,14 @@ const hasAny = computed(
  * absolute-positioned so it sits above banner #1 in either layout. */
 .floating-b {
     position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
+    bottom: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(960px, calc(100% - 24px));
     display: grid;
     grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
     pointer-events: auto;
-    background: #000;
-    box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.4);
 }
 
 .floating-b-item {
@@ -210,6 +210,8 @@ const hasAny = computed(
     justify-content: center;
     overflow: hidden;
     min-width: 0;
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
 }
 
 .floating-b-item img {
