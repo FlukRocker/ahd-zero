@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AdsFloating from '@/components/ahd/AdsFloating.vue';
 import AdsNavbar from '@/components/ahd/AdsNavbar.vue';
 import Footer from '@/components/ahd/Footer.vue';
 import SearchOverlay from '@/components/ahd/SearchOverlay.vue';
@@ -31,5 +32,6 @@ usePageTransition(() => mainEl.value);
         </main>
         <Footer />
         <SearchOverlay :open="searchOpen" @close="searchOpen = false" />
+        <AdsFloating />
     </div>
 </template>

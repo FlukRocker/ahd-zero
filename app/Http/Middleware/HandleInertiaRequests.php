@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Support\AdsFloating;
 use App\Support\AdsNavbar;
 use App\Support\SiteSettings;
 use Illuminate\Foundation\Inspiring;
@@ -64,6 +65,7 @@ class HandleInertiaRequests extends Middleware
             ],
             'ads' => [
                 'navbar' => AdsNavbar::all(),
+                'floating' => AdsFloating::all(),
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
         ];
