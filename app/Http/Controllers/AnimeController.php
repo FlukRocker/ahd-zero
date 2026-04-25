@@ -11,6 +11,7 @@ use App\Models\Studio;
 use App\Models\Tag;
 use App\Models\VoiceActor;
 use App\Support\AdsBanner;
+use App\Support\AdsFloating;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Inertia\Inertia;
@@ -32,6 +33,7 @@ class AnimeController extends Controller
         return Inertia::render('Anime', [
             'anime' => $animeData,
             'adsBanners' => AdsBanner::all(),
+            'floatingAds' => AdsFloating::all(),
         ]);
     }
 
@@ -271,6 +273,7 @@ class AnimeController extends Controller
             'episodes' => $episodes,
             'relatedAnime' => $allRelated->values(),
             'adsBanners' => AdsBanner::all(),
+            'floatingAds' => AdsFloating::all(),
         ]);
     }
 

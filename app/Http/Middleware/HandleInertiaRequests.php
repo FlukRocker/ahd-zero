@@ -2,7 +2,6 @@
 
 namespace App\Http\Middleware;
 
-use App\Support\AdsFloating;
 use App\Support\AdsNavbar;
 use App\Support\SiteSettings;
 use Illuminate\Foundation\Inspiring;
@@ -65,7 +64,10 @@ class HandleInertiaRequests extends Middleware
             ],
             'ads' => [
                 'navbar' => AdsNavbar::all(),
-                'floating' => AdsFloating::all(),
+                // `floating` is NOT shared globally — only the AnimeController
+                // ::show / ::episode pages send `floatingAds` so the rails +
+                // bottom strip render exclusively on /anime/{id} and the
+                // watch page (matches v1 placement).
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
         ];
