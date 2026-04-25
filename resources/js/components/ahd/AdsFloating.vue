@@ -53,43 +53,57 @@ const hasAny = computed(
 
 <template>
     <div v-if="visible && hasAny" class="floating-ads">
-        <a
-            v-if="data.left"
-            :href="data.left.href"
-            :rel="data.left.rel"
-            target="_blank"
-            class="floating-l"
-        >
-            <img
-                :src="data.left.src"
-                :alt="data.left.alt"
-                loading="lazy"
-                decoding="async"
-            />
-        </a>
+        <div v-if="data.left" class="floating-l">
+            <button
+                type="button"
+                class="rail-close"
+                aria-label="Close all ads"
+                @click.stop.prevent="dismissAll"
+            >×</button>
+            <a
+                :href="data.left.href"
+                :rel="data.left.rel"
+                target="_blank"
+                class="rail-link"
+            >
+                <img
+                    :src="data.left.src"
+                    :alt="data.left.alt"
+                    loading="lazy"
+                    decoding="async"
+                />
+            </a>
+        </div>
 
-        <a
-            v-if="data.right"
-            :href="data.right.href"
-            :rel="data.right.rel"
-            target="_blank"
-            class="floating-r"
-        >
-            <img
-                :src="data.right.src"
-                :alt="data.right.alt"
-                loading="lazy"
-                decoding="async"
-            />
-        </a>
+        <div v-if="data.right" class="floating-r">
+            <button
+                type="button"
+                class="rail-close"
+                aria-label="Close all ads"
+                @click.stop.prevent="dismissAll"
+            >×</button>
+            <a
+                :href="data.right.href"
+                :rel="data.right.rel"
+                target="_blank"
+                class="rail-link"
+            >
+                <img
+                    :src="data.right.src"
+                    :alt="data.right.alt"
+                    loading="lazy"
+                    decoding="async"
+                />
+            </a>
+        </div>
 
         <div v-if="data.bottom.length" class="floating-b">
             <button
                 type="button"
-                class="floating-close"
+                class="strip-close"
                 aria-label="Close all ads"
                 @click="dismissAll"
-            >X</button>
+            >×</button>
             <a
                 v-for="(it, i) in data.bottom"
                 :key="i"
@@ -117,15 +131,13 @@ const hasAny = computed(
     z-index: 50;
 }
 
+/* ── Side rails (left + right) ──────────────────────────────────── */
 .floating-l,
 .floating-r {
     position: fixed;
     top: 88px;
     width: 160px;
     pointer-events: auto;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
-    border-radius: 6px;
-    overflow: hidden;
 }
 
 .floating-l {
@@ -136,28 +148,63 @@ const hasAny = computed(
     right: 12px;
 }
 
-.floating-l img,
-.floating-r img {
+.rail-link {
+    display: block;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.rail-link img {
     display: block;
     width: 100%;
     height: auto;
 }
 
-/* Bottom strip stretches full viewport width. Close button sits as the first
- * column at the left edge — same 90px height as the 728x90 banners. */
+.rail-close {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    width: 26px;
+    height: 26px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: hsl(354 78% 56%);
+    color: white;
+    font-size: 16px;
+    font-weight: 800;
+    line-height: 1;
+    border-radius: 50%;
+    cursor: pointer;
+    border: 2px solid #fff;
+    z-index: 1;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    transition: background 0.15s;
+}
+
+.rail-close:hover {
+    background: hsl(354 78% 48%);
+}
+
+/* ── Bottom strip ───────────────────────────────────────────────── */
+/* Centered horizontally, content-width (close button + banners). Native 90px
+ * banner height. */
 .floating-b {
     position: fixed;
-    left: 0;
-    right: 0;
     bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
     display: flex;
     align-items: stretch;
-    justify-content: flex-start;
     pointer-events: auto;
     background: #000;
     box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.4);
     height: 90px;
+    border-top-left-radius: 8px;
+    border-top-right-radius: 8px;
     overflow: hidden;
+    max-width: 100vw;
 }
 
 .floating-b-item {
@@ -172,16 +219,16 @@ const hasAny = computed(
     width: auto;
 }
 
-.floating-close {
-    flex: 0 0 90px;
+.strip-close {
+    flex: 0 0 36px;
+    width: 36px;
     height: 90px;
-    width: 90px;
     display: flex;
     align-items: center;
     justify-content: center;
     background: hsl(354 78% 56%);
     color: white;
-    font-size: 36px;
+    font-size: 22px;
     font-weight: 800;
     line-height: 1;
     cursor: pointer;
@@ -189,7 +236,7 @@ const hasAny = computed(
     transition: background 0.15s;
 }
 
-.floating-close:hover {
+.strip-close:hover {
     background: hsl(354 78% 48%);
 }
 
