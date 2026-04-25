@@ -188,79 +188,88 @@ const hasAny = computed(
 }
 
 /* ── Bottom strip ───────────────────────────────────────────────── */
-/* Full-width black bar pinned to the viewport bottom. Inner content (close
- * button + banners) flexes centered so a single off-center transform doesn't
- * overhang the page and visually overlap an in-page AdsBanner block sitting
- * lower in the document. */
+/* Full-width black bar pinned to the viewport bottom. Banners flow
+ * through CSS Grid: desktop = 2 columns side-by-side (single row),
+ * mobile = 1 column with banners stacked (multiple rows). Close button
+ * absolute-positioned so it sits above banner #1 in either layout. */
 .floating-b {
     position: fixed;
     bottom: 0;
     left: 0;
     right: 0;
-    display: flex;
-    align-items: stretch;
-    justify-content: center;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
     pointer-events: auto;
     background: #000;
     box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.4);
-    height: 90px;
-    overflow: hidden;
 }
 
 .floating-b-item {
     display: flex;
     align-items: center;
-    flex: 0 0 auto;
+    justify-content: center;
+    overflow: hidden;
+    min-width: 0;
 }
 
 .floating-b-item img {
     display: block;
-    height: 90px;
-    width: auto;
+    width: 100%;
+    height: auto;
+    max-height: 100px;
+    object-fit: contain;
 }
 
 .strip-close {
-    flex: 0 0 36px;
-    width: 36px;
-    height: 90px;
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 28px;
+    height: 28px;
     display: flex;
     align-items: center;
     justify-content: center;
     background: hsl(354 78% 56%);
     color: white;
-    font-size: 22px;
+    font-size: 18px;
     font-weight: 800;
     line-height: 1;
+    border-radius: 50%;
     cursor: pointer;
-    border: none;
+    border: 2px solid #fff;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
     transition: background 0.15s;
+    z-index: 2;
 }
 
 .strip-close:hover {
     background: hsl(354 78% 48%);
 }
 
-/* Side rails need 160px gutters — hide on tablet/mobile. Bottom strip
- * stays visible (full-width bar works fine on small screens). */
+/* Mobile — side rails shrink to fit narrow viewports (160px gutters
+ * would crash into content). Bottom strip collapses to 1-column grid
+ * so banners stack vertically instead of squishing into half-width.  */
 @media (max-width: 992px) {
     .floating-l,
     .floating-r {
-        display: none;
+        width: 80px;
+        top: 64px;
+    }
+
+    .rail-close {
+        width: 22px;
+        height: 22px;
+        font-size: 14px;
+        top: -6px;
+        right: -6px;
     }
 
     .floating-b {
-        height: 60px;
+        grid-template-columns: 1fr;
     }
 
     .floating-b-item img {
-        height: 60px;
-    }
-
-    .strip-close {
-        flex: 0 0 28px;
-        width: 28px;
-        height: 60px;
-        font-size: 18px;
+        max-height: 70px;
     }
 }
 </style>
