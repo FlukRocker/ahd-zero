@@ -56,8 +56,8 @@
     <link rel="dns-prefetch" href="https://akuma-player.xyz">
 
     <link rel="icon" type="image/png" href="/favicon.png">
-    <link rel="icon" href="/favicon.ico" sizes="any">
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <link rel="shortcut icon" type="image/png" href="/favicon.png">
+    <link rel="apple-touch-icon" type="image/png" href="/apple-touch-icon.png">
 
     @routes
     @vite(['resources/js/app.ts', "resources/js/pages/{$page['component']}.vue"])
