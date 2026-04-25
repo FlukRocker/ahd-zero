@@ -88,7 +88,7 @@ class PlayerServiceTest extends TestCase
         $url = $service->getPlayerUrl('https://drive.google.com/file/d/CACHED1/view');
 
         $this->assertSame('https://player.test/play/XYZUID', $url);
-        $this->assertSame('https://player.test/play/XYZUID', Cache::get('player:drive:CACHED1'));
+        $this->assertSame('https://player.test/play/XYZUID', Cache::get('player:drive:v2:CACHED1'));
     }
 
     private function extractDriveId(string $url): ?string

@@ -4,6 +4,7 @@ namespace App\Services;
 
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 use function config;
 use function preg_match;
@@ -33,18 +34,19 @@ class PlayerService
             return $listUrl;
         }
 
-        // Check cache
-        $cacheKey = "player:drive:{$driveId}";
+        // Bumped key prefix (`v2`) so previously-cached failures from when
+        // the API was misconfigured don't stick for 24h.
+        $cacheKey = "player:drive:v2:{$driveId}";
         $cached = Cache::get($cacheKey);
         if ($cached !== null) {
             return $cached !== '' ? $cached : null;
         }
 
-        // Call the API
         $playerUrl = $this->fetchPlayerUrl($driveId);
 
-        // Cache result (even null/empty to avoid repeated API calls)
-        Cache::put($cacheKey, $playerUrl ?? '', 86400); // 24 hours
+        // Cache successes for 24h. Cache failures for only 60s so a transient
+        // API outage doesn't pin every episode to "no player" until tomorrow.
+        Cache::put($cacheKey, $playerUrl ?? '', $playerUrl !== null ? 86400 : 60);
 
         return $playerUrl;
     }
@@ -74,29 +76,50 @@ class PlayerService
 
     private function fetchPlayerUrl(string $driveId): ?string
     {
-        try {
-            $apiUrl = config('services.akuma_player.url', 'http://65.108.61.69:3002');
-            $token = config('services.akuma_player.token', '23xSO2aBkri5yY35sjA9');
+        $apiUrl = (string) config('services.akuma_player.url', 'http://65.108.61.69:3002');
+        $token = (string) config('services.akuma_player.token', '23xSO2aBkri5yY35sjA9');
+        $playerDomain = (string) config('services.akuma_player.player_domain', 'https://akuma-player.xyz');
 
-            $response = Http::timeout(10)->get("{$apiUrl}/api/v1/get-datas/{$driveId}", [
-                'token' => $token,
-            ]);
+        if ($apiUrl === '' || $token === '') {
+            Log::warning('PlayerService config missing', compact('apiUrl', 'driveId'));
+
+            return null;
+        }
+
+        try {
+            $response = Http::timeout(10)
+                ->get("{$apiUrl}/api/v1/get-datas/{$driveId}", ['token' => $token]);
 
             if (! $response->successful()) {
+                Log::warning('PlayerService API non-2xx', [
+                    'driveId' => $driveId,
+                    'status' => $response->status(),
+                    'body' => mb_substr($response->body(), 0, 200),
+                ]);
+
                 return null;
             }
 
             $data = $response->json();
             $uid = $data['result']['uid'] ?? null;
 
-            if ($uid === null) {
+            if (! is_string($uid) || $uid === '') {
+                Log::warning('PlayerService API ok but no uid', [
+                    'driveId' => $driveId,
+                    'data' => $data,
+                ]);
+
                 return null;
             }
 
-            $playerDomain = config('services.akuma_player.player_domain', 'https://akuma-player.xyz');
-
             return "{$playerDomain}/play/{$uid}";
-        } catch (\Throwable) {
+        } catch (\Throwable $e) {
+            Log::warning('PlayerService API threw', [
+                'driveId' => $driveId,
+                'error' => $e->getMessage(),
+                'class' => $e::class,
+            ]);
+
             return null;
         }
     }
