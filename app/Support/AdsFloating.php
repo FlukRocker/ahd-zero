@@ -18,7 +18,7 @@ use function storage_path;
  */
 class AdsFloating
 {
-    private const CACHE_KEY = 'ads:floating:v1';
+    private const CACHE_KEY = 'ads:floating:v3';
 
     private const TTL = 300;
 

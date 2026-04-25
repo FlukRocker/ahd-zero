@@ -23,7 +23,7 @@ use function storage_path;
  */
 class AdsBanner
 {
-    private const CACHE_KEY = 'ads:banners:v1';
+    private const CACHE_KEY = 'ads:banners:v2';
 
     private const TTL = 300;
 

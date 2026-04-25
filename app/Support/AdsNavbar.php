@@ -18,7 +18,7 @@ use function storage_path;
  */
 class AdsNavbar
 {
-    private const CACHE_KEY = 'ads:navbar:v1';
+    private const CACHE_KEY = 'ads:navbar:v2';
 
     private const TTL = 300;
 
