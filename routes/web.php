@@ -43,8 +43,12 @@ Route::get('/search/results', [SearchController::class, 'index'])->name('search.
 // /catagory/{id}   → /anime/{id}                    (note v1 typo)
 // /search?search=  → /search/results?q=
 // ─────────────────────────────────────────────────────────────────────────
+// Legacy `/watch/{id}` plus tolerated v1 garbage. Some shortlinks ended up
+// emitting `/watch/12345&mirror=true` (literal `&` in the path, not a query
+// string) — `whereNumber` would 404 those. Accept anything that *starts*
+// with digits and let the controller pull out the numeric prefix.
 Route::get('/watch/{listId}', [AnimeController::class, 'legacyWatch'])
-    ->whereNumber('listId')
+    ->where('listId', '[0-9].*')
     ->name('legacy.watch');
 
 Route::get('/cat/{id}', function (string $id) {

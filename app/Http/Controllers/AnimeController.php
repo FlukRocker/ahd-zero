@@ -279,10 +279,18 @@ class AnimeController extends Controller
 
     /**
      * Legacy v1 redirect: /watch/{list_id} → /anime/{cat_id}/episode/{list_id}
+     *
+     * Tolerates v1 shortlink garbage like /watch/12345&mirror=true — pulls
+     * the numeric prefix out of whatever segment was passed.
      */
-    public function legacyWatch(int $listId): \Illuminate\Http\RedirectResponse
+    public function legacyWatch(string $listId): \Illuminate\Http\RedirectResponse
     {
-        $episode = Episode::where('list_id', $listId)->firstOrFail();
+        if (! preg_match('/^(\d+)/', $listId, $m)) {
+            abort(404);
+        }
+        $id = (int) $m[1];
+
+        $episode = Episode::where('list_id', $id)->firstOrFail();
 
         return redirect("/anime/{$episode->catagory_id}/episode/{$episode->list_id}", 301);
     }
