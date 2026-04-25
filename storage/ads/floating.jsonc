@@ -1,0 +1,34 @@
+// Floating sponsored ads. Hidden on mobile (<lg). Single close button hides
+// all three at once for the rest of the session (sessionStorage flag).
+//
+// Slots:
+//   left:   single banner pinned top-left (160x600 ish)
+//   right:  single banner pinned top-right (160x600 ish)
+//   bottom: array of 728x90 banners stacked bottom-center
+//
+// Each entry: { href, src, alt, rel? }. Set a slot to null or remove its key
+// to hide that position.
+{
+    "left": {
+        "href": "https://ibit.ly/ufazeed",
+        "src": "https://img-cdn.shirokami.me/2026/03/08/160x600-ufazeed.webp",
+        "alt": "ufazeed"
+    },
+    "right": {
+        "href": "https://ibit.ly/brazil999",
+        "src": "https://img-cdn.shirokami.me/2026/03/08/160x600-brazil.webp",
+        "alt": "brazil999"
+    },
+    "bottom": [
+        {
+            "href": "https://ibit.ly/ufafat",
+            "src": "https://image.cdend.com/wp-content/uploads/2024/03/728x90-ufafat.gif",
+            "alt": "ufafat"
+        },
+        {
+            "href": "https://ibit.ly/lotto432",
+            "src": "https://image.cdend.com/wp-content/uploads/2024/03/728x90-LOTTO432.gif",
+            "alt": "lotto432"
+        }
+    ]
+}

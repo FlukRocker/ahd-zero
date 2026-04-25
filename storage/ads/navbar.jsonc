@@ -1,0 +1,10 @@
+// Tagline ad strip across the top of every front page (not sticky).
+// Each entry:
+//   href:  destination URL
+//   alt:   visible label
+//   rel:   optional override (default "nofollow noopener sponsored noreferrer ugc")
+[
+    { "href": "https://www.pussy888fun.tv/",      "alt": "pussy888" },
+    { "href": "https://www.sexybaccarat168.fun/", "alt": "บาคาร่า" },
+    { "href": "https://www.ppgheng99.com/",       "alt": "pgheng99" }
+]
