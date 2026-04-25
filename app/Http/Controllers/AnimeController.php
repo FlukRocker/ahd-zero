@@ -12,6 +12,7 @@ use App\Models\Tag;
 use App\Models\VoiceActor;
 use App\Support\AdsBanner;
 use App\Support\AdsFloating;
+use App\Support\AdsPlayer;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Inertia\Inertia;
@@ -201,62 +202,20 @@ class AnimeController extends Controller
 
     public function episode(int $id, int $listId): Response
     {
+        // Resolve the bare-minimum upfront for routing decisions only.
+        // Everything else is wrapped in closures so Inertia partial reloads
+        // (only=['currentEpisode']) skip the relation queries entirely —
+        // clicking next on /watch is now a fast prop swap, not a full page
+        // re-render with N relation queries.
         $anime = Anime::query()->findOrFail($id);
-
-        $episodeList = $this->safe(fn () => $anime->episodeList()->get());
-
-        $currentEpisode = $episodeList->firstWhere('list_id', $listId);
-
-        abort_unless($currentEpisode !== null, 404);
-
-        $episodes = $episodeList->map(fn (Episode $ep): array => [
-            'list_id' => $ep->list_id,
-            'list_title' => $ep->list_title,
-            'uuid' => $ep->uuid,
-        ])->values();
-
-        $relations = $this->safe(fn () => $anime->relations()->with('relatedAnime')->get());
-
-        $relatedFromDb = $relations
-            ->filter(fn (AnimeRelation $rel): bool => $rel->relatedAnime !== null)
-            ->map(fn (AnimeRelation $rel): array => [
-                'cat_id' => $rel->relatedAnime->cat_id,
-                'cat_title' => $rel->relatedAnime->cat_title,
-                'cat_image' => $rel->relatedAnime->cat_image,
-                'cat_type' => $rel->relatedAnime->cat_type,
-                'relation_type' => $rel->relation_type,
-            ]);
-
-        $excludeIds = $relatedFromDb->pluck('cat_id')->push($anime->cat_id)->toArray();
-        $remaining = 6 - $relatedFromDb->count();
-
-        $recommendedAnime = $remaining > 0
-            ? Anime::query()
-                ->whereNotIn('cat_id', $excludeIds)
-                ->select('cat_id', 'cat_title', 'cat_image', 'cat_type')
-                ->orderByDesc('cat_update')
-                ->limit($remaining)
-                ->get()
-                ->map(fn (Anime $a): array => [
-                    'cat_id' => $a->cat_id,
-                    'cat_title' => $a->cat_title,
-                    'cat_image' => $a->cat_image,
-                    'cat_type' => $a->cat_type,
-                    'relation_type' => null,
-                ])
-            : collect();
-
-        $allRelated = $relatedFromDb->concat($recommendedAnime)->take(6);
-
-        // Drive ID → akuma-player.xyz/play/{uid} (mirrors kurokami exactly).
-        // Do NOT fall back to the raw Drive URL — Google refuses to iframe it,
-        // which produces a broken/blocked embed instead of a working player.
-        $playerService = app(\App\Services\PlayerService::class);
-        $playerUrl = $playerService->getPlayerUrl($currentEpisode->list_url ?? null)
-            ?? $playerService->getPlayerUrl($currentEpisode->file_src ?? null);
+        $currentEpisodeRow = Episode::query()
+            ->where('list_id', $listId)
+            ->where('catagory_id', $id)
+            ->first();
+        abort_unless($currentEpisodeRow !== null, 404);
 
         return Inertia::render('Episode', [
-            'anime' => [
+            'anime' => fn () => [
                 'cat_id' => $anime->cat_id,
                 'cat_title' => $anime->cat_title,
                 'cat_image' => $anime->cat_image,
@@ -267,17 +226,74 @@ class AnimeController extends Controller
                 'banner_md' => $anime->banner_md,
                 'cover_md' => $anime->cover_md,
             ],
-            'currentEpisode' => [
-                'list_id' => $currentEpisode->list_id,
-                'list_title' => $currentEpisode->list_title,
-                'uuid' => $currentEpisode->uuid,
-                'player_url' => $playerUrl,
-                'upload_date_iso' => $currentEpisode->adddate?->toIso8601String(),
-            ],
-            'episodes' => $episodes,
-            'relatedAnime' => $allRelated->values(),
-            'adsBanners' => AdsBanner::all(),
-            'floatingAds' => AdsFloating::all(),
+
+            'currentEpisode' => function () use ($currentEpisodeRow) {
+                // Drive ID → akuma-player.xyz/play/{uid} (mirrors kurokami).
+                $playerService = app(\App\Services\PlayerService::class);
+                $playerUrl = $playerService->getPlayerUrl($currentEpisodeRow->list_url ?? null)
+                    ?? $playerService->getPlayerUrl($currentEpisodeRow->file_src ?? null);
+
+                return [
+                    'list_id' => $currentEpisodeRow->list_id,
+                    'list_title' => $currentEpisodeRow->list_title,
+                    'uuid' => $currentEpisodeRow->uuid,
+                    'player_url' => $playerUrl,
+                    'upload_date_iso' => $currentEpisodeRow->adddate?->toIso8601String(),
+                ];
+            },
+
+            'episodes' => fn () => $this->safe(fn () => $anime->episodeList()->get())
+                ->map(fn (Episode $ep): array => [
+                    'list_id' => $ep->list_id,
+                    'list_title' => $ep->list_title,
+                    'uuid' => $ep->uuid,
+                ])->values(),
+
+            'relatedAnime' => function () use ($anime): array {
+                $relations = $this->safe(fn () => $anime->relations()->with('relatedAnime')->get());
+
+                $relatedFromDb = [];
+                foreach ($relations as $rel) {
+                    if (! $rel instanceof AnimeRelation || $rel->relatedAnime === null) {
+                        continue;
+                    }
+                    $relatedFromDb[] = [
+                        'cat_id' => $rel->relatedAnime->cat_id,
+                        'cat_title' => $rel->relatedAnime->cat_title,
+                        'cat_image' => $rel->relatedAnime->cat_image,
+                        'cat_type' => $rel->relatedAnime->cat_type,
+                        'relation_type' => $rel->relation_type,
+                    ];
+                }
+
+                $excludeIds = collect($relatedFromDb)->pluck('cat_id')->push($anime->cat_id)->all();
+                $remaining = 6 - count($relatedFromDb);
+
+                $recommended = [];
+                if ($remaining > 0) {
+                    $rows = Anime::query()
+                        ->whereNotIn('cat_id', $excludeIds)
+                        ->select('cat_id', 'cat_title', 'cat_image', 'cat_type')
+                        ->orderByDesc('cat_update')
+                        ->limit($remaining)
+                        ->get();
+                    foreach ($rows as $a) {
+                        $recommended[] = [
+                            'cat_id' => $a->cat_id,
+                            'cat_title' => $a->cat_title,
+                            'cat_image' => $a->cat_image,
+                            'cat_type' => $a->cat_type,
+                            'relation_type' => null,
+                        ];
+                    }
+                }
+
+                return array_slice([...$relatedFromDb, ...$recommended], 0, 6);
+            },
+
+            'adsBanners' => fn () => AdsBanner::all(),
+            'floatingAds' => fn () => AdsFloating::all(),
+            'playerAds' => fn () => AdsPlayer::all(),
         ]);
     }
 

@@ -31,6 +31,15 @@ return [
 
     'connections' => [
 
+        'mongodb' => [
+            'driver' => 'mongodb',
+            'dsn' => env('MONGO_URI', 'mongodb://localhost:27017'),
+            // Default DB name matches kurokami-v2 so both apps share one
+            // `page_views` collection. Per-site filtering is done via the
+            // `site` field on each document, not by separate databases.
+            'database' => env('MONGO_DATABASE', 'kurokami'),
+        ],
+
         'sqlite' => [
             'driver' => 'sqlite',
             'url' => env('DB_URL'),

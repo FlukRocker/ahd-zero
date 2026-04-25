@@ -240,10 +240,27 @@ const hasAny = computed(
     background: hsl(354 78% 48%);
 }
 
-/* Hide all floating ads on smaller viewports — too cramped to be useful. */
+/* Side rails need 160px gutters — hide on tablet/mobile. Bottom strip
+ * stays visible (full-width bar works fine on small screens). */
 @media (max-width: 992px) {
-    .floating-ads {
+    .floating-l,
+    .floating-r {
         display: none;
+    }
+
+    .floating-b {
+        height: 60px;
+    }
+
+    .floating-b-item img {
+        height: 60px;
+    }
+
+    .strip-close {
+        flex: 0 0 28px;
+        width: 28px;
+        height: 60px;
+        font-size: 18px;
     }
 }
 </style>

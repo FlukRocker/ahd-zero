@@ -6,8 +6,12 @@ import { computed } from 'vue';
 import StarIcon from './StarIcon.vue';
 
 const props = defineProps<{ item: CardItem }>();
-const src = computed(() => bunnyImg(props.item.poster, { width: 360 }));
-const srcset = computed(() => bunnySrcset(props.item.poster, POSTER_WIDTHS));
+const src = computed(() =>
+    bunnyImg(props.item.poster, { width: 360, format: 'webp' }),
+);
+const srcset = computed(() =>
+    bunnySrcset(props.item.poster, POSTER_WIDTHS, { format: 'webp' }),
+);
 </script>
 
 <template>

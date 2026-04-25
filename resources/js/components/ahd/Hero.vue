@@ -36,18 +36,20 @@ function prefersReducedMotion() {
 
 const cur = computed(() => props.items[idx.value] ?? props.items[0]);
 
-// Bunny-optimized variants for the active hero item.
+// Bunny-optimized variants for the active hero item. Force WebP — Bunny's
+// Accept-header auto-negotiation mis-fires for some PSI/Lighthouse runs and
+// serves JPG, tanking LCP. Pinning format guarantees the smaller payload.
 const heroBackdropSrc = computed(() =>
-    bunnyImg(cur.value?.landscape, { width: 1600, quality: 75 }),
+    bunnyImg(cur.value?.landscape, { width: 1600, quality: 75, format: 'webp' }),
 );
 const heroBackdropSrcset = computed(() =>
-    bunnySrcset(cur.value?.landscape, HERO_WIDTHS, { quality: 75 }),
+    bunnySrcset(cur.value?.landscape, HERO_WIDTHS, { quality: 75, format: 'webp' }),
 );
 const heroPosterSrc = computed(() =>
-    bunnyImg(cur.value?.poster, { width: 480 }),
+    bunnyImg(cur.value?.poster, { width: 480, format: 'webp' }),
 );
 const heroPosterSrcset = computed(() =>
-    bunnySrcset(cur.value?.poster, POSTER_WIDTHS),
+    bunnySrcset(cur.value?.poster, POSTER_WIDTHS, { format: 'webp' }),
 );
 
 function start() {

@@ -35,6 +35,12 @@ return [
         ],
     ],
 
+    'google_analytics' => [
+        // GA4 measurement ID. Default is the prod ahd-zero property — set
+        // GA_MEASUREMENT_ID=null in local/staging .env to disable tracking.
+        'measurement_id' => env('GA_MEASUREMENT_ID', 'G-GQM12V5ZE5'),
+    ],
+
     'akuma_player' => [
         'url' => env('AKUMA_PLAYER_URL', 'http://65.108.61.69:3002'),
         // Default token kept inline so the API can resolve Drive IDs without

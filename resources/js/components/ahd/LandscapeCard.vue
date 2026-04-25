@@ -11,9 +11,11 @@ import { computed } from 'vue';
 import StarIcon from './StarIcon.vue';
 
 const props = defineProps<{ item: CardItem }>();
-const src = computed(() => bunnyImg(props.item.landscape, { width: 520 }));
+const src = computed(() =>
+    bunnyImg(props.item.landscape, { width: 520, format: 'webp' }),
+);
 const srcset = computed(() =>
-    bunnySrcset(props.item.landscape, LANDSCAPE_WIDTHS),
+    bunnySrcset(props.item.landscape, LANDSCAPE_WIDTHS, { format: 'webp' }),
 );
 </script>
 

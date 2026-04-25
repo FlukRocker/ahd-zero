@@ -13,7 +13,7 @@ import { useSeo } from '@/composables/useSeo';
 import FrontLayout from '@/layouts/FrontLayout.vue';
 import { toCardItems, type AnimeRecord } from '@/lib/animeCard';
 import { breadcrumbJsonLd, videoObjectJsonLd } from '@/lib/schema';
-import { Head, Link, usePage } from '@inertiajs/vue3';
+import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { computed, onMounted, ref, watch } from 'vue';
 
 type PlayerMode = 'ads' | 'direct';
@@ -101,6 +101,23 @@ const nextEp = computed(() =>
 );
 
 const relatedCards = computed(() => toCardItems(props.relatedAnime));
+
+// iOS Safari resets scroll on Inertia partial reloads even with
+// preserve-scroll — capture window.scrollY pre-visit, restore in onSuccess
+// and onFinish (double-tap because iOS sometimes restores between).
+function goEpisode(e: MouseEvent, listId: number) {
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+    e.preventDefault();
+    const y = window.scrollY;
+    const restore = () => window.scrollTo(0, y);
+    router.visit(`/anime/${props.anime.cat_id}/episode/${listId}`, {
+        preserveScroll: true,
+        preserveState: true,
+        only: ['currentEpisode'],
+        onSuccess: restore,
+        onFinish: restore,
+    });
+}
 
 const pageTitle = computed(
     () => `${props.anime.cat_title} — ${props.currentEpisode.list_title}`,
@@ -206,22 +223,22 @@ useAutoReveal();
                     </div>
 
                     <div class="mt-5 flex flex-wrap items-center gap-3">
-                        <Link
+                        <a
                             v-if="prevEp"
                             :href="`/anime/${anime.cat_id}/episode/${prevEp.list_id}`"
                             class="btn btn-ghost"
-                            preserve-scroll
+                            @click="goEpisode($event, prevEp.list_id)"
                         >
                             <AhdIcon name="back" :size="14" /> ก่อนหน้า
-                        </Link>
-                        <Link
+                        </a>
+                        <a
                             v-if="nextEp"
                             :href="`/anime/${anime.cat_id}/episode/${nextEp.list_id}`"
                             class="btn btn-primary"
-                            preserve-scroll
+                            @click="goEpisode($event, nextEp.list_id)"
                         >
                             ถัดไป <AhdIcon name="skip" :size="14" />
-                        </Link>
+                        </a>
 
                         <div class="seg ml-auto">
                             <button
@@ -280,7 +297,7 @@ useAutoReveal();
                         </div>
                         <ul class="space-y-1">
                             <li v-for="ep in episodes" :key="ep.list_id">
-                                <Link
+                                <a
                                     :href="`/anime/${anime.cat_id}/episode/${ep.list_id}`"
                                     class="ep-row flex items-center gap-3 rounded-lg p-2 text-[13px]"
                                     :style="
@@ -288,13 +305,13 @@ useAutoReveal();
                                             ? 'background: hsl(var(--accent) / 0.15); color: hsl(var(--fg));'
                                             : ''
                                     "
-                                    preserve-scroll
+                                    @click="goEpisode($event, ep.list_id)"
                                 >
                                     <AhdIcon name="play" :size="12" />
                                     <span class="truncate">{{
                                         ep.list_title
                                     }}</span>
-                                </Link>
+                                </a>
                             </li>
                         </ul>
                     </div>

@@ -61,7 +61,7 @@ useSeo(() => ({
 useHead(() => {
     const first = heroItems.value[0];
     if (!first?.poster) return {};
-    const optimized = bunnyImg(first.poster, { width: 480 }) ?? first.poster;
+    const optimized = bunnyImg(first.poster, { width: 480, format: 'webp' }) ?? first.poster;
     return {
         link: [
             {

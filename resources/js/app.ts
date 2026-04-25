@@ -1,6 +1,6 @@
 import '../css/app.css';
 
-import { createInertiaApp } from '@inertiajs/vue3';
+import { createInertiaApp, router } from '@inertiajs/vue3';
 import { createHead } from '@unhead/vue/client';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { createApp, h, type DefineComponent } from 'vue';
@@ -49,3 +49,21 @@ createInertiaApp({
 });
 
 initializeTheme();
+
+// GA4 SPA tracking — gtag in blade only fires on initial load with
+// send_page_view:false, so each Inertia visit needs an explicit page_view.
+// Title is read after Inertia swaps the page so Head updates land first.
+if (typeof window !== 'undefined') {
+    router.on('navigate', () => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const gtag = (window as any).gtag;
+        if (typeof gtag !== 'function') return;
+        queueMicrotask(() => {
+            gtag('event', 'page_view', {
+                page_location: location.href,
+                page_path: location.pathname + location.search,
+                page_title: document.title,
+            });
+        });
+    });
+}

@@ -20,11 +20,15 @@ Route::get('/sitemap-anime.xml', [SitemapController::class, 'anime']);
 Route::get('/sitemap-episodes-{page}.xml', [SitemapController::class, 'episodes'])->whereNumber('page');
 Route::get('/robots.txt', [SitemapController::class, 'robots']);
 
-// Public anime site
-Route::get('/', [IndexController::class, 'renderIndex'])->name('home');
-Route::get('/category/{type}', [CategoryController::class, 'index'])->name('category');
-Route::get('/anime/{id}', [AnimeController::class, 'show'])->name('anime.show');
-Route::get('/anime/{id}/episode/{listId}', [AnimeController::class, 'episode'])->name('anime.episode');
+// Public anime site — wrapped in `track` so internal MongoDB analytics
+// (PageView) record each unique session+page tuple. Site is tagged via
+// config('app.site_key') so kurokami + ahd can share one Mongo DB.
+Route::middleware('track')->group(function (): void {
+    Route::get('/', [IndexController::class, 'renderIndex'])->name('home');
+    Route::get('/category/{type}', [CategoryController::class, 'index'])->name('category');
+    Route::get('/anime/{id}', [AnimeController::class, 'show'])->name('anime.show');
+    Route::get('/anime/{id}/episode/{listId}', [AnimeController::class, 'episode'])->name('anime.episode');
+});
 
 // Directories
 Route::get('/studios', [DirectoryController::class, 'studios'])->name('studios.index');

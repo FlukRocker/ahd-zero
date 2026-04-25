@@ -17,6 +17,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Site Key
+    |--------------------------------------------------------------------------
+    |
+    | Identifies which property a request belongs to when multiple Laravel
+    | apps share one MongoDB database for analytics (kurokami + ahd). Every
+    | PageView document is tagged with this value so dashboards can filter
+    | per site without leaking data across properties.
+    |
+    */
+    'site_key' => env('APP_SITE_KEY', 'ahd'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Environment
     |--------------------------------------------------------------------------
     |

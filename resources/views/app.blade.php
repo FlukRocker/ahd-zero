@@ -60,6 +60,25 @@
     <link rel="shortcut icon" type="image/png" href="/favicon.png">
     <link rel="apple-touch-icon" type="image/png" href="/apple-touch-icon.png">
 
+    @if ($gaId = config('services.google_analytics.measurement_id'))
+        {{-- GA4. send_page_view:false because Inertia SPA navigation fires
+             page_view manually from app.ts on each router visit, otherwise
+             only the initial load would be tracked. --}}
+        <script async src="https://www.googletagmanager.com/gtag/js?id={{ $gaId }}"></script>
+        <script>
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            window.gtag = gtag;
+            gtag('js', new Date());
+            gtag('config', @json($gaId), { send_page_view: false });
+            gtag('event', 'page_view', {
+                page_location: location.href,
+                page_path: location.pathname + location.search,
+                page_title: document.title,
+            });
+        </script>
+    @endif
+
     @routes
     @vite(['resources/js/app.ts', "resources/js/pages/{$page['component']}.vue"])
     @inertiaHead
