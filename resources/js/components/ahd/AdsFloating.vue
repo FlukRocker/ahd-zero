@@ -188,23 +188,23 @@ const hasAny = computed(
 }
 
 /* ── Bottom strip ───────────────────────────────────────────────── */
-/* Centered horizontally, content-width (close button + banners). Native 90px
- * banner height. */
+/* Full-width black bar pinned to the viewport bottom. Inner content (close
+ * button + banners) flexes centered so a single off-center transform doesn't
+ * overhang the page and visually overlap an in-page AdsBanner block sitting
+ * lower in the document. */
 .floating-b {
     position: fixed;
     bottom: 0;
-    left: 50%;
-    transform: translateX(-50%);
+    left: 0;
+    right: 0;
     display: flex;
     align-items: stretch;
+    justify-content: center;
     pointer-events: auto;
     background: #000;
     box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.4);
     height: 90px;
-    border-top-left-radius: 8px;
-    border-top-right-radius: 8px;
     overflow: hidden;
-    max-width: 100vw;
 }
 
 .floating-b-item {
