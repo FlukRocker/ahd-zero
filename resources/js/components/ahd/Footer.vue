@@ -103,7 +103,7 @@ const year = new Date().getFullYear();
                             >
                         </li>
                         <li>
-                            <Link href="/settings/profile" class="u-grow"
+                            <Link href="/member/settings/profile" class="u-grow"
                                 >ตั้งค่า</Link
                             >
                         </li>

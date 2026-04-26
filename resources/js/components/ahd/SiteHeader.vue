@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useAppearance } from '@/composables/useAppearance';
-import { Link, usePage } from '@inertiajs/vue3';
+import { Link, router, usePage } from '@inertiajs/vue3';
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import AhdIcon from './AhdIcon.vue';
 
@@ -22,12 +22,34 @@ function onScroll() {
     scrolled.value = window.scrollY > 20;
 }
 
+const userMenuOpen = ref(false);
+const userMenuRef = ref<HTMLDivElement | null>(null);
+
+function onClickOutsideUserMenu(e: MouseEvent) {
+    if (
+        userMenuOpen.value &&
+        userMenuRef.value &&
+        !userMenuRef.value.contains(e.target as Node)
+    ) {
+        userMenuOpen.value = false;
+    }
+}
+
+function logout() {
+    userMenuOpen.value = false;
+    router.post('/member/logout');
+}
+
 onMounted(() => {
     window.addEventListener('scroll', onScroll, { passive: true });
+    document.addEventListener('click', onClickOutsideUserMenu);
     onScroll();
 });
 
-onBeforeUnmount(() => window.removeEventListener('scroll', onScroll));
+onBeforeUnmount(() => {
+    window.removeEventListener('scroll', onScroll);
+    document.removeEventListener('click', onClickOutsideUserMenu);
+});
 
 const nav = [
     { id: 'home', label: 'หน้าแรก', href: '/' },
@@ -153,27 +175,89 @@ function isActive(href: string): boolean {
                 </button>
 
                 <template v-if="member">
-                    <Link
-                        href="#"
-                        class="flex items-center gap-2 rounded-full py-1 pr-3 pl-1"
-                        style="background: hsl(var(--bg-soft))"
-                    >
+                    <div ref="userMenuRef" class="relative">
+                        <button
+                            type="button"
+                            class="flex items-center gap-2 rounded-full py-1 pr-3 pl-1"
+                            style="background: hsl(var(--bg-soft))"
+                            aria-label="เมนูผู้ใช้"
+                            :aria-expanded="userMenuOpen"
+                            @click="userMenuOpen = !userMenuOpen"
+                        >
+                            <div
+                                class="font-display flex h-8 w-8 items-center justify-center rounded-full bg-cover italic"
+                                :style="
+                                    member.avatar
+                                        ? `background-image: url('${member.avatar}');`
+                                        : `background: hsl(var(--accent)); color: hsl(var(--accent-fg));`
+                                "
+                            >
+                                <span v-if="!member.avatar">{{
+                                    member.name.charAt(0)
+                                }}</span>
+                            </div>
+                            <span class="hidden text-[13px] md:inline">{{
+                                member.name.split(' ')[0]
+                            }}</span>
+                        </button>
+
                         <div
-                            class="font-display flex h-8 w-8 items-center justify-center rounded-full bg-cover italic"
-                            :style="
-                                member.avatar
-                                    ? `background-image: url('${member.avatar}');`
-                                    : `background: hsl(var(--accent)); color: hsl(var(--accent-fg));`
+                            v-if="userMenuOpen"
+                            class="absolute right-0 top-full mt-2 w-52 overflow-hidden rounded-xl"
+                            style="
+                                background: hsl(var(--bg-elev));
+                                border: 1px solid hsl(var(--border-strong));
+                                box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
+                                z-index: 60;
                             "
                         >
-                            <span v-if="!member.avatar">{{
-                                member.name.charAt(0)
-                            }}</span>
+                            <div
+                                class="border-b px-4 py-3"
+                                style="border-color: hsl(var(--border-ahd))"
+                            >
+                                <div
+                                    class="font-medium text-[13px] truncate"
+                                    style="color: hsl(var(--fg))"
+                                >
+                                    {{ member.name }}
+                                </div>
+                                <div
+                                    class="font-mono text-[11px] truncate"
+                                    style="color: hsl(var(--fg-muted))"
+                                >
+                                    {{ member.email }}
+                                </div>
+                            </div>
+
+                            <Link
+                                href="/member/settings/profile"
+                                class="block px-4 py-2 text-[13px]"
+                                style="color: hsl(var(--fg))"
+                                @click="userMenuOpen = false"
+                            >
+                                ตั้งค่าโปรไฟล์
+                            </Link>
+                            <Link
+                                href="/member/settings/password"
+                                class="block px-4 py-2 text-[13px]"
+                                style="color: hsl(var(--fg))"
+                                @click="userMenuOpen = false"
+                            >
+                                เปลี่ยนรหัสผ่าน
+                            </Link>
+                            <button
+                                type="button"
+                                class="block w-full border-t px-4 py-2 text-left text-[13px]"
+                                style="
+                                    color: hsl(var(--accent));
+                                    border-color: hsl(var(--border-ahd));
+                                "
+                                @click="logout"
+                            >
+                                ออกจากระบบ
+                            </button>
                         </div>
-                        <span class="hidden text-[13px] md:inline">{{
-                            member.name.split(' ')[0]
-                        }}</span>
-                    </Link>
+                    </div>
                 </template>
                 <template v-else>
                     <Link

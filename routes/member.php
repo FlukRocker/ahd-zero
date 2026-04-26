@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Member\EmailVerificationController;
 use App\Http\Controllers\Member\MemberAuthController;
+use App\Http\Controllers\Member\MemberSettingsController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware('guest:member')->group(function (): void {
@@ -13,6 +14,26 @@ Route::middleware('guest:member')->group(function (): void {
 
 Route::middleware('auth.memberOrAdmin')->group(function (): void {
     Route::post('/member/logout', [MemberAuthController::class, 'logout'])->name('member.logout');
+});
+
+// Member-only settings — `auth:member` keeps admins out (admins use
+// /settings/profile via Fortify under the web guard).
+Route::middleware('auth:member')->group(function (): void {
+    Route::redirect('/member/settings', '/member/settings/profile');
+
+    Route::get('/member/settings/profile', [MemberSettingsController::class, 'profile'])
+        ->name('member.settings.profile');
+    Route::patch('/member/settings/profile', [MemberSettingsController::class, 'updateProfile'])
+        ->name('member.settings.profile.update');
+
+    Route::get('/member/settings/password', [MemberSettingsController::class, 'password'])
+        ->name('member.settings.password');
+    Route::put('/member/settings/password', [MemberSettingsController::class, 'updatePassword'])
+        ->middleware('throttle:6,1')
+        ->name('member.settings.password.update');
+
+    Route::delete('/member/settings/profile', [MemberSettingsController::class, 'destroy'])
+        ->name('member.settings.destroy');
 });
 
 // Email verification — notice + resend reachable by guests too because login
