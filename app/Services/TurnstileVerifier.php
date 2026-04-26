@@ -42,14 +42,20 @@ class TurnstileVerifier
             return false;
         }
 
+        // remoteip is intentionally omitted. When the app sits behind a
+        // proxy (Cloudflare, nginx), $request->ip() reports the proxy
+        // address — which never matches the visitor IP that solved the
+        // challenge, so CF returns success:false. Without remoteip, CF
+        // only checks token validity (recommended for proxied apps).
+        $payload = [
+            'secret' => $secret,
+            'response' => $token,
+        ];
+
         try {
             $response = Http::asForm()
                 ->timeout(5)
-                ->post(self::VERIFY_URL, [
-                    'secret' => $secret,
-                    'response' => $token,
-                    'remoteip' => $remoteIp,
-                ]);
+                ->post(self::VERIFY_URL, $payload);
         } catch (Throwable $e) {
             // Network blip → fail closed. Better to bounce a real user than
             // silently let a bot through during a Cloudflare incident.
@@ -64,7 +70,18 @@ class TurnstileVerifier
         }
 
         $success = $body['success'] ?? false;
+        if (! is_bool($success) || ! $success) {
+            // Surface CF error codes (e.g. invalid-input-response,
+            // timeout-or-duplicate, bad-request) to logs so we can
+            // diagnose without enabling debug.
+            Log::warning('Turnstile verify rejected', [
+                'errors' => $body['error-codes'] ?? null,
+                'hostname' => $body['hostname'] ?? null,
+            ]);
 
-        return is_bool($success) ? $success : false;
+            return false;
+        }
+
+        return true;
     }
 }
