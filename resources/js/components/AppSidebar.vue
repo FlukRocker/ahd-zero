@@ -14,7 +14,7 @@ import {
 import { dashboard } from '@/routes';
 import { type NavItem } from '@/types';
 import { Link } from '@inertiajs/vue3';
-import { BookOpen, Folder, LayoutGrid } from 'lucide-vue-next';
+import { BookOpen, Folder, LayoutGrid, MessageSquare, Settings, Users } from 'lucide-vue-next';
 import AppLogo from './AppLogo.vue';
 
 const mainNavItems: NavItem[] = [
@@ -22,6 +22,21 @@ const mainNavItems: NavItem[] = [
         title: 'Dashboard',
         href: dashboard(),
         icon: LayoutGrid,
+    },
+    {
+        title: 'Members',
+        href: '/dashboard/members',
+        icon: Users,
+    },
+    {
+        title: 'Comments',
+        href: '/dashboard/comments',
+        icon: MessageSquare,
+    },
+    {
+        title: 'Site Settings',
+        href: '/dashboard/site-settings',
+        icon: Settings,
     },
 ];
 

@@ -1,9 +1,11 @@
 <?php
 
+use App\Http\Controllers\Admin\CommentManagementController;
 use App\Http\Controllers\Admin\MemberManagementController;
 use App\Http\Controllers\Admin\SiteSettingsController;
 use App\Http\Controllers\AnimeController;
 use App\Http\Controllers\CategoryController;
+use App\Http\Controllers\CommentController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DirectoryController;
 use App\Http\Controllers\IndexController;
@@ -77,6 +79,21 @@ Route::get('/search', function (\Illuminate\Http\Request $request) {
     return app(SearchController::class)->search($request);
 })->name('search');
 
+// Comment API — session-auth via web middleware. Index is public so guests
+// can read; mutating routes require an authenticated member or admin.
+Route::prefix('api')->group(function (): void {
+    Route::get('/comments/{type}/{id}', [CommentController::class, 'index']);
+
+    Route::middleware('auth.memberOrAdmin')->group(function (): void {
+        Route::post('/comments', [CommentController::class, 'store']);
+        Route::put('/comments/{commentId}', [CommentController::class, 'update']);
+        Route::delete('/comments/{commentId}', [CommentController::class, 'destroy']);
+        Route::post('/comments/{commentId}/react', [CommentController::class, 'react']);
+        Route::get('/notifications/comments', [CommentController::class, 'notifications']);
+        Route::post('/notifications/comments/read', [CommentController::class, 'markRead']);
+    });
+});
+
 // Authenticated admin area
 Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
@@ -85,6 +102,11 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::post('dashboard/members/{id}/ban', [MemberManagementController::class, 'ban'])->name('admin.members.ban');
     Route::post('dashboard/members/{id}/unban', [MemberManagementController::class, 'unban'])->name('admin.members.unban');
     Route::delete('dashboard/members/{id}', [MemberManagementController::class, 'destroy'])->name('admin.members.destroy');
+
+    Route::get('dashboard/comments', [CommentManagementController::class, 'index'])->name('admin.comments');
+    Route::delete('dashboard/comments/{commentId}', [CommentManagementController::class, 'destroy'])->name('admin.comments.destroy');
+    Route::post('dashboard/comments/delete-all-by-user', [CommentManagementController::class, 'destroyAllByUser'])->name('admin.comments.destroyAllByUser');
+    Route::post('dashboard/comments/{commentId}/delete-and-ban', [CommentManagementController::class, 'destroyAndBan'])->name('admin.comments.destroyAndBan');
 
     Route::get('dashboard/site-settings', [SiteSettingsController::class, 'index'])->name('admin.settings');
     Route::post('dashboard/site-settings/maintenance', [SiteSettingsController::class, 'toggleMaintenance'])->name('admin.settings.maintenance');

@@ -5,6 +5,7 @@ import AdsBanner, {
 import AhdIcon from '@/components/ahd/AhdIcon.vue';
 import Rail from '@/components/ahd/Rail.vue';
 import SectionHeader from '@/components/ahd/SectionHeader.vue';
+import CommentSection from '@/components/comments/CommentSection.vue';
 import { useAutoReveal } from '@/composables/useReveal';
 import { useSeo } from '@/composables/useSeo';
 import FrontLayout from '@/layouts/FrontLayout.vue';
@@ -403,6 +404,13 @@ useAutoReveal();
         >
             <SectionHeader eyebrow="ซีรีส์" title="ภาคอื่นในซีรีส์" />
             <Rail :items="seriesCards" layout="poster" />
+        </section>
+
+        <section class="mx-auto mt-20 mb-20 max-w-[1440px] px-6 lg:px-10">
+            <CommentSection
+                commentable-type="anime"
+                :commentable-id="anime.cat_id"
+            />
         </section>
     </FrontLayout>
 </template>

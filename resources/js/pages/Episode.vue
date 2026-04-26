@@ -8,6 +8,7 @@ import PlayerAdSlot, {
 } from '@/components/ahd/PlayerAdSlot.vue';
 import Rail from '@/components/ahd/Rail.vue';
 import SectionHeader from '@/components/ahd/SectionHeader.vue';
+import CommentSection from '@/components/comments/CommentSection.vue';
 import { useAutoReveal } from '@/composables/useReveal';
 import { useSeo } from '@/composables/useSeo';
 import FrontLayout from '@/layouts/FrontLayout.vue';
@@ -326,6 +327,13 @@ useAutoReveal();
         >
             <SectionHeader eyebrow="คุณอาจชอบ" title="อนิเมะที่เกี่ยวข้อง" />
             <Rail :items="relatedCards" layout="poster" />
+        </section>
+
+        <section class="mx-auto mt-12 mb-20 max-w-[1440px] px-6 lg:px-10">
+            <CommentSection
+                commentable-type="episode"
+                :commentable-id="currentEpisode.list_id"
+            />
         </section>
     </FrontLayout>
 </template>
