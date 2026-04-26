@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Notifications\MemberVerifyEmail;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -36,6 +37,7 @@ class Member extends Authenticatable implements MustVerifyEmail
     protected $fillable = [
         'name',
         'email',
+        'email_verified_at',
         'password',
         'avatar',
         'bio',
@@ -70,5 +72,16 @@ class Member extends Authenticatable implements MustVerifyEmail
     public function uniqueIds(): array
     {
         return ['uuid'];
+    }
+
+    /**
+     * Override the default VerifyEmail notification — the built-in one signs
+     * URLs against the `verification.verify` route, which lives on the admin
+     * (web) guard. Members need their own signed route on /member/email/...
+     */
+    #[Override]
+    public function sendEmailVerificationNotification(): void
+    {
+        $this->notify(new MemberVerifyEmail);
     }
 }

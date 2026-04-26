@@ -2,30 +2,18 @@
 
 namespace Tests\Feature\Auth;
 
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class RegistrationTest extends TestCase
 {
-    use RefreshDatabase;
-
-    public function test_registration_screen_can_be_rendered()
+    /**
+     * Public admin registration is disabled — admins are invite-only.
+     * End-user signup lives on the `member` guard at /member/register
+     * and is covered by Tests\Feature\MemberAuthTest.
+     */
+    public function test_admin_register_route_is_disabled(): void
     {
-        $response = $this->get(route('register'));
-
-        $response->assertStatus(200);
-    }
-
-    public function test_new_users_can_register()
-    {
-        $response = $this->post(route('register.store'), [
-            'name' => 'Test User',
-            'email' => 'test@example.com',
-            'password' => 'password',
-            'password_confirmation' => 'password',
-        ]);
-
-        $this->assertAuthenticated();
-        $response->assertRedirect(route('dashboard', absolute: false));
+        $this->get('/register')->assertNotFound();
+        $this->post('/register')->assertNotFound();
     }
 }

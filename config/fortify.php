@@ -144,7 +144,10 @@ return [
     */
 
     'features' => [
-        Features::registration(),
+        // Public admin registration is disabled — admins are invite-only,
+        // not self-service. End-user signup lives on the `member` guard via
+        // /member/register (App\Http\Controllers\Member\MemberAuthController).
+        // Features::registration(),
         Features::resetPasswords(),
         Features::emailVerification(),
         Features::twoFactorAuthentication([
