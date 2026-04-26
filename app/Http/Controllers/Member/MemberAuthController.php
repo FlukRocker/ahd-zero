@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Member;
 
 use App\Http\Controllers\Controller;
 use App\Models\Member;
+use App\Rules\TurnstileToken;
 use App\Support\SiteSettings;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -25,10 +26,21 @@ class MemberAuthController extends Controller
 
     public function login(Request $request): RedirectResponse
     {
-        $credentials = $request->validate([
+        $rules = [
             'email' => ['required', 'string', 'email'],
             'password' => ['required', 'string'],
-        ]);
+        ];
+
+        // Only enforce Turnstile when the secret is configured. Local dev,
+        // tests, and any environment without Cloudflare creds skip both
+        // the required-ness and the verify() round-trip.
+        if (config('services.turnstile.secret_key')) {
+            $rules['cf-turnstile-response'] = ['required', 'string', new TurnstileToken];
+        }
+
+        $request->validate($rules);
+
+        $credentials = $request->only('email', 'password');
 
         if (Auth::guard('member')->attempt($credentials, $request->boolean('remember'))) {
             /** @var Member $member */
@@ -63,11 +75,20 @@ class MemberAuthController extends Controller
     {
         abort_if(! SiteSettings::registrationEnabled(), 403, 'ปิดรับสมาชิกใหม่ในขณะนี้');
 
-        $validated = $request->validate([
+        $rules = [
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'email', 'max:255', 'unique:members'],
             'password' => ['required', 'confirmed', Password::defaults()],
-        ]);
+        ];
+
+        if (config('services.turnstile.secret_key')) {
+            $rules['cf-turnstile-response'] = ['required', 'string', new TurnstileToken];
+        }
+
+        $validated = $request->validate($rules);
+
+        // Strip Turnstile token before mass-assigning to Member
+        unset($validated['cf-turnstile-response']);
 
         $member = Member::create($validated);
 

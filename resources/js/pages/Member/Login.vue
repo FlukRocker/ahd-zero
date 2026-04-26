@@ -1,24 +1,44 @@
 <script setup lang="ts">
 import AhdIcon from '@/components/ahd/AhdIcon.vue';
+import TurnstileWidget from '@/components/ahd/TurnstileWidget.vue';
 import { useSeo } from '@/composables/useSeo';
 import FrontLayout from '@/layouts/FrontLayout.vue';
 import { Head, Link, useForm, usePage } from '@inertiajs/vue3';
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 
-const page = usePage<{ siteConfig?: { registrationEnabled?: boolean } }>();
+const page = usePage<{
+    siteConfig?: {
+        registrationEnabled?: boolean;
+        turnstileSiteKey?: string | null;
+    };
+}>();
 const registrationEnabled = computed(
     () => page.props.siteConfig?.registrationEnabled !== false,
 );
+const turnstileSiteKey = computed(
+    () => page.props.siteConfig?.turnstileSiteKey ?? '',
+);
 
+// Inertia form name uses the literal Cloudflare field name so the back-end
+// validation rule keys ('cf-turnstile-response') line up without renaming.
 const form = useForm({
     email: '',
     password: '',
     remember: false,
+    'cf-turnstile-response': '',
 });
+
+const turnstileRef = ref<InstanceType<typeof TurnstileWidget> | null>(null);
 
 function submit() {
     form.post('/member/login', {
-        onFinish: () => form.reset('password'),
+        onFinish: () => {
+            form.reset('password');
+            // Cloudflare burns the token after one verify — clear + reset
+            // the widget so the next attempt gets a fresh challenge.
+            form['cf-turnstile-response'] = '';
+            turnstileRef.value?.reset();
+        },
     });
 }
 
@@ -98,10 +118,28 @@ useSeo(() => ({ title: 'เข้าสู่ระบบ', robots: 'noindex, fo
                     จดจำฉัน
                 </label>
 
+                <div v-if="turnstileSiteKey">
+                    <TurnstileWidget
+                        ref="turnstileRef"
+                        v-model="form['cf-turnstile-response']"
+                        :site-key="turnstileSiteKey"
+                    />
+                    <p
+                        v-if="form.errors['cf-turnstile-response']"
+                        class="mt-2 text-[12px]"
+                        style="color: hsl(var(--accent))"
+                    >
+                        {{ form.errors['cf-turnstile-response'] }}
+                    </p>
+                </div>
+
                 <button
                     type="submit"
                     class="btn btn-primary w-full justify-center"
-                    :disabled="form.processing"
+                    :disabled="
+                        form.processing ||
+                        (!!turnstileSiteKey && !form['cf-turnstile-response'])
+                    "
                 >
                     <AhdIcon name="arrow" :size="14" /> เข้าสู่ระบบ
                 </button>

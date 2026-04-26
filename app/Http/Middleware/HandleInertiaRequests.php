@@ -61,6 +61,7 @@ class HandleInertiaRequests extends Middleware
             ],
             'siteConfig' => [
                 'registrationEnabled' => SiteSettings::registrationEnabled(),
+                'turnstileSiteKey' => config('services.turnstile.site_key'),
             ],
             'ads' => [
                 'navbar' => AdsNavbar::all(),

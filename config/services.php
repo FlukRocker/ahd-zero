@@ -41,6 +41,13 @@ return [
         'measurement_id' => env('GA_MEASUREMENT_ID', 'G-GQM12V5ZE5'),
     ],
 
+    'turnstile' => [
+        // Cloudflare Turnstile keys for member auth + comment forms.
+        // Both null = widget skipped + verification bypassed (local dev).
+        'site_key' => env('TURNSTILE_SITE_KEY'),
+        'secret_key' => env('TURNSTILE_SECRET_KEY'),
+    ],
+
     'akuma_player' => [
         'url' => env('AKUMA_PLAYER_URL', 'http://65.108.61.69:3002'),
         // Default token kept inline so the API can resolve Drive IDs without
