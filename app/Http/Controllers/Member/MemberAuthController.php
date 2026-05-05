@@ -54,15 +54,11 @@ class MemberAuthController extends Controller
                 ])->onlyInput('email');
             }
 
-            // Block login until email verified. Keep the email in session so
-            // the notice page + resend endpoint know which member to act on.
-            if (! $member->hasVerifiedEmail()) {
-                Auth::guard('member')->logout();
-                $request->session()->put('pending_verification_email', $member->email);
-
-                return redirect()->route('member.verification.notice');
-            }
-
+            // Email verification is informational, not a gate — unverified
+            // members can still log in. The verify mail still goes out on
+            // register and the click flow still marks email_verified_at,
+            // but downstream features that care can branch on $member
+            // ->hasVerifiedEmail() themselves.
             $request->session()->regenerate();
 
             return redirect()->intended('/');
@@ -101,13 +97,13 @@ class MemberAuthController extends Controller
 
         $member = Member::create($validated);
 
-        // Send verification mail before any auto-login. We do NOT log the
-        // member in — they must click the signed link first. Keep the email
-        // in session so the notice page can show it.
+        // Fire-and-forget verification mail — we no longer block login on
+        // verification, but the link still works and marks email_verified_at
+        // when clicked. Auto-login the new member straight to the home page.
         $member->sendEmailVerificationNotification();
-        $request->session()->put('pending_verification_email', $member->email);
+        Auth::guard('member')->login($member);
 
-        return redirect()->route('member.verification.notice');
+        return redirect('/');
     }
 
     public function logout(Request $request): RedirectResponse

@@ -21,7 +21,7 @@ class MemberAuthTest extends TestCase
         $this->get('/member/register')->assertOk();
     }
 
-    public function test_member_register_sends_verification_and_does_not_log_in(): void
+    public function test_member_register_auto_logs_in_and_sends_verification(): void
     {
         $response = $this->post('/member/register', [
             'name' => 'Rin',
@@ -30,22 +30,21 @@ class MemberAuthTest extends TestCase
             'password_confirmation' => 'password123!',
         ]);
 
-        // Registration must NOT auto-login — user must verify email first.
-        $response->assertRedirect('/member/email/verify');
-        $this->assertGuest('member');
+        // Verification mail still sends but is no longer a login gate.
+        $response->assertRedirect('/');
 
         $member = Member::where('email', 'rin@example.test')->first();
         $this->assertNotNull($member);
         $this->assertNull($member->email_verified_at);
+        $this->assertAuthenticatedAs($member, 'member');
     }
 
-    public function test_verified_member_can_login(): void
+    public function test_member_can_login_with_correct_credentials(): void
     {
         Member::create([
             'name' => 'Rin',
             'email' => 'rin@example.test',
             'password' => Hash::make('password123!'),
-            'email_verified_at' => now(),
         ]);
 
         $response = $this->post('/member/login', [
@@ -57,13 +56,13 @@ class MemberAuthTest extends TestCase
         $this->assertAuthenticated('member');
     }
 
-    public function test_unverified_member_login_redirects_to_verify_page(): void
+    public function test_unverified_member_can_still_login(): void
     {
         Member::create([
             'name' => 'Rin',
             'email' => 'rin@example.test',
             'password' => Hash::make('password123!'),
-            // email_verified_at left null on purpose
+            // email_verified_at intentionally null
         ]);
 
         $response = $this->post('/member/login', [
@@ -71,19 +70,16 @@ class MemberAuthTest extends TestCase
             'password' => 'password123!',
         ]);
 
-        $response->assertRedirect('/member/email/verify');
-        $this->assertGuest('member');
+        $response->assertRedirect('/');
+        $this->assertAuthenticated('member');
     }
 
     public function test_banned_member_cannot_login(): void
     {
-        // Verified email so the unverified-redirect doesn't shadow the
-        // banned-account error path under test.
         Member::create([
             'name' => 'Banned',
             'email' => 'banned@example.test',
             'password' => Hash::make('password123!'),
-            'email_verified_at' => now(),
             'banned_at' => now(),
             'ban_reason' => 'Spam',
         ]);
