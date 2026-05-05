@@ -32,6 +32,18 @@ renderer.code = ({ text, lang }) => {
 
 marked.use({ renderer });
 
+// Force every rendered <a> to be search-engine-neutral. Backend already
+// rejects external URLs via NoExternalLinks rule, but DOMPurify hooks
+// here are a second wall: even if a link slips through, it carries
+// rel="nofollow ugc noopener" + target="_blank" so we never pass link
+// juice and the new tab can't reach back into the opener context.
+DOMPurify.addHook('afterSanitizeAttributes', (node) => {
+    if (node.tagName === 'A') {
+        node.setAttribute('rel', 'nofollow ugc noopener noreferrer');
+        node.setAttribute('target', '_blank');
+    }
+});
+
 export function renderMarkdown(markdown: string): string {
     const html = marked.parse(markdown, { async: false }) as string;
     return DOMPurify.sanitize(html, {
@@ -40,6 +52,6 @@ export function renderMarkdown(markdown: string): string {
             'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
             'span', 'del', 'hr', 'img',
         ],
-        ALLOWED_ATTR: ['href', 'target', 'class', 'src', 'alt'],
+        ALLOWED_ATTR: ['href', 'target', 'class', 'src', 'alt', 'rel'],
     });
 }

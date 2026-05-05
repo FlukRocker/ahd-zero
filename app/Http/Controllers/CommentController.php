@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Comment;
 use App\Models\CommentNotification;
+use App\Rules\NoExternalLinks;
 use App\Rules\TurnstileToken;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -64,7 +65,7 @@ class CommentController extends Controller
     public function store(Request $request): JsonResponse
     {
         $rules = [
-            'body' => ['required', 'string', 'min:1', 'max:5000'],
+            'body' => ['required', 'string', 'min:1', 'max:5000', new NoExternalLinks],
             'commentable_type' => ['required', 'string', 'in:anime,episode'],
             'commentable_id' => ['required', 'integer'],
             'parent_id' => ['nullable', 'string'],
@@ -115,7 +116,7 @@ class CommentController extends Controller
     public function update(Request $request, string $commentId): JsonResponse
     {
         $validated = $request->validate([
-            'body' => ['required', 'string', 'min:1', 'max:5000'],
+            'body' => ['required', 'string', 'min:1', 'max:5000', new NoExternalLinks],
         ]);
 
         $comment = Comment::query()->findOrFail($commentId);
