@@ -48,18 +48,18 @@ function resolveLandscape(a: AnimeRecord): string {
 
 function resolveTag(a: AnimeRecord): string | null {
     if (a.anime_status === 'Currently Airing' || a.anime_status === 'airing')
-        return 'AIRING';
-    if (a.cat_type === 1) return 'SUB';
-    if (a.cat_type === 2) return 'DUB';
-    if (a.cat_type === 3) return 'MOVIE';
+        return 'กำลังฉาย';
+    if (a.cat_type === 1) return 'ซับไทย';
+    if (a.cat_type === 2) return 'พากย์ไทย';
+    if (a.cat_type === 3) return 'มูฟวี่';
     return null;
 }
 
 function resolveEp(a: AnimeRecord): string {
     const count = a.episode_list_count ?? a.episodes;
     if (count == null) return '';
-    if (a.cat_type === 3) return 'Movie';
-    return `${count} EP`;
+    if (a.cat_type === 3) return 'มูฟวี่';
+    return `${count} ตอน`;
 }
 
 function resolveGenre(a: AnimeRecord): string {
