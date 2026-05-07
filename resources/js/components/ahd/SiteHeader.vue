@@ -24,6 +24,7 @@ function onScroll() {
 
 const userMenuOpen = ref(false);
 const userMenuRef = ref<HTMLDivElement | null>(null);
+const mobileNavOpen = ref(false);
 
 function onClickOutsideUserMenu(e: MouseEvent) {
     if (
@@ -166,6 +167,16 @@ function isActive(href: string): boolean {
                 </button>
                 <button
                     type="button"
+                    class="flex h-10 w-10 items-center justify-center rounded-full lg:hidden"
+                    style="background: hsl(var(--bg-soft))"
+                    aria-label="เมนู"
+                    :aria-expanded="mobileNavOpen"
+                    @click="mobileNavOpen = !mobileNavOpen"
+                >
+                    <AhdIcon :name="mobileNavOpen ? 'close' : 'menu'" :size="18" />
+                </button>
+                <button
+                    type="button"
                     class="flex h-10 w-10 items-center justify-center rounded-full md:hidden"
                     style="background: hsl(var(--bg-soft))"
                     aria-label="ค้นหา"
@@ -267,6 +278,46 @@ function isActive(href: string): boolean {
                     >
                 </template>
             </div>
+        </div>
+
+        <!-- Mobile nav drawer — slides under the header on lg breakpoint
+             and below. Tapping a link closes the drawer so the user lands
+             on the page without an extra dismiss step. -->
+        <div
+            v-if="mobileNavOpen"
+            class="border-t lg:hidden"
+            :style="{
+                background: 'hsl(var(--bg))',
+                borderColor: 'hsl(var(--border-ahd))',
+            }"
+        >
+            <nav class="mx-auto flex max-w-[1440px] flex-col gap-1 px-6 py-3 lg:px-10">
+                <Link
+                    v-for="n in nav"
+                    :key="n.id"
+                    :href="n.href"
+                    class="rounded-lg px-3 py-2 text-[14px]"
+                    :style="
+                        isActive(n.href)
+                            ? 'background: hsl(var(--bg-soft)); color: hsl(var(--fg)); font-weight: 500;'
+                            : 'color: hsl(var(--fg-muted));'
+                    "
+                    @click="mobileNavOpen = false"
+                    >{{ n.label }}</Link
+                >
+                <Link
+                    v-if="!member"
+                    href="/member/login"
+                    class="mt-2 rounded-lg px-3 py-2 text-[14px] font-medium"
+                    style="
+                        background: hsl(var(--accent));
+                        color: hsl(var(--accent-fg));
+                    "
+                    @click="mobileNavOpen = false"
+                >
+                    เข้าสู่ระบบ
+                </Link>
+            </nav>
         </div>
     </header>
 </template>
