@@ -2,7 +2,6 @@
 import type { CardItem } from '@/lib/animeCard';
 import { bunnyImg, bunnySrcset, HERO_WIDTHS, POSTER_WIDTHS } from '@/lib/img';
 import { Link } from '@inertiajs/vue3';
-import { animate, scroll, stagger } from 'motion';
 import {
     computed,
     nextTick,
@@ -13,6 +12,18 @@ import {
 } from 'vue';
 import AhdIcon from './AhdIcon.vue';
 import StarIcon from './StarIcon.vue';
+
+// Motion One pulled in lazily — hero is above-the-fold and the 27 KB motion
+// chunk + 188ms exec previously blocked the LCP path. Animations here are
+// visual flourish (stagger fade-in, scroll parallax), not content, so we
+// defer the import until after first paint. Static fallback renders cleanly
+// at opacity 1 — motion just adds the entrance.
+type MotionMod = typeof import('motion');
+let motionPromise: Promise<MotionMod> | null = null;
+function loadMotion(): Promise<MotionMod> {
+    if (!motionPromise) motionPromise = import('motion');
+    return motionPromise;
+}
 
 type Variant = 'cinema' | 'editorial';
 
@@ -72,10 +83,11 @@ function go(i: number) {
     start();
 }
 
-function animateIn() {
+async function animateIn() {
     if (!root.value) return;
     const els = root.value.querySelectorAll<HTMLElement>('[data-hero-anim]');
     if (!els.length) return;
+    const { animate, stagger } = await loadMotion();
     animate(
         Array.from(els),
         { opacity: [0, 1], y: [24, 0] },
@@ -83,10 +95,11 @@ function animateIn() {
     );
 }
 
-function initParallax() {
+async function initParallax() {
     if (prefersReducedMotion()) return;
     const el = backdrop.value;
     if (!el || !root.value) return;
+    const { scroll } = await loadMotion();
     stopParallax?.();
     stopParallax = scroll(
         (_progress: number, info: { y?: { progress?: number } }) => {
@@ -98,10 +111,25 @@ function initParallax() {
     );
 }
 
+function scheduleIdle(fn: () => void) {
+    if (typeof window === 'undefined') return;
+    const w = window as Window & {
+        requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => void;
+    };
+    if (typeof w.requestIdleCallback === 'function') {
+        w.requestIdleCallback(fn, { timeout: 1500 });
+    } else {
+        setTimeout(fn, 300);
+    }
+}
+
 onMounted(() => {
     start();
-    nextTick(() => {
-        animateIn();
+    // Skip the entrance animation on first mount — hero is already painted
+    // at default opacity (LCP candidate). Loading motion would either flicker
+    // (paint → fade to 0 → fade in) or block LCP if we forced opacity:0.
+    // Subsequent slide changes (watch(idx)) still animate normally.
+    scheduleIdle(() => {
         initParallax();
     });
 });
