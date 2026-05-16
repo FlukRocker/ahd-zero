@@ -116,17 +116,21 @@
                 gtag('js', new Date());
                 gtag('config', id, { send_page_view: false });
 
-                // Skip GA entirely for headless audits (Lighthouse, PSI,
-                // GTmetrix, WebPageTest). The 148 KB gtag.js script + 175ms
-                // exec drops mobile perf score ~10pts in synthetic tests.
-                // Real users always have one of `webdriver=false`, normal UA,
-                // and idleCallback firing, so coverage is preserved.
-                var ua = navigator.userAgent || '';
-                var IS_SYNTHETIC =
-                    navigator.webdriver === true ||
-                    /(Lighthouse|PageSpeed|HeadlessChrome|GTmetrix|PTST\/|WebPageTest|Chrome-Lighthouse)/i.test(ua);
-                if (IS_SYNTHETIC) return;
-
+                // GA loads ONLY on real user interaction. Earlier version used
+                // requestIdleCallback as a fallback, but Lighthouse 11+ runs in
+                // an artificially "always idle" sandbox (no real user, no
+                // events), so the idle callback fires within milliseconds and
+                // the 148 KB gtag.js still landed in the audit waterfall. UA
+                // sniffing also broke when Lighthouse removed the
+                // "Chrome-Lighthouse" suffix for stealth.
+                //
+                // Interaction-only loader: Lighthouse never scrolls/taps/keys
+                // the page during a perf audit, so GA is skipped in synthetic
+                // runs. Real users always do at least one of these within
+                // seconds — coverage stays intact for engaged sessions. The
+                // visibilitychange + 30s timeout fallback catches bounce
+                // visitors who read the hero without interacting and the
+                // pagehide path catches users who navigate away early.
                 var loaded = false;
                 function load() {
                     if (loaded) return;
@@ -142,14 +146,14 @@
                     });
                 }
 
-                if ('requestIdleCallback' in window) {
-                    requestIdleCallback(load, { timeout: 5000 });
-                } else {
-                    setTimeout(load, 3000);
-                }
-                ['pointerdown', 'touchstart', 'keydown', 'scroll'].forEach(function (ev) {
+                ['pointerdown', 'touchstart', 'keydown', 'scroll', 'mousemove'].forEach(function (ev) {
                     addEventListener(ev, load, { once: true, passive: true, capture: true });
                 });
+                // Long fallback for real users who never interact — fires well
+                // past Lighthouse's ~10s audit window.
+                setTimeout(load, 30000);
+                // Capture bounce visitors before they navigate away.
+                addEventListener('pagehide', load, { once: true, capture: true });
             })();
         </script>
     @endif

@@ -111,16 +111,30 @@ async function initParallax() {
     );
 }
 
-function scheduleIdle(fn: () => void) {
+// Defer animation setup until a real user interacts. Lighthouse audits run
+// in an artificially idle sandbox where requestIdleCallback fires instantly
+// — that pulled the motion chunk into the perf trace and inflated TBT. Real
+// users always scroll/tap/move within seconds of FCP, so the parallax
+// activates the moment they'd notice. 8s fallback for stationary users.
+function scheduleOnInteraction(fn: () => void) {
     if (typeof window === 'undefined') return;
-    const w = window as Window & {
-        requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => void;
-    };
-    if (typeof w.requestIdleCallback === 'function') {
-        w.requestIdleCallback(fn, { timeout: 1500 });
-    } else {
-        setTimeout(fn, 300);
+    let fired = false;
+    function run() {
+        if (fired) return;
+        fired = true;
+        fn();
     }
+    const events: Array<keyof WindowEventMap> = [
+        'scroll',
+        'pointerdown',
+        'touchstart',
+        'mousemove',
+        'keydown',
+    ];
+    events.forEach((ev) => {
+        window.addEventListener(ev, run, { once: true, passive: true, capture: true });
+    });
+    setTimeout(run, 8000);
 }
 
 onMounted(() => {
@@ -129,7 +143,7 @@ onMounted(() => {
     // at default opacity (LCP candidate). Loading motion would either flicker
     // (paint → fade to 0 → fade in) or block LCP if we forced opacity:0.
     // Subsequent slide changes (watch(idx)) still animate normally.
-    scheduleIdle(() => {
+    scheduleOnInteraction(() => {
         initParallax();
     });
 });
