@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AboutSeo from '@/components/ahd/AboutSeo.vue';
 import AdsFloating from '@/components/ahd/AdsFloating.vue';
 import AdsNavbar from '@/components/ahd/AdsNavbar.vue';
 import Footer from '@/components/ahd/Footer.vue';
@@ -29,6 +30,7 @@ usePageTransition(() => mainEl.value);
         <SiteHeader @open-search="searchOpen = true" />
         <main ref="mainEl" class="flex-1">
             <slot />
+            <AboutSeo />
         </main>
         <Footer />
         <SearchOverlay :open="searchOpen" @close="searchOpen = false" />
