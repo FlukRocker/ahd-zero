@@ -58,6 +58,7 @@ const nav = [
     { id: 'dub', label: 'พากย์ไทย', href: '/category/2' },
     { id: 'movies', label: 'เดอะมูฟวี่', href: '/category/3' },
     { id: 'studios', label: 'สตูดิโอ', href: '/studios' },
+    { id: 'fanpage', label: 'แจ้งปัญหา', href: 'https://www.facebook.com/animehdzeroo.v2' },
 ];
 
 function isActive(href: string): boolean {
