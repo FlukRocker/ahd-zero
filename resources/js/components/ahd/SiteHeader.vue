@@ -112,18 +112,30 @@ function isActive(href: string): boolean {
             </Link>
 
             <nav class="hidden items-center gap-6 text-[14px] lg:flex">
-                <Link
-                    v-for="n in nav"
-                    :key="n.id"
-                    :href="n.href"
-                    class="u-grow py-1"
-                    :style="
-                        isActive(n.href)
-                            ? 'color: hsl(var(--fg)); font-weight: 500;'
-                            : 'color: hsl(var(--fg-muted));'
-                    "
-                    >{{ n.label }}</Link
-                >
+                <template v-for="n in nav" :key="n.id">
+                    <a
+                        v-if="n.href.startsWith('http')"
+                        :href="n.href"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="u-grow py-1"
+                        style="color: hsl(var(--fg-muted))"
+                    >
+                        {{ n.label }}
+                    </a>
+                    <Link
+                        v-else
+                        :href="n.href"
+                        class="u-grow py-1"
+                        :style="
+                            isActive(n.href)
+                                ? 'color: hsl(var(--fg)); font-weight: 500;'
+                                : 'color: hsl(var(--fg-muted));'
+                        "
+                    >
+                        {{ n.label }}
+                    </Link>
+                </template>
             </nav>
 
             <div class="hidden flex-1 justify-center md:flex">
@@ -293,19 +305,32 @@ function isActive(href: string): boolean {
             }"
         >
             <nav class="mx-auto flex max-w-[1440px] flex-col gap-1 px-6 py-3 lg:px-10">
-                <Link
-                    v-for="n in nav"
-                    :key="n.id"
-                    :href="n.href"
-                    class="rounded-lg px-3 py-2 text-[14px]"
-                    :style="
-                        isActive(n.href)
-                            ? 'background: hsl(var(--bg-soft)); color: hsl(var(--fg)); font-weight: 500;'
-                            : 'color: hsl(var(--fg-muted));'
-                    "
-                    @click="mobileNavOpen = false"
-                    >{{ n.label }}</Link
-                >
+                <template v-for="n in nav" :key="n.id">
+                    <a
+                        v-if="n.href.startsWith('http')"
+                        :href="n.href"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="rounded-lg px-3 py-2 text-[14px]"
+                        style="color: hsl(var(--fg-muted))"
+                        @click="mobileNavOpen = false"
+                    >
+                        {{ n.label }}
+                    </a>
+                    <Link
+                        v-else
+                        :href="n.href"
+                        class="rounded-lg px-3 py-2 text-[14px]"
+                        :style="
+                            isActive(n.href)
+                                ? 'background: hsl(var(--bg-soft)); color: hsl(var(--fg)); font-weight: 500;'
+                                : 'color: hsl(var(--fg-muted));'
+                        "
+                        @click="mobileNavOpen = false"
+                    >
+                        {{ n.label }}
+                    </Link>
+                </template>
                 <Link
                     v-if="!member"
                     href="/member/login"

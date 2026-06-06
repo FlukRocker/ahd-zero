@@ -1,0 +1,15 @@
+User-agent: *
+Allow: /
+Disallow: /dashboard
+Disallow: /dashboard/*
+Disallow: /settings
+Disallow: /settings/*
+Disallow: /login
+Disallow: /two-factor-challenge
+Disallow: /member/login
+Disallow: /member/register
+Disallow: /api/
+Disallow: /search/results
+Disallow: /*?page=
+
+Sitemap: https://anime-hdzero.com/sitemap.xml
