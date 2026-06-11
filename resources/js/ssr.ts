@@ -7,9 +7,11 @@ import { renderToString } from 'vue/server-renderer';
 
 const appName = import.meta.env.VITE_APP_NAME || 'Anime HD Zero';
 
-// Port chosen via INERTIA_SSR_PORT env so the server can avoid colliding with
-// kurokami's SSR (default 13714). Falls back to Inertia's default for dev.
-const ssrPort = Number(process.env.INERTIA_SSR_PORT) || 13714;
+// Port from INERTIA_SSR_PORT env. Default 13715 — kurokami (same host) owns
+// 13714, so ahd must not collide. PM2 (ecosystem.config.cjs) injects this var;
+// config/inertia.php must resolve to the SAME port or Laravel renders
+// client-side (empty #app div → blank first paint in slow webviews).
+const ssrPort = Number(process.env.INERTIA_SSR_PORT) || 13715;
 
 createServer(
     (page) =>

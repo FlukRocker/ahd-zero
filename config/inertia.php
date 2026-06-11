@@ -17,7 +17,11 @@ return [
 
     'ssr' => [
         'enabled' => env('INERTIA_SSR_ENABLED', true),
-        'url' => env('INERTIA_SSR_URL', 'http://127.0.0.1:'.env('INERTIA_SSR_PORT', 13714)),
+        // Default 13715 (NOT 13714 — that's kurokami's SSR on the shared host).
+        // Must match ecosystem.config.cjs's INERTIA_SSR_PORT default, or Laravel
+        // calls a dead/foreign port, Inertia silently falls back to a client-only
+        // empty #app div, and slow webviews (Facebook in-app) show a blank page.
+        'url' => env('INERTIA_SSR_URL', 'http://127.0.0.1:'.env('INERTIA_SSR_PORT', 13715)),
         // 'bundle' => base_path('bootstrap/ssr/ssr.mjs'),
     ],
 
