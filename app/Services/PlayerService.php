@@ -13,7 +13,10 @@ class PlayerService
 {
     /**
      * Get the player iframe URL for an episode.
-     * Extracts Google Drive ID from list_url, calls the API, caches the result.
+     *
+     * Resolves the akuma-stream watch URL from a Google Drive link (external
+     * file ref) or a bare video UUID via GET /api/videos/player/{ref}.
+     * Caches the result.
      */
     public function getPlayerUrl(?string $listUrl): ?string
     {
@@ -21,8 +24,8 @@ class PlayerService
             return null;
         }
 
-        $driveId = $this->extractDriveId($listUrl);
-        if ($driveId === null) {
+        $ref = $this->extractRef($listUrl);
+        if ($ref === null) {
             // Strict: never expose a Drive URL the regex didn't recognize.
             // The DB stores raw Drive links — leaking one to the iframe would
             // both fail (X-Frame-Options) AND expose private file IDs.
@@ -34,27 +37,27 @@ class PlayerService
             return $listUrl;
         }
 
-        // Bumped key prefix (`v2`) so previously-cached failures from when
-        // the API was misconfigured don't stick for 24h.
-        $cacheKey = "player:drive:v2:{$driveId}";
+        $cacheKey = "player:stream:v1:{$ref}";
         $cached = Cache::get($cacheKey);
         if ($cached !== null) {
             return $cached !== '' ? $cached : null;
         }
 
-        $playerUrl = $this->fetchPlayerUrl($driveId);
+        $watchUrl = $this->fetchWatchUrl($ref);
 
-        // Cache successes for 24h. Cache failures for only 60s so a transient
-        // API outage doesn't pin every episode to "no player" until tomorrow.
-        Cache::put($cacheKey, $playerUrl ?? '', $playerUrl !== null ? 86400 : 60);
+        // Cache ready videos for 24h. Cache misses (still processing, 404,
+        // transient API outage) for only 60s so the player appears as soon
+        // as the video becomes ready instead of being pinned to "no player".
+        Cache::put($cacheKey, $watchUrl ?? '', $watchUrl !== null ? 86400 : 60);
 
-        return $playerUrl;
+        return $watchUrl;
     }
 
     /**
-     * Extract Google Drive file ID from various URL formats.
+     * Extract the API ref: a Google Drive file ID from various URL formats,
+     * or a bare video UUID (both hit the same /api/videos/player/{ref} route).
      */
-    private function extractDriveId(string $url): ?string
+    private function extractRef(string $url): ?string
     {
         // Format: https://drive.google.com/file/d/{ID}/...
         if (preg_match('#drive\.google\.com/file/d/([a-zA-Z0-9_-]+)#', $url, $matches)) {
@@ -71,28 +74,39 @@ class PlayerService
             return $matches[1];
         }
 
+        // Bare video UUID stored directly in the DB.
+        if (preg_match('#^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$#', $url)) {
+            return $url;
+        }
+
         return null;
     }
 
-    private function fetchPlayerUrl(string $driveId): ?string
+    private function fetchWatchUrl(string $ref): ?string
     {
-        $apiUrl = (string) config('services.akuma_player.url', 'http://65.108.61.69:3002');
-        $token = (string) config('services.akuma_player.token', '23xSO2aBkri5yY35sjA9');
-        $playerDomain = (string) config('services.akuma_player.player_domain', 'https://akuma-player.xyz');
+        $apiUrl = rtrim((string) config('services.akuma_stream.url', 'https://app.akuma-stream.com'), '/');
+        $token = (string) config('services.akuma_stream.admin_token', '');
 
         if ($apiUrl === '' || $token === '') {
-            Log::warning('PlayerService config missing', compact('apiUrl', 'driveId'));
+            Log::warning('PlayerService akuma_stream config missing', ['ref' => $ref, 'hasUrl' => $apiUrl !== '', 'hasToken' => $token !== '']);
 
             return null;
         }
 
         try {
             $response = Http::timeout(10)
-                ->get("{$apiUrl}/api/v1/get-datas/{$driveId}", ['token' => $token]);
+                ->withHeaders(['x-admin-token' => $token])
+                ->get("{$apiUrl}/api/videos/player/{$ref}");
+
+            if ($response->status() === 404) {
+                Log::info('PlayerService unknown ref', ['ref' => $ref]);
+
+                return null;
+            }
 
             if (! $response->successful()) {
                 Log::warning('PlayerService API non-2xx', [
-                    'driveId' => $driveId,
+                    'ref' => $ref,
                     'status' => $response->status(),
                     'body' => mb_substr($response->body(), 0, 200),
                 ]);
@@ -101,21 +115,29 @@ class PlayerService
             }
 
             $data = $response->json();
-            $uid = $data['result']['uid'] ?? null;
+            $watchUrl = $data['watchUrl'] ?? null;
 
-            if (! is_string($uid) || $uid === '') {
-                Log::warning('PlayerService API ok but no uid', [
-                    'driveId' => $driveId,
-                    'data' => $data,
+            if (! is_string($watchUrl) || $watchUrl === '') {
+                // watchUrl stays null until status=ready — short-cached above
+                // so the player shows up once processing finishes.
+                Log::info('PlayerService video not ready', [
+                    'ref' => $ref,
+                    'videoStatus' => $data['status'] ?? null,
                 ]);
 
                 return null;
             }
 
-            return "{$playerDomain}/play/{$uid}";
+            // API returns a relative path ("/watch/{uuid}") — make it absolute
+            // for the iframe src.
+            if (str_starts_with($watchUrl, '/')) {
+                return $apiUrl.$watchUrl;
+            }
+
+            return $watchUrl;
         } catch (\Throwable $e) {
             Log::warning('PlayerService API threw', [
-                'driveId' => $driveId,
+                'ref' => $ref,
                 'error' => $e->getMessage(),
                 'class' => $e::class,
             ]);

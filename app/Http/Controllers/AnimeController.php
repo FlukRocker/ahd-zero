@@ -228,7 +228,7 @@ class AnimeController extends Controller
             ],
 
             'currentEpisode' => function () use ($currentEpisodeRow) {
-                // Drive ID → akuma-player.xyz/play/{uid} (mirrors kurokami).
+                // Drive ID / video UUID → app.akuma-stream.com/watch/{uuid}.
                 $playerService = app(\App\Services\PlayerService::class);
                 $playerUrl = $playerService->getPlayerUrl($currentEpisodeRow->list_url ?? null)
                     ?? $playerService->getPlayerUrl($currentEpisodeRow->file_src ?? null);

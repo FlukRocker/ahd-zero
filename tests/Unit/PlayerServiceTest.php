@@ -71,30 +71,121 @@ class PlayerServiceTest extends TestCase
         );
     }
 
-    public function test_fetch_caches_successful_response(): void
+    public function test_fetch_caches_ready_watch_url(): void
     {
         Cache::flush();
         Http::fake([
-            '*get-datas*' => Http::response(['result' => ['uid' => 'XYZUID']], 200),
+            '*api/videos/player/CACHED1' => Http::response([
+                'id' => 'db2019e9-92a2-46e6-a2e5-a273a2cfe4d4',
+                'title' => 'Ep 1',
+                'status' => 'ready',
+                'watchUrl' => '/watch/db2019e9-92a2-46e6-a2e5-a273a2cfe4d4',
+            ], 200),
         ]);
 
         config([
-            'services.akuma_player.url' => 'https://api.test',
-            'services.akuma_player.token' => 'test-token',
-            'services.akuma_player.player_domain' => 'https://player.test',
+            'services.akuma_stream.url' => 'https://app.akuma-stream.com',
+            'services.akuma_stream.admin_token' => 'test-admin-token',
         ]);
 
         $service = new PlayerService;
         $url = $service->getPlayerUrl('https://drive.google.com/file/d/CACHED1/view');
 
-        $this->assertSame('https://player.test/play/XYZUID', $url);
-        $this->assertSame('https://player.test/play/XYZUID', Cache::get('player:drive:v2:CACHED1'));
+        $this->assertSame('https://app.akuma-stream.com/watch/db2019e9-92a2-46e6-a2e5-a273a2cfe4d4', $url);
+        $this->assertSame(
+            'https://app.akuma-stream.com/watch/db2019e9-92a2-46e6-a2e5-a273a2cfe4d4',
+            Cache::get('player:stream:v1:CACHED1'),
+        );
+
+        Http::assertSent(fn ($request) => $request->hasHeader('x-admin-token', 'test-admin-token'));
+    }
+
+    public function test_not_ready_video_returns_null_and_short_caches(): void
+    {
+        Cache::flush();
+        Http::fake([
+            '*api/videos/player/*' => Http::response([
+                'id' => 'db2019e9-92a2-46e6-a2e5-a273a2cfe4d4',
+                'title' => 'Ep 1',
+                'status' => 'transcoding',
+                'watchUrl' => null,
+            ], 200),
+        ]);
+
+        config([
+            'services.akuma_stream.url' => 'https://app.akuma-stream.com',
+            'services.akuma_stream.admin_token' => 'test-admin-token',
+        ]);
+
+        $service = new PlayerService;
+
+        $this->assertNull($service->getPlayerUrl('https://drive.google.com/file/d/PENDING1/view'));
+        // Failure sentinel cached as empty string (60s TTL).
+        $this->assertSame('', Cache::get('player:stream:v1:PENDING1'));
+    }
+
+    public function test_unknown_ref_404_returns_null(): void
+    {
+        Cache::flush();
+        Http::fake([
+            '*api/videos/player/*' => Http::response(['error' => 'not found'], 404),
+        ]);
+
+        config([
+            'services.akuma_stream.url' => 'https://app.akuma-stream.com',
+            'services.akuma_stream.admin_token' => 'test-admin-token',
+        ]);
+
+        $service = new PlayerService;
+
+        $this->assertNull($service->getPlayerUrl('https://drive.google.com/file/d/MISSING1/view'));
+    }
+
+    public function test_bare_uuid_is_used_as_ref(): void
+    {
+        Cache::flush();
+        Http::fake([
+            '*api/videos/player/db2019e9-92a2-46e6-a2e5-a273a2cfe4d4' => Http::response([
+                'id' => 'db2019e9-92a2-46e6-a2e5-a273a2cfe4d4',
+                'title' => 'Ep 1',
+                'status' => 'ready',
+                'watchUrl' => '/watch/db2019e9-92a2-46e6-a2e5-a273a2cfe4d4',
+            ], 200),
+        ]);
+
+        config([
+            'services.akuma_stream.url' => 'https://app.akuma-stream.com',
+            'services.akuma_stream.admin_token' => 'test-admin-token',
+        ]);
+
+        $service = new PlayerService;
+
+        $this->assertSame(
+            'https://app.akuma-stream.com/watch/db2019e9-92a2-46e6-a2e5-a273a2cfe4d4',
+            $service->getPlayerUrl('db2019e9-92a2-46e6-a2e5-a273a2cfe4d4'),
+        );
+    }
+
+    public function test_missing_admin_token_returns_null(): void
+    {
+        Cache::flush();
+        Http::fake();
+
+        config([
+            'services.akuma_stream.url' => 'https://app.akuma-stream.com',
+            'services.akuma_stream.admin_token' => '',
+        ]);
+
+        $service = new PlayerService;
+
+        $this->assertNull($service->getPlayerUrl('https://drive.google.com/file/d/NOTOKEN1/view'));
+        Http::assertNothingSent();
     }
 
     private function extractDriveId(string $url): ?string
     {
         $ref = new ReflectionClass(PlayerService::class);
-        $method = $ref->getMethod('extractDriveId');
+        $method = $ref->getMethod('extractRef');
         $method->setAccessible(true);
 
         return $method->invoke(new PlayerService, $url);
