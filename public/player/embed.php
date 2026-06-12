@@ -88,7 +88,15 @@ function triggerFallback() {
     }
 
     if ($("#player").find("iframe").length === 0) {
-        $("#player").html("<div class=\"uplay-iframe\"> <iframe src=\"<?php echo base64_decode($_GET['link']); ?>\" width=\"100%\" height=\"100%\" frameborder=\"0\" allowfullscreen=\"allowfullscreen\" class=\"uplay-box\"></iframe></div>");
+        $("#player").html("<div class=\"uplay-iframe\"> <iframe src=\"<?php
+            $link = base64_decode($_GET['link'] ?? '');
+            // Tell the inner player to start immediately — the viewer already
+            // pressed play before the ad ran.
+            if ($link !== '') {
+                $link .= (strpos($link, '?') !== false ? '&' : '?') . 'autoplay=1';
+            }
+            echo htmlspecialchars($link, ENT_QUOTES);
+        ?>\" width=\"100%\" height=\"100%\" frameborder=\"0\" allowfullscreen=\"allowfullscreen\" allow=\"autoplay; fullscreen; encrypted-media; picture-in-picture\" class=\"uplay-box\"></iframe></div>");
     }
 }
 
