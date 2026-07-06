@@ -60,8 +60,13 @@ const props = defineProps<{
 }>();
 
 const page = usePage<{ playerConfig?: { adsEmbedUrl?: string | null } }>();
-const adsEmbedUrl = computed(
-    () => page.props.playerConfig?.adsEmbedUrl || ADS_EMBED_FALLBACK,
+// Force https so a misconfigured http:// env value can't trigger a
+// mixed-content block when the page itself is served over https.
+function forceHttps(u: string): string {
+    return u.replace(/^http:\/\//i, 'https://');
+}
+const adsEmbedUrl = computed(() =>
+    forceHttps(page.props.playerConfig?.adsEmbedUrl || ADS_EMBED_FALLBACK),
 );
 
 const playerMode = ref<PlayerMode>('ads');
@@ -84,7 +89,7 @@ const playerSrc = computed(() => {
         const encoded = b64encode(url);
         return `${adsEmbedUrl.value}?link=${encodeURIComponent(encoded)}`;
     }
-    return url;
+    return forceHttps(url);
 });
 
 const currentIndex = computed(() =>
