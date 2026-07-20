@@ -12,7 +12,7 @@ const PHP_BIN = process.env.PHP_BIN || 'php';
 export default defineConfig({
     plugins: [
         laravel({
-            input: ['resources/js/app.ts'],
+            input: ['resources/js/app.ts', 'resources/js/blade.js'],
             ssr: 'resources/js/ssr.ts',
             refresh: true,
         }),

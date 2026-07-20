@@ -105,8 +105,8 @@ Alpine.store('appearance', {
         document.documentElement.classList.toggle('dark', resolved === 'dark');
         try {
             localStorage.setItem('appearance', theme);
-        } catch (e) {
-            /* ignore */
+        } catch {
+            /* ignore — private mode / storage disabled */
         }
     },
     toggle() {
