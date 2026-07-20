@@ -21,5 +21,5 @@
         'logo' => rtrim(config('app.url'), '/') . '/favicon.png',
     ];
 @endphp
-<script type="application/ld+json">{!! json_encode($ldWebsite, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) !!}</script>
-<script type="application/ld+json">{!! json_encode($ldOrg, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) !!}</script>
+<script type="application/ld+json">{!! json_encode($ldWebsite, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) !!}</script>
+<script type="application/ld+json">{!! json_encode($ldOrg, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) !!}</script>

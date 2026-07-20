@@ -19,6 +19,11 @@ class BladeFoundationTest extends TestCase
         $response->assertSee('<title>', false);
         // NOT an Inertia client-only shell.
         $response->assertDontSee('id="app" data-page', false);
+        // Content only the custom Blade error view emits — proves the
+        // request→exception-handler→errors.404→layouts.app pipeline ran,
+        // not Laravel's stock fallback 404.
+        $response->assertSee('ไม่พบหน้าที่คุณค้นหา', false);
+        $response->assertSee('noindex,follow', false);
     }
 
     public function test_global_composer_shares_site_data_with_blade_views(): void

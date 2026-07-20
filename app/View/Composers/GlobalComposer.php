@@ -14,11 +14,40 @@ class GlobalComposer
 
     public function compose(View $view): void
     {
+        $view->with($this->payload());
+    }
+
+    private function payload(): array
+    {
+        if ($this->request->attributes->has('global_view_data')) {
+            return $this->request->attributes->get('global_view_data');
+        }
+
+        $data = $this->build();
+        $this->request->attributes->set('global_view_data', $data);
+
+        return $data;
+    }
+
+    private function build(): array
+    {
         [$message, $author] = str(Inspiring::quotes()->random())->explode('-');
 
         $member = $this->request->user('member');
 
-        $view->with([
+        try {
+            $registrationEnabled = SiteSettings::registrationEnabled();
+        } catch (\Throwable) {
+            $registrationEnabled = false;
+        }
+
+        try {
+            $navbarAds = AdsNavbar::all();
+        } catch (\Throwable) {
+            $navbarAds = [];
+        }
+
+        return [
             'siteName' => config('app.name'),
             'appUrl' => config('app.url'),
             'authUser' => $this->request->user(),
@@ -32,11 +61,11 @@ class GlobalComposer
                 'adsEmbedUrl' => config('services.akuma_player.ads_embed_url'),
             ],
             'siteConfig' => [
-                'registrationEnabled' => SiteSettings::registrationEnabled(),
+                'registrationEnabled' => $registrationEnabled,
                 'turnstileSiteKey' => config('services.turnstile.site_key'),
             ],
-            'navbarAds' => AdsNavbar::all(),
+            'navbarAds' => $navbarAds,
             'quote' => ['message' => trim($message), 'author' => trim($author)],
-        ]);
+        ];
     }
 }
