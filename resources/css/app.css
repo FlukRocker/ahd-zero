@@ -836,10 +836,12 @@ input:focus-visible {
    can't shift the page (CLS); object-fit: contain avoids cropping. */
 .ads-banner { width: 100%; }
 .ads-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
-.ads-grid a { display: block; position: relative; overflow: hidden; }
-.ads-grid a img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; display: block; }
-.ads-grid .col-full { grid-column: span 2; aspect-ratio: 970 / 120; }
-.ads-grid .col-half { grid-column: span 1; aspect-ratio: 300 / 100; }
+.ads-grid a { display: block; overflow: hidden; }
+/* Ad <img> carries explicit width/height (from AdImage) so the browser reserves
+   the exact aspect at 100% width before load -> zero CLS. */
+.ads-grid a img { width: 100%; height: auto; display: block; }
+.ads-grid .col-full { grid-column: span 2; }
+.ads-grid .col-half { grid-column: span 1; }
 
 /* Floating ads (ported from AdsFloating.vue scoped styles) */
 .floating-ads { position: fixed; inset: 0; pointer-events: none; z-index: 50; }
