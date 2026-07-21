@@ -4,12 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Models\Anime;
 use App\Models\Studio;
-use Inertia\Inertia;
-use Inertia\Response;
+use Illuminate\View\View;
 
 class StudioController extends Controller
 {
-    public function show(int $id): Response
+    public function show(int $id): View
     {
         $studio = Studio::findOrFail($id);
 
@@ -22,7 +21,7 @@ class StudioController extends Controller
             ->orderByDesc('cat_update')
             ->paginate(24);
 
-        return Inertia::render('Studio', [
+        return view('studio', [
             'studio' => [
                 'id' => $studio->id,
                 'name' => $studio->name,

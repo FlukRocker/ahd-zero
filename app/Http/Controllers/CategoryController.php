@@ -5,8 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Anime;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
-use Inertia\Inertia;
-use Inertia\Response;
+use Illuminate\View\View;
 
 class CategoryController extends Controller
 {
@@ -19,7 +18,7 @@ class CategoryController extends Controller
         3 => 'เดอะมูฟวี่',
     ];
 
-    public function index(Request $request, string $type): Response
+    public function index(Request $request, string $type): View
     {
         $typeInt = (int) $type;
         /** @var int $page */
@@ -40,7 +39,7 @@ class CategoryController extends Controller
 
         $categoryName = $this->typeNames[$typeInt] ?? 'อนิเมะทั้งหมด';
 
-        return Inertia::render('Category', [
+        return view('category', [
             'anime' => $anime,
             'categoryName' => $categoryName,
             'currentType' => $type,
