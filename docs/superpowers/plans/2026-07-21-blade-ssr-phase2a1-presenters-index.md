@@ -1021,7 +1021,7 @@ Create `resources/views/index.blade.php`:
 
     // Hero source mirrors Index.vue: >=3 recommended → recommended, else latest.
     $heroSource = (! empty($recommended) && count($recommended) >= 3) ? $recommended : $anime->items();
-    $heroItems = CardPresenter::collection(array_slice(is_array($heroSource) ? $heroSource : $heroSource, 0, 5));
+    $heroItems = CardPresenter::collection(array_slice($heroSource, 0, 5));
     $popularItems = CardPresenter::collection(! empty($popular) ? $popular : array_slice($anime->items(), 0, 10));
     $latestItems = CardPresenter::collection($anime->items());
 @endphp
