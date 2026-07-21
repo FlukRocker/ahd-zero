@@ -826,3 +826,7 @@ input:focus-visible {
 .ads-navbar a {
     color: hsl(var(--fg));
 }
+
+[x-cloak] {
+    display: none !important;
+}
