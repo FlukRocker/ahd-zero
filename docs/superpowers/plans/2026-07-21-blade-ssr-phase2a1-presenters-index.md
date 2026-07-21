@@ -394,7 +394,9 @@ class Img
 
         $entries = [];
         foreach ($widths as $w) {
-            $u = self::url($url, $opts + ['width' => $w]);
+            // ['width' => $w] first so the per-descriptor width always wins
+            // over any width in $opts (PHP array-union keeps the left operand).
+            $u = self::url($url, ['width' => $w] + $opts);
             if ($u !== null) {
                 $entries[] = $u.' '.$w.'w';
             }
@@ -615,11 +617,16 @@ class Schema
             return $path;
         }
 
-        return rtrim((string) config('app.url'), '/').'/'.ltrim($path, '/');
+        $base = rtrim((string) config('app.url'), '/');
+        $trimmed = ltrim($path, '/');
+
+        return $trimmed === '' ? $base : $base.'/'.$trimmed;
     }
 }
 ```
-Note: `absolute('/')` yields `https://host/` (trailing slash preserved for the home crumb) because `ltrim('/', '/')` is empty → `rtrim(url,'/').'/'.''`.
+Note: `absolute('/')` yields `https://host` (no trailing slash), matching the
+Phase-1 canonical home URL (`url()->current()`), so the home breadcrumb item
+and the canonical link agree.
 
 - [ ] **Step 4: Create the json-ld render component**
 
