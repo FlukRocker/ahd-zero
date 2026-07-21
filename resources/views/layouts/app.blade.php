@@ -124,13 +124,22 @@
 </head>
 
 <body class="min-h-screen bg-[hsl(var(--bg))] font-sans text-[hsl(var(--fg))] antialiased">
-    @include('partials.header')
+    <div
+        class="flex min-h-screen flex-col"
+        x-data="{ searchOpen: false }"
+        @keydown.window.meta.k.prevent="searchOpen = true"
+        @keydown.window.ctrl.k.prevent="searchOpen = true"
+    >
+        <x-ads-navbar />
+        <x-site-header />
 
-    <main>
-        @yield('content')
-    </main>
+        <main class="flex-1">
+            @yield('content')
+        </main>
 
-    @include('partials.footer')
+        <x-site-footer />
+        <x-search-overlay />
+    </div>
 
     @stack('scripts')
 </body>
