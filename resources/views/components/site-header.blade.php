@@ -8,7 +8,8 @@
         ['label' => 'แจ้งปัญหา', 'href' => 'https://www.facebook.com/animehdzeroo.v2'],
     ];
     $cur = request()->getPathInfo(); // '/', '/category/1', ...
-    $isActive = fn (string $href): bool => $href === '/' ? $cur === '/' : str_starts_with($cur, $href);
+    // Segment-boundary match so /category/1 doesn't light active on /category/10.
+    $isActive = fn (string $href): bool => $href === '/' ? $cur === '/' : ($cur === $href || str_starts_with($cur, $href.'/'));
 @endphp
 
 <header
