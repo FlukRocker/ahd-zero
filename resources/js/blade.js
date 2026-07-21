@@ -25,15 +25,16 @@ Alpine.magic('reveal', () => (el, opts = {}) => {
     });
 });
 
-// Appearance: the <head> FOUC script (in layouts/app.blade.php) already
-// applies data-theme / data-density / data-type before paint from
-// localStorage. This store exposes a runtime theme toggle for header/UI
-// controls added in later phases.
+// Appearance store. The <head> FOUC script (layouts/app.blade.php) already
+// applied data-theme / .dark before paint from localStorage; this store reads
+// that initial state into a reactive `isDark` and keeps it in sync so header
+// controls (theme toggle icon) update reactively.
 Alpine.store('appearance', {
-    get theme() {
-        return document.documentElement.getAttribute('data-theme') || 'system';
+    isDark: false,
+    init() {
+        this.isDark = document.documentElement.classList.contains('dark');
     },
-    setTheme(theme) {
+    apply(theme) {
         const resolved =
             theme === 'system'
                 ? window.matchMedia('(prefers-color-scheme: dark)').matches
@@ -42,6 +43,7 @@ Alpine.store('appearance', {
                 : theme;
         document.documentElement.setAttribute('data-theme', resolved);
         document.documentElement.classList.toggle('dark', resolved === 'dark');
+        this.isDark = resolved === 'dark';
         try {
             localStorage.setItem('appearance', theme);
         } catch {
@@ -49,8 +51,7 @@ Alpine.store('appearance', {
         }
     },
     toggle() {
-        const isDark = document.documentElement.classList.contains('dark');
-        this.setTheme(isDark ? 'light' : 'dark');
+        this.apply(this.isDark ? 'light' : 'dark');
     },
 });
 
