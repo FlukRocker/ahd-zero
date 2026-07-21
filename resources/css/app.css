@@ -815,3 +815,18 @@ input:focus-visible {
         line-height: 1.8;
     }
 }
+
+/* Ads navbar (ported from AdsNavbar.vue scoped styles) */
+.ads-navbar {
+    background: hsl(var(--bg-soft));
+    border-bottom: 1px solid hsl(var(--border-ahd));
+    color: hsl(var(--fg-muted));
+    font-size: 12px;
+}
+.ads-navbar a {
+    color: hsl(var(--fg));
+}
+
+[x-cloak] {
+    display: none !important;
+}
