@@ -1,29 +1,16 @@
 import '../css/app.css';
 
 import Alpine from 'alpinejs';
-import { animate, inView } from 'motion';
 
-// Expose for inline Blade usage and debugging.
+// Expose Alpine for inline Blade usage and debugging.
 window.Alpine = Alpine;
-window.motionAnimate = animate;
-window.motionInView = inView;
 
-// In-view reveal: use in Blade as x-init="$reveal($el)" or
-// x-init="$reveal($el, { y: 40, delay: 0.1 })".
-// Mirrors the Motion-driven reveals used across ../lnw-anime.
-Alpine.magic('reveal', () => (el, opts = {}) => {
-    const { y = 24, duration = 0.5, delay = 0 } = opts;
-    inView(el, () => {
-        animate(
-            el,
-            {
-                opacity: [0, 1],
-                transform: [`translateY(${y}px)`, 'translateY(0)'],
-            },
-            { duration, delay, easing: [0.25, 0.46, 0.45, 0.94] },
-        );
-    });
-});
+// NOTE: Motion (`motion` package, ~130KB) is intentionally NOT imported here.
+// The Blade site is server-rendered and static per the SEO decision — no
+// scroll-reveal / tilt / parallax. Alpine alone drives the interactive chrome
+// (theme toggle, search overlay, drawers, dropdowns). If a future page needs
+// animation, lazy-load `motion` on that page only rather than in this global
+// entry, so it never lands on the critical path of read pages.
 
 // Appearance store. The <head> FOUC script (layouts/app.blade.php) already
 // applied data-theme / .dark before paint from localStorage; this store reads
