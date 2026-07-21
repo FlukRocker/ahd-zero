@@ -5,14 +5,13 @@ namespace App\Http\Controllers;
 use App\Models\Anime;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Inertia\Inertia;
-use Inertia\Response;
+use Illuminate\View\View;
 
 use function response;
 
 class SearchController extends Controller
 {
-    public function index(Request $request): Response
+    public function index(Request $request): View
     {
         $validated = $request->validate([
             'q' => ['required', 'string', 'min:1', 'max:100'],
@@ -24,7 +23,7 @@ class SearchController extends Controller
             ->paginate(24)
             ->appends(['q' => $validated['q']]);
 
-        return Inertia::render('Search', [
+        return view('search', [
             'animes' => $animes,
             'query' => $validated['q'],
         ]);

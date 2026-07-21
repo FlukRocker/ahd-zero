@@ -7,12 +7,11 @@ use App\Models\Studio;
 use App\Models\VoiceActor;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
-use Inertia\Inertia;
-use Inertia\Response;
+use Illuminate\View\View;
 
 class DirectoryController extends Controller
 {
-    public function studios(Request $request): Response
+    public function studios(Request $request): View
     {
         $search = $request->input('q', '');
         $page = (int) $request->input('page', 1);
@@ -28,13 +27,13 @@ class DirectoryController extends Controller
             return $query->orderBy('name')->paginate(48);
         });
 
-        return Inertia::render('directory/Studios', [
+        return view('directory.studios', [
             'studios' => $studios,
             'query' => $search,
         ]);
     }
 
-    public function voiceActors(Request $request): Response
+    public function voiceActors(Request $request): View
     {
         $search = $request->input('q', '');
         $page = (int) $request->input('page', 1);
@@ -50,13 +49,13 @@ class DirectoryController extends Controller
             return $query->orderBy('name')->paginate(48);
         });
 
-        return Inertia::render('directory/VoiceActors', [
+        return view('directory.voice-actors', [
             'voiceActors' => $voiceActors,
             'query' => $search,
         ]);
     }
 
-    public function staff(Request $request): Response
+    public function staff(Request $request): View
     {
         $search = $request->input('q', '');
         $page = (int) $request->input('page', 1);
@@ -72,7 +71,7 @@ class DirectoryController extends Controller
             return $query->orderBy('name')->paginate(48);
         });
 
-        return Inertia::render('directory/Staff', [
+        return view('directory.staff', [
             'staffList' => $staffList,
             'query' => $search,
         ]);
