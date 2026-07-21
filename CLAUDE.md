@@ -4,13 +4,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Stack
 
-Laravel 12 + Inertia.js 2 + Vue 3 (TypeScript) SPA. Vite + Tailwind CSS v4. AHD design tokens via HSL CSS vars (light/dark/density/typePairing). Motion One for animation. `@unhead/vue` for SEO heads. Laravel Fortify for `web` (admin) auth + 2FA; separate `member` guard for end-user accounts. Wayfinder for typed route helpers. Ziggy for client-side route URLs. PHP 8.4. Default DB MariaDB (anime tables `yu_anime_catagory`/`yu_anime_list` are imported, shared with kurokami).
+Laravel 12. **The public/SEO site is server-rendered Blade + Alpine.js** (real SSR — no Node runtime). Inertia.js 2 + Vue 3 remain ONLY for gated/noindex pages (admin dashboard, member auth, settings, 2FA), which client-render (Inertia SSR is disabled — no daemon). Vite + Tailwind CSS v4. AHD design tokens via HSL CSS vars (light/dark/density/typePairing). Motion One is used by the remaining Vue pages only (dropped from the Blade entry). Laravel Fortify for `web` (admin) auth + 2FA; separate `member` guard for end-user accounts. PHP 8.4. Default DB MariaDB (anime tables `yu_anime_catagory`/`yu_anime_list` are imported, shared with kurokami).
+
+Blade public views live in `resources/views/` (`index`, `category`, `anime`, `episode`, `search`, `studio`, `voice-actor`, `directory/*`, `layouts/app`, `components/*`, `partials/*`). Server-side presenters port the old Vue `lib/`: `App\Support\CardPresenter` (card shape), `App\Support\Img` (Bunny image URLs/srcset), `App\Support\Schema` (JSON-LD). `App\View\Composers\GlobalComposer` shares site data with every Blade view.
 
 ## Commands
 
-Dev (server + queue + pail + vite concurrently): `composer dev`. SSR dev: `composer dev:ssr`.
+Dev (server + queue + pail + vite concurrently): `composer dev`.
 
-Frontend only: `pnpm dev` · Build: `pnpm build` · SSR: `pnpm build:ssr` · Tests: `pnpm test` (Vitest)
+Frontend only: `pnpm dev` · Build: `pnpm build` · Tests: `pnpm test` (Vitest). No SSR build — the SSR daemon was removed.
 
 Lint/format: `pnpm lint` (ESLint --fix), `pnpm format` (Prettier), `./vendor/bin/pint` (PHP), `vendor/bin/phpstan analyse` (level 4)
 
@@ -18,19 +20,22 @@ Backend tests: `vendor/bin/phpunit` (in-memory sqlite). Single: `vendor/bin/phpu
 
 ## Server (production)
 
-The shared host uses non-default PHP/Composer binaries: **`php84`** and **`composer84`** instead of `php`/`composer`. When deploying or running artisan on the server, use those names. PM2 ecosystem (`ecosystem.config.cjs`) reads `PHP_BIN` env to pick the interpreter:
+The shared host uses non-default PHP/Composer binaries: **`php84`** and **`composer84`** instead of `php`/`composer`. When deploying or running artisan on the server, use those names.
+
+**No Node runtime in production** — the site is served by php-fpm/nginx (Blade SSR) with Inertia admin/auth pages client-rendering. Node runs at build time only.
 
 ```bash
 pnpm install --prod=false
-pnpm build:ssr
+pnpm build                # assets only — there is no build:ssr
 composer84 install --no-dev --optimize-autoloader
-PHP_BIN=php84 pm2 start ecosystem.config.cjs --env production
-pm2 save && pm2 startup
+php84 artisan optimize    # config + route + view cache
 ```
 
-PM2 supervises two processes:
-- `ahd-ssr` — `node bootstrap/ssr/ssr.js` (Inertia SSR daemon)
-- `ahd-queue` — `php84 artisan queue:work` w/ recycling
+PM2 is **optional** now — only for the queue worker (off by default; the app dispatches no jobs yet). The former `ahd-ssr` Inertia SSR daemon has been removed. To run the queue worker when needed:
+
+```bash
+QUEUE_WORKER=1 PHP_BIN=php84 pm2 start ecosystem.config.cjs --env production && pm2 save
+```
 
 ## Architecture
 

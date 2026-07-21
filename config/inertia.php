@@ -16,7 +16,13 @@ return [
     */
 
     'ssr' => [
-        'enabled' => env('INERTIA_SSR_ENABLED', true),
+        // OFF by default. The public/SEO site is server-rendered Blade (real
+        // SSR, no Node daemon). The only remaining Inertia pages are admin /
+        // member-auth / settings — gated + noindex — so they client-render
+        // fine without an SSR daemon. Keeping this false avoids a per-request
+        // failed connection to a non-existent SSR service. There is no longer
+        // an `ahd-ssr` PM2 process; Node runs at build time only.
+        'enabled' => env('INERTIA_SSR_ENABLED', false),
         // Default 13715 (NOT 13714 — that's kurokami's SSR on the shared host).
         // Must match ecosystem.config.cjs's INERTIA_SSR_PORT default, or Laravel
         // calls a dead/foreign port, Inertia silently falls back to a client-only

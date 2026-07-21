@@ -12,8 +12,11 @@ const PHP_BIN = process.env.PHP_BIN || 'php';
 export default defineConfig({
     plugins: [
         laravel({
+            // Two entries: `app.ts` (Inertia/Vue — admin + auth pages,
+            // client-rendered) and `blade.js` (Alpine — the public Blade site).
+            // No SSR entry: the Inertia SSR daemon was removed; the public
+            // site is server-rendered Blade.
             input: ['resources/js/app.ts', 'resources/js/blade.js'],
-            ssr: 'resources/js/ssr.ts',
             refresh: true,
         }),
         tailwindcss(),
