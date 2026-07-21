@@ -787,3 +787,31 @@ input:focus-visible {
         transition-duration: 0.01ms !important;
     }
 }
+
+/* AboutSeo block (ported from AboutSeo.vue scoped styles) */
+.about-block {
+    margin-top: 36px;
+    padding-left: 20px;
+    border-left: 2px solid hsl(var(--accent));
+}
+.about-block h3 {
+    font-size: clamp(24px, 3.4vw, 34px);
+    line-height: 1.2;
+    margin-bottom: 14px;
+    color: hsl(var(--fg));
+}
+.about-block p {
+    font-size: 15px;
+    line-height: 1.85;
+    color: hsl(var(--fg-muted));
+    word-break: break-word;
+}
+@media (max-width: 640px) {
+    .about-block {
+        padding-left: 14px;
+    }
+    .about-block p {
+        font-size: 14px;
+        line-height: 1.8;
+    }
+}
