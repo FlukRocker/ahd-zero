@@ -351,7 +351,8 @@ Create `resources/views/components/site-header.blade.php`:
             @if ($memberAuth)
                 <div class="relative" @click.outside="userMenuOpen = false">
                     <button type="button" class="flex items-center gap-2 rounded-full py-1 pr-3 pl-1" style="background: hsl(var(--bg-soft))" aria-label="เมนูผู้ใช้" :aria-expanded="userMenuOpen" @click="userMenuOpen = !userMenuOpen">
-                        <div class="font-display flex h-8 w-8 items-center justify-center rounded-full bg-cover italic" style="{{ $memberAuth['avatar'] ? "background-image: url('".e($memberAuth['avatar'])."');" : 'background: hsl(var(--accent)); color: hsl(var(--accent-fg));' }}">
+                        {{-- Whole ternary result is escaped once by {{ }} (ENT_QUOTES); do NOT also e() the URL or a '&' in query params double-encodes. --}}
+                        <div class="font-display flex h-8 w-8 items-center justify-center rounded-full bg-cover italic" style="{{ $memberAuth['avatar'] ? "background-image: url('".$memberAuth['avatar']."');" : 'background: hsl(var(--accent)); color: hsl(var(--accent-fg));' }}">
                             @unless ($memberAuth['avatar'])<span>{{ mb_substr($memberAuth['name'], 0, 1) }}</span>@endunless
                         </div>
                         <span class="hidden text-[13px] md:inline">{{ explode(' ', $memberAuth['name'])[0] }}</span>
