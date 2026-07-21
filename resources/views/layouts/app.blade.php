@@ -58,7 +58,14 @@
             function () {
                 $dir = public_path('build/assets');
                 if (!is_dir($dir)) return [];
-                $needed = ['instrument-serif-latin-400-normal', 'geist-sans-latin-400-normal'];
+                // Instrument Serif italic drives every display heading (hero H2,
+                // section titles, card titles) — preload it too or those large
+                // texts swap in late and cause CLS. Geist Sans 400 is body/nav.
+                $needed = [
+                    'instrument-serif-latin-400-normal',
+                    'instrument-serif-latin-400-italic',
+                    'geist-sans-latin-400-normal',
+                ];
                 $found = [];
                 foreach (glob($dir.'/*.woff2') ?: [] as $path) {
                     $name = basename($path);
