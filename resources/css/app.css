@@ -830,3 +830,34 @@ input:focus-visible {
 [x-cloak] {
     display: none !important;
 }
+
+/* Ads banner (ported from AdsBanner.vue scoped styles).
+   Slots reserve space via aspect-ratio so unsized third-party ad creatives
+   can't shift the page (CLS); object-fit: contain avoids cropping. */
+.ads-banner { width: 100%; }
+.ads-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
+.ads-grid a { display: block; position: relative; overflow: hidden; }
+.ads-grid a img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; display: block; }
+.ads-grid .col-full { grid-column: span 2; aspect-ratio: 970 / 120; }
+.ads-grid .col-half { grid-column: span 1; aspect-ratio: 300 / 100; }
+
+/* Floating ads (ported from AdsFloating.vue scoped styles) */
+.floating-ads { position: fixed; inset: 0; pointer-events: none; z-index: 50; }
+.floating-l, .floating-r { position: fixed; top: 88px; width: 160px; pointer-events: auto; }
+.floating-l { left: 12px; }
+.floating-r { right: 12px; }
+.rail-link { display: block; box-shadow: 0 8px 24px rgba(0,0,0,0.25); border-radius: 6px; overflow: hidden; }
+.rail-link img { display: block; width: 100%; height: auto; }
+.rail-close { position: absolute; top: -8px; right: -8px; width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; background: hsl(354 78% 56%); color: #fff; font-size: 16px; font-weight: 800; line-height: 1; border-radius: 50%; cursor: pointer; border: 2px solid #fff; z-index: 1; box-shadow: 0 2px 8px rgba(0,0,0,0.3); transition: background 0.15s; }
+.rail-close:hover { background: hsl(354 78% 48%); }
+.floating-b { position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%); width: min(960px, calc(100% - 24px)); display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; pointer-events: auto; }
+.floating-b-item { display: flex; align-items: center; justify-content: center; overflow: hidden; min-width: 0; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.25); }
+.floating-b-item img { display: block; width: 100%; height: auto; max-height: 100px; object-fit: contain; }
+.strip-close { position: absolute; top: 4px; right: 4px; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; background: hsl(354 78% 56%); color: #fff; font-size: 18px; font-weight: 800; line-height: 1; border-radius: 50%; cursor: pointer; border: 2px solid #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.3); transition: background 0.15s; z-index: 2; }
+.strip-close:hover { background: hsl(354 78% 48%); }
+@media (max-width: 992px) {
+    .floating-l, .floating-r { width: 80px; top: 64px; }
+    .rail-close { width: 22px; height: 22px; font-size: 14px; top: -6px; right: -6px; }
+    .floating-b { grid-template-columns: 1fr; }
+    .floating-b-item img { max-height: 70px; }
+}

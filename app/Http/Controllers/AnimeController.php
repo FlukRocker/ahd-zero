@@ -26,7 +26,7 @@ use function redirect;
 
 class AnimeController extends Controller
 {
-    public function show(int $id): Response
+    public function show(int $id): \Illuminate\View\View
     {
         // 60s TTL — keeps episode count fresh against upstream kurokami
         // updates. Was 600s (10 min) and users hit stale episode lists.
@@ -35,7 +35,7 @@ class AnimeController extends Controller
         /** @var array<string, mixed> $animeData */
         $animeData = Cache::remember("anime:detail:v2:{$id}", 60, fn () => $this->buildAnimeDetail($id));
 
-        return Inertia::render('Anime', [
+        return view('anime', [
             'anime' => $animeData,
             'adsBanners' => AdsBanner::all(),
             'floatingAds' => AdsFloating::all(),
