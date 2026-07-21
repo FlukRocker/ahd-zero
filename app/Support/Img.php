@@ -92,7 +92,9 @@ class Img
 
         $entries = [];
         foreach ($widths as $w) {
-            $u = self::url($url, $opts + ['width' => $w]);
+            // ['width' => $w] first so the per-descriptor width always wins
+            // over any width in $opts (PHP array-union keeps the left operand).
+            $u = self::url($url, ['width' => $w] + $opts);
             if ($u !== null) {
                 $entries[] = $u.' '.$w.'w';
             }

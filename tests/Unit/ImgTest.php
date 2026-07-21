@@ -34,6 +34,10 @@ class ImgTest extends TestCase
         $out = Img::url('https://img-cdn.shirokami.me/x.jpg', ['width' => 360]);
         $this->assertStringContainsString('quality=80', $out);
         $this->assertStringNotContainsString('format=', $out);
+
+        // Explicit 'auto' must also NOT pin a format param.
+        $autoOut = Img::url('https://img-cdn.shirokami.me/x.jpg', ['width' => 360, 'format' => 'auto']);
+        $this->assertStringNotContainsString('format=', $autoOut);
     }
 
     public function test_srcset_builds_width_descriptors(): void
@@ -50,5 +54,13 @@ class ImgTest extends TestCase
         // Non-proxied host: each entry is the original URL with a width descriptor.
         $out = Img::srcset('https://cdn.myanimelist.net/x.jpg', [240, 480]);
         $this->assertStringContainsString('https://cdn.myanimelist.net/x.jpg 240w', $out);
+    }
+
+    public function test_srcset_width_overrides_opts_width(): void
+    {
+        $out = Img::srcset('https://img-cdn.shirokami.me/x.jpg', [240, 480], ['width' => 999]);
+        $this->assertStringContainsString('width=240', $out);
+        $this->assertStringContainsString('width=480', $out);
+        $this->assertStringNotContainsString('width=999', $out);
     }
 }
