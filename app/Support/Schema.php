@@ -104,6 +104,6 @@ class Schema
         $base = rtrim((string) config('app.url'), '/');
         $trimmed = ltrim($path, '/');
 
-        return $trimmed === '' ? $base : $base . '/' . $trimmed;
+        return $trimmed === '' ? $base : $base.'/'.$trimmed;
     }
 }

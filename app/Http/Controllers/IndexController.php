@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Models\Anime;
 use App\Models\FeaturedAnime;
 use Illuminate\Support\Facades\Cache;
-use Inertia\Inertia;
 
 class IndexController extends Controller
 {
@@ -36,7 +35,7 @@ class IndexController extends Controller
         $recommended = Cache::remember('featured:recommended', 60, fn () => $this->getFeatured('recommended'));
         $popular = Cache::remember('featured:popular', 60, fn () => $this->getFeatured('popular'));
 
-        return Inertia::render('Index', [
+        return view('index', [
             'anime' => $anime,
             'recommended' => $recommended,
             'popular' => $popular,
