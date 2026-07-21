@@ -52,4 +52,22 @@ class CardPresenterTest extends TestCase
         $this->assertCount(2, $out);
         $this->assertSame('/anime/2', $out[1]['href']);
     }
+
+    public function test_make_accepts_eloquent_model_via_data_get(): void
+    {
+        $anime = new \App\Models\Anime;
+        $anime->setRawAttributes([
+            'cat_id' => 7,
+            'cat_title' => 'Model Title',
+            'cat_type' => 2,
+            'episodes' => 24,
+        ]);
+
+        $card = CardPresenter::make($anime);
+
+        $this->assertSame(7, $card['id']);
+        $this->assertSame('Model Title', $card['title']);
+        $this->assertSame('พากย์ไทย', $card['tag']);
+        $this->assertSame('/anime/7', $card['href']);
+    }
 }

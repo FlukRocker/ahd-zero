@@ -34,6 +34,12 @@ return new class extends Migration
 
     public function down(): void
     {
+        // This is a test-only shim; the real featured_anime table is managed
+        // outside Laravel. Never drop it on a production rollback.
+        if (app()->environment('production')) {
+            return;
+        }
+
         Schema::dropIfExists('featured_anime');
     }
 };
