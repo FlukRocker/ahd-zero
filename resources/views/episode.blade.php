@@ -45,15 +45,6 @@
         ['name' => $currentEpisode['list_title'], 'url' => '/anime/' . $anime['cat_id'] . '/episode/' . $currentEpisode['list_id']],
     ])" />
 
-    {{-- eager-first: the episode page has no hero image, so the first ad is the
-         largest above-the-fold element (the LCP). Load it eagerly instead of
-         deferring it to ~20s. --}}
-    @if (! empty($adsBanners))
-        <section class="mx-auto mt-6 max-w-[1440px] px-6 lg:px-10">
-            <x-ads-banner :banners="$adsBanners" eager-first />
-        </section>
-    @endif
-
     <section class="mx-auto max-w-[1440px] px-6 pt-10 pb-16 lg:px-10">
         <div class="mb-6">
             <a href="/anime/{{ $anime['cat_id'] }}" class="u-grow inline-flex items-center gap-2 font-mono text-[13px] tracking-widest uppercase" style="color: hsl(var(--fg-muted))">‹ {{ $anime['cat_title'] }}</a>
@@ -127,6 +118,14 @@
             </aside>
         </div>
     </section>
+
+    {{-- Ads below the player so the episode title is the LCP (a fast text
+         element), not a heavy above-the-fold ad; ads load lazily below fold. --}}
+    @if (! empty($adsBanners))
+        <section class="mx-auto mt-8 max-w-[1440px] px-6 lg:px-10">
+            <x-ads-banner :banners="$adsBanners" />
+        </section>
+    @endif
 
     @if (! empty($relatedCards))
         <section class="mx-auto mt-8 max-w-[1440px] px-6 lg:px-10">
