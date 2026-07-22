@@ -14,7 +14,7 @@
                 <div class="{{ $cls }}">
                     <button type="button" class="rail-close" aria-label="ปิดโฆษณา" @click="show = false">×</button>
                     <a href="{{ $d[$side]['href'] }}" rel="{{ $rel($d[$side]['rel'] ?? '') }}" target="_blank" class="rail-link">
-                        <img data-ad-src="{{ $d[$side]['src'] }}" alt="{{ $d[$side]['alt'] ?? '' }}"
+                        <img src="{{ $d[$side]['src'] }}" alt="{{ $d[$side]['alt'] ?? '' }}" loading="lazy"
                             @if ($dim) width="{{ $dim['w'] }}" height="{{ $dim['h'] }}" @else style="aspect-ratio: 160 / 600" @endif
                             decoding="async">
                     </a>
@@ -28,7 +28,7 @@
                 @foreach ($d['bottom'] as $it)
                     @php $dim = \App\Support\AdImage::dimensions($it['src']); @endphp
                     <a href="{{ $it['href'] }}" rel="{{ $rel($it['rel'] ?? '') }}" target="_blank" class="floating-b-item">
-                        <img data-ad-src="{{ $it['src'] }}" alt="{{ $it['alt'] ?? '' }}"
+                        <img src="{{ $it['src'] }}" alt="{{ $it['alt'] ?? '' }}" loading="lazy"
                             @if ($dim) width="{{ $dim['w'] }}" height="{{ $dim['h'] }}" @else style="aspect-ratio: 728 / 90" @endif
                             decoding="async">
                     </a>

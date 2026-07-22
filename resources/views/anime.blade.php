@@ -53,12 +53,6 @@
         ['name' => $anime['cat_title'], 'url' => '/anime/' . $anime['cat_id']],
     ])" />
 
-    @if (! empty($adsBanners))
-        <section class="mx-auto mt-6 max-w-[1440px] px-6 lg:px-10">
-            <x-ads-banner :banners="$adsBanners" />
-        </section>
-    @endif
-
     <section class="relative overflow-hidden">
         @if ($heroSrc)
             <div class="absolute inset-0">
@@ -128,6 +122,15 @@
             </div>
         </div>
     </section>
+
+    {{-- Ads below the hero so the preloaded hero image is the LCP; the ad
+         creatives (many, heavy, third-party) then load lazily below the fold
+         and can't dominate LCP. --}}
+    @if (! empty($adsBanners))
+        <section class="mx-auto mt-8 max-w-[1440px] px-6 lg:px-10">
+            <x-ads-banner :banners="$adsBanners" />
+        </section>
+    @endif
 
     @if (! empty($anime['episode_list']))
         <section class="mx-auto mt-10 max-w-[1440px] px-6 lg:px-10">

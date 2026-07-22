@@ -37,6 +37,9 @@
     --border-ahd: 340 15% 88%;
     --border-strong: 340 15% 78%;
     --accent: 350 80% 68%;
+    /* Darker accent for solid buttons/pills carrying white text — the 68%
+     * tint only gives ~2.9:1 with white (fails AA); 47% gives ~5.3:1 (passes). */
+    --accent-strong: 350 80% 47%;
     --accent-fg: 0 0% 100%;
     --accent-soft: 350 80% 94%;
     --chip: 40 33% 92%;
@@ -248,7 +251,7 @@
 }
 
 .btn-primary {
-    background: hsl(var(--accent));
+    background: hsl(var(--accent-strong));
     color: hsl(var(--accent-fg));
 }
 

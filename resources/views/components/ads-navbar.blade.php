@@ -6,7 +6,7 @@
             <ul class="flex flex-wrap items-center gap-x-4 gap-y-1">
                 @foreach ($items as $it)
                     <li>
-                        <a href="{{ $it['href'] }}" rel="{{ $it['rel'] ?: 'nofollow noopener sponsored noreferrer ugc' }}" target="_blank" class="text-[12px] font-medium hover:underline">{{ $it['alt'] }}</a>
+                        <a href="{{ $it['href'] }}" rel="{{ $it['rel'] ?: 'nofollow noopener sponsored noreferrer ugc' }}" target="_blank" class="inline-flex min-h-[24px] items-center py-1 text-[12px] font-medium hover:underline">{{ $it['alt'] }}</a>
                     </li>
                 @endforeach
             </ul>

@@ -13,24 +13,24 @@
             <div>
                 <div class="mb-3 font-mono text-[10px] tracking-[0.22em] uppercase" style="color: hsl(var(--fg-faint))">รับชม</div>
                 <ul class="space-y-2 text-[14px]">
-                    <li><a href="/category/1" class="u-grow">ซับไทย</a></li>
-                    <li><a href="/category/2" class="u-grow">พากย์ไทย</a></li>
-                    <li><a href="/category/3" class="u-grow">เดอะมูฟวี่</a></li>
+                    <li><a href="/category/1" class="u-grow inline-block py-1">ซับไทย</a></li>
+                    <li><a href="/category/2" class="u-grow inline-block py-1">พากย์ไทย</a></li>
+                    <li><a href="/category/3" class="u-grow inline-block py-1">เดอะมูฟวี่</a></li>
                 </ul>
             </div>
             <div>
                 <div class="mb-3 font-mono text-[10px] tracking-[0.22em] uppercase" style="color: hsl(var(--fg-faint))">เรียกดู</div>
                 <ul class="space-y-2 text-[14px]">
-                    <li><a href="/studios" class="u-grow">สตูดิโอ</a></li>
-                    <li><a href="/voice-actors" class="u-grow">นักพากย์</a></li>
-                    <li><a href="/staff" class="u-grow">ทีมงาน</a></li>
+                    <li><a href="/studios" class="u-grow inline-block py-1">สตูดิโอ</a></li>
+                    <li><a href="/voice-actors" class="u-grow inline-block py-1">นักพากย์</a></li>
+                    <li><a href="/staff" class="u-grow inline-block py-1">ทีมงาน</a></li>
                 </ul>
             </div>
             <div>
                 <div class="mb-3 font-mono text-[10px] tracking-[0.22em] uppercase" style="color: hsl(var(--fg-faint))">บัญชี</div>
                 <ul class="space-y-2 text-[14px]">
-                    <li><a href="/member/login" class="u-grow">เข้าสู่ระบบ</a></li>
-                    <li><a href="/member/settings/profile" class="u-grow">ตั้งค่า</a></li>
+                    <li><a href="/member/login" class="u-grow inline-block py-1">เข้าสู่ระบบ</a></li>
+                    <li><a href="/member/settings/profile" class="u-grow inline-block py-1">ตั้งค่า</a></li>
                 </ul>
             </div>
         </div>

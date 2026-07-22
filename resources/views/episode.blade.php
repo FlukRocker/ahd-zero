@@ -70,6 +70,7 @@
                     @if ($srcAds)
                         <iframe
                             :src="mode === 'ads' ? @js($srcAds) : @js($srcDirect)"
+                            title="{{ $anime['cat_title'] }} — {{ $currentEpisode['list_title'] }}"
                             referrerpolicy="strict-origin-when-cross-origin"
                             class="absolute inset-0 h-full w-full"
                             scrolling="no"
@@ -114,10 +115,12 @@
                     <div class="mb-3 font-mono text-[10px] tracking-[0.22em] uppercase" style="color: hsl(var(--fg-faint))">รายการตอน</div>
                     <ul class="space-y-1">
                         @foreach ($eps as $ep)
-                            <a href="/anime/{{ $anime['cat_id'] }}/episode/{{ $ep['list_id'] }}" class="ep-row flex items-center gap-3 rounded-lg p-2 text-[13px]" style="{{ $ep['list_id'] == $currentEpisode['list_id'] ? 'background: hsl(var(--accent) / 0.15); color: hsl(var(--fg));' : '' }}">
-                                <span aria-hidden="true">▶</span>
-                                <span class="truncate">{{ $ep['list_title'] }}</span>
-                            </a>
+                            <li>
+                                <a href="/anime/{{ $anime['cat_id'] }}/episode/{{ $ep['list_id'] }}" class="ep-row flex min-h-[44px] items-center gap-3 rounded-lg p-2 text-[13px]" style="{{ $ep['list_id'] == $currentEpisode['list_id'] ? 'background: hsl(var(--accent) / 0.15); color: hsl(var(--fg));' : '' }}">
+                                    <span aria-hidden="true">▶</span>
+                                    <span class="truncate">{{ $ep['list_title'] }}</span>
+                                </a>
+                            </li>
                         @endforeach
                     </ul>
                 </div>
