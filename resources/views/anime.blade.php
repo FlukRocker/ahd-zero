@@ -22,6 +22,7 @@
 
     $firstEp = $anime['episode_list'][0] ?? null;
     $heroImg = $anime['banner_md'] ?: ($anime['banner_original'] ?? null) ?: ($anime['cat_image'] ?? null);
+    $heroSrc = $heroImg ? (Img::url($heroImg, ['width' => 1600, 'format' => 'webp']) ?? $heroImg) : null;
     $poster = $anime['cover_md'] ?: ($anime['cat_image'] ?? null);
     $seriesCards = CardPresenter::collection($anime['series_anime'] ?? []);
 
@@ -39,6 +40,12 @@
     ]);
 @endphp
 
+@if ($heroSrc)
+    @push('head')
+        <link rel="preload" as="image" href="{{ $heroSrc }}" fetchpriority="high">
+    @endpush
+@endif
+
 @section('content')
     <x-json-ld :data="$tvSeries" />
     <x-json-ld :data="\App\Support\Schema::breadcrumb([
@@ -53,9 +60,14 @@
     @endif
 
     <section class="relative overflow-hidden">
-        @if ($heroImg)
+        @if ($heroSrc)
             <div class="absolute inset-0">
-                <img src="{{ Img::url($heroImg, ['width' => 1600, 'format' => 'webp']) ?? $heroImg }}" class="h-full w-full object-cover opacity-60" alt="{{ $anime['cat_title'] }}" fetchpriority="high" decoding="async">
+                {{-- Full-opacity image so it stays LCP-eligible (Lighthouse skips
+                     opacity<1 images); the faded look comes from the scrim below.
+                     This makes the fast (Bunny-optimized, preloaded) hero the LCP
+                     instead of a heavier ad banner. --}}
+                <img src="{{ $heroSrc }}" class="h-full w-full object-cover" alt="{{ $anime['cat_title'] }}" fetchpriority="high" decoding="async">
+                <div class="absolute inset-0" style="background: hsl(var(--bg) / 0.45)"></div>
                 <div class="grad-hero"></div>
             </div>
         @endif
