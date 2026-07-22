@@ -2,6 +2,7 @@
 
 use App\Http\Middleware\AuthenticateMemberOrAdmin;
 use App\Http\Middleware\CacheBuildAssets;
+use App\Http\Middleware\ForceFullVisitToBladePages;
 use App\Http\Middleware\HandleAppearance;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\SecurityHeaders;
@@ -25,6 +26,9 @@ return Application::configure(basePath: dirname(__DIR__))
             HandleInertiaRequests::class,
             AddLinkHeadersForPreloadedAssets::class,
             SecurityHeaders::class,
+            // Turn an Inertia visit that resolved to a Blade page into a full
+            // page visit (409 + X-Inertia-Location) instead of a modal popup.
+            ForceFullVisitToBladePages::class,
         ]);
 
         // Long-lived cache headers for hashed Vite assets in /build/*
