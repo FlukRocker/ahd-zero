@@ -45,9 +45,12 @@
         ['name' => $currentEpisode['list_title'], 'url' => '/anime/' . $anime['cat_id'] . '/episode/' . $currentEpisode['list_id']],
     ])" />
 
+    {{-- eager-first: the episode page has no hero image, so the first ad is the
+         largest above-the-fold element (the LCP). Load it eagerly instead of
+         deferring it to ~20s. --}}
     @if (! empty($adsBanners))
         <section class="mx-auto mt-6 max-w-[1440px] px-6 lg:px-10">
-            <x-ads-banner :banners="$adsBanners" />
+            <x-ads-banner :banners="$adsBanners" eager-first />
         </section>
     @endif
 
