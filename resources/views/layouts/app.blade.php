@@ -45,8 +45,12 @@
     <meta name="application-name" content="{{ config('app.name', 'Anime HD Zero') }}">
     <meta name="apple-mobile-web-app-title" content="{{ config('app.name', 'Anime HD Zero') }}">
 
+    {{-- Preconnect the image hosts that serve LCP imagery (Bunny-optimized
+         posters/banners AND the raw Chevereto host where hero/cover PNGs live)
+         so the LCP image doesn't pay a full DNS+TCP+TLS handshake on demand
+         (that was the dominant "load delay" in the hero LCP). --}}
     <link rel="preconnect" href="https://img-cdn-proxy.shirokami.me" crossorigin>
-    <link rel="dns-prefetch" href="https://img.shirokami.me">
+    <link rel="preconnect" href="https://img.shirokami.me" crossorigin>
     <link rel="dns-prefetch" href="https://img-cdn.shirokami.me">
     <link rel="dns-prefetch" href="https://akuma-player.xyz">
 
