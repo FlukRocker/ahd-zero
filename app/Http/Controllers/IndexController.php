@@ -4,11 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Models\Anime;
 use App\Models\FeaturedAnime;
+use App\Services\AnalyticsService;
 use Illuminate\Support\Facades\Cache;
 
 class IndexController extends Controller
 {
-    public function renderIndex()
+    public function renderIndex(AnalyticsService $analytics)
     {
         /** @var int $page */
         $page = request()->input('page', 1);
@@ -35,10 +36,15 @@ class IndexController extends Controller
         $recommended = Cache::remember('featured:recommended', 60, fn () => $this->getFeatured('recommended'));
         $popular = Cache::remember('featured:popular', 60, fn () => $this->getFeatured('popular'));
 
+        // 600s, not the 60s used above: trending is a 7-day rolling aggregate
+        // that barely moves, so a short TTL just re-runs the Mongo pipeline.
+        $trending = Cache::remember('trending:cards:7d', 600, fn (): array => $analytics->getTrendingCards(7, 12));
+
         return view('index', [
             'anime' => $anime,
             'recommended' => $recommended,
             'popular' => $popular,
+            'trending' => $trending,
         ]);
     }
 

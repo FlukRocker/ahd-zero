@@ -11,6 +11,10 @@
     $heroItems = CardPresenter::collection(array_slice($heroSource, 0, 5));
     $popularItems = CardPresenter::collection(! empty($popular) ? $popular : array_slice($anime->items(), 0, 10));
     $latestItems = CardPresenter::collection($anime->items());
+
+    // Rail is hidden below 6 cards — a half-empty rail reads as broken, and
+    // the curated "ยอดนิยม" rail below is already unconditional.
+    $trendingItems = count($trending) >= 6 ? CardPresenter::collection($trending) : [];
 @endphp
 
 @if (! empty($heroItems))
@@ -26,6 +30,13 @@
 
     @if (! empty($heroItems))
         <x-hero :item="$heroItems[0]" eager />
+    @endif
+
+    @if (! empty($trendingItems))
+        <section class="mx-auto mt-20 max-w-[1440px] px-6 lg:px-10">
+            <x-section-header eyebrow="จากยอดวิว 7 วันล่าสุด" title="มาแรงตอนนี้" />
+            <x-rail :items="$trendingItems" />
+        </section>
     @endif
 
     @if (! empty($popularItems))
