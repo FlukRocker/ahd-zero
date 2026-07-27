@@ -75,6 +75,7 @@
                             <div class="font-medium text-[13px] truncate" style="color: hsl(var(--fg))">{{ $memberAuth['name'] }}</div>
                             <div class="font-mono text-[11px] truncate" style="color: hsl(var(--fg-muted))">{{ $memberAuth['email'] }}</div>
                         </div>
+                        <a href="/member/bookmarks" class="block px-4 py-2 text-[13px]" style="color: hsl(var(--fg))">รายการที่บันทึกไว้</a>
                         <a href="/member/settings/profile" class="block px-4 py-2 text-[13px]" style="color: hsl(var(--fg))">ตั้งค่าโปรไฟล์</a>
                         <a href="/member/settings/password" class="block px-4 py-2 text-[13px]" style="color: hsl(var(--fg))">เปลี่ยนรหัสผ่าน</a>
                         <form method="POST" action="/member/logout">

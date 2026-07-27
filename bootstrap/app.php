@@ -11,6 +11,7 @@ use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets;
+use Illuminate\Http\Request;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -40,6 +41,15 @@ return Application::configure(basePath: dirname(__DIR__))
             'auth.memberOrAdmin' => AuthenticateMemberOrAdmin::class,
             'track' => TrackPageView::class,
         ]);
+
+        // Guards other than `web` still fall back to the admin Fortify login by
+        // default. Anything under /member belongs to the member guard, so send
+        // those guests to the member login instead.
+        $middleware->redirectGuestsTo(
+            fn (Request $request): string => $request->is('member/*')
+                ? route('member.login')
+                : route('login')
+        );
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

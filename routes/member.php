@@ -44,6 +44,9 @@ Route::middleware('auth:member')->group(function (): void {
         ->whereNumber('catId')
         ->middleware('throttle:60,1')
         ->name('member.bookmarks.destroy');
+
+    Route::get('/member/bookmarks', [BookmarkController::class, 'index'])
+        ->name('member.bookmarks');
 });
 
 // Email verification — notice + resend reachable by guests too because login
