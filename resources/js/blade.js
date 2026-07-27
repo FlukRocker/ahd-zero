@@ -42,4 +42,37 @@ Alpine.store('appearance', {
     },
 });
 
+// Bookmark toggle. Optimistic: flip immediately, revert if the write fails,
+// so a slow network never makes the button feel dead.
+Alpine.data('bookmarkToggle', (catId, initial) => ({
+    on: initial,
+    busy: false,
+    async toggle() {
+        if (this.busy) return;
+        this.busy = true;
+        const next = !this.on;
+        this.on = next;
+        try {
+            const csrf = document.querySelector('meta[name="csrf-token"]')?.content ?? '';
+            const headers = {
+                'Content-Type': 'application/json',
+                Accept: 'application/json',
+                'X-CSRF-TOKEN': csrf,
+            };
+            const res = next
+                ? await fetch('/member/bookmarks', {
+                      method: 'POST',
+                      headers,
+                      body: JSON.stringify({ cat_id: catId }),
+                  })
+                : await fetch(`/member/bookmarks/${catId}`, { method: 'DELETE', headers });
+            if (!res.ok) throw new Error(String(res.status));
+        } catch {
+            this.on = !next;
+        } finally {
+            this.busy = false;
+        }
+    },
+}));
+
 Alpine.start();

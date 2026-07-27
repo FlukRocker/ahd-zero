@@ -4,8 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Models\Anime;
 use App\Models\AnimeRelation;
+use App\Models\Bookmark;
 use App\Models\Character;
 use App\Models\Episode;
+use App\Models\Member;
 use App\Models\Staff;
 use App\Models\Studio;
 use App\Models\Tag;
@@ -14,6 +16,7 @@ use App\Support\AdsBanner;
 use App\Support\AdsFloating;
 use App\Support\AdsPlayer;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Throwable;
 
@@ -33,10 +36,20 @@ class AnimeController extends Controller
         /** @var array<string, mixed> $animeData */
         $animeData = Cache::remember("anime:detail:v2:{$id}", 60, fn () => $this->buildAnimeDetail($id));
 
+        // Deliberately outside the cache above: that key caches anime data and
+        // is shared by every visitor. Member state must never enter it.
+        /** @var Member|null $member */
+        $member = Auth::guard('member')->user();
+        $bookmarked = $member !== null && Bookmark::query()
+            ->where('member_id', $member->id)
+            ->where('cat_id', $id)
+            ->exists();
+
         return view('anime', [
             'anime' => $animeData,
             'adsBanners' => AdsBanner::all(),
             'floatingAds' => AdsFloating::all(),
+            'bookmarked' => $bookmarked,
         ]);
     }
 

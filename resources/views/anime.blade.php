@@ -99,7 +99,7 @@
                     @if ($firstEp)
                         <a href="/anime/{{ $anime['cat_id'] }}/episode/{{ $firstEp['list_id'] }}" class="btn btn-primary">▶ ดูตอนนี้</a>
                     @endif
-                    <button class="btn btn-ghost" type="button">+ เพิ่มในรายการ</button>
+                    <x-bookmark-button :cat-id="$anime['cat_id']" :bookmarked="$bookmarked" />
                 </div>
 
                 <dl class="grid grid-cols-2 gap-x-6 gap-y-3 text-[13px] md:grid-cols-3" style="color: hsl(var(--fg-muted))">
