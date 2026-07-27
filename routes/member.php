@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Member\BookmarkController;
 use App\Http\Controllers\Member\EmailVerificationController;
 use App\Http\Controllers\Member\MemberAuthController;
 use App\Http\Controllers\Member\MemberSettingsController;
@@ -34,6 +35,15 @@ Route::middleware('auth:member')->group(function (): void {
 
     Route::delete('/member/settings/profile', [MemberSettingsController::class, 'destroy'])
         ->name('member.settings.destroy');
+
+    Route::post('/member/bookmarks', [BookmarkController::class, 'store'])
+        ->middleware('throttle:60,1')
+        ->name('member.bookmarks.store');
+
+    Route::delete('/member/bookmarks/{catId}', [BookmarkController::class, 'destroy'])
+        ->whereNumber('catId')
+        ->middleware('throttle:60,1')
+        ->name('member.bookmarks.destroy');
 });
 
 // Email verification — notice + resend reachable by guests too because login
