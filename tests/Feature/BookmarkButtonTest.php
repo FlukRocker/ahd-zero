@@ -72,10 +72,23 @@ class BookmarkButtonTest extends TestCase
         $owner = $this->member('owner@example.test');
         Bookmark::create(['member_id' => $owner->id, 'cat_id' => 701]);
 
-        $other = $this->member('other@example.test');
-        $response = $this->actingAs($other, 'member')->get('/anime/701');
+        // The owner's request populates AnimeController's shared
+        // `anime:detail:v2:{id}` cache entry (do not flush between requests —
+        // the whole point of this test is that the second request below
+        // hits that same warm cache).
+        $ownerResponse = $this->actingAs($owner, 'member')->get('/anime/701');
+        $ownerResponse->assertOk();
+        $ownerResponse->assertSee('data-bookmarked="true"', false);
 
-        $response->assertOk();
-        $response->assertSee('data-bookmarked="false"', false);
+        // A different member requesting the same page — while the cache is
+        // still warm from the owner's request above — must see their own
+        // (unbookmarked) state, not the owner's. If member-specific data
+        // were ever baked into the shared cache closure, this request would
+        // incorrectly see "true".
+        $other = $this->member('other@example.test');
+        $otherResponse = $this->actingAs($other, 'member')->get('/anime/701');
+
+        $otherResponse->assertOk();
+        $otherResponse->assertSee('data-bookmarked="false"', false);
     }
 }
