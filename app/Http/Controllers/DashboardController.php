@@ -10,8 +10,6 @@ use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
-use function collect;
-
 class DashboardController extends Controller
 {
     public function index(AnalyticsService $analytics): Response
@@ -39,26 +37,7 @@ class DashboardController extends Controller
             ->get();
 
         $viewStats = $analytics->getViewStats();
-        $trendingIds = $analytics->getTrendingAnime(7, 10);
-        $trendingAnime = $trendingIds->isNotEmpty()
-            ? Anime::query()
-                ->whereIn('cat_id', $trendingIds->pluck('cat_id'))
-                ->select('cat_id', 'cat_title', 'cat_image', 'cat_type')
-                ->get()
-                ->map(function (Anime $a) use ($trendingIds): array {
-                    $views = $trendingIds->firstWhere('cat_id', $a->cat_id)['views'] ?? 0;
-
-                    return [
-                        'cat_id' => $a->cat_id,
-                        'cat_title' => $a->cat_title,
-                        'cat_image' => $a->cat_image,
-                        'cat_type' => $a->cat_type,
-                        'views' => $views,
-                    ];
-                })
-                ->sortByDesc('views')
-                ->values()
-            : collect();
+        $trendingAnime = $analytics->getTrendingCards(7, 10);
 
         $topReferrers = $analytics->getTopReferrers(30, 10);
         $viewsOverTime = $analytics->getViewsOverTime(30);

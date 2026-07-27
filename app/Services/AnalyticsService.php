@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Anime;
 use App\Models\PageView;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -54,6 +55,46 @@ class AnalyticsService
                 'views' => (int) $row->views,
             ])->values();
         }, collect());
+    }
+
+    /**
+     * Hydrate the trending aggregate into card-shaped rows for the homepage
+     * rail and the admin dashboard. Kept cache-free: callers cache with the
+     * TTL that suits them.
+     *
+     * @return list<array{cat_id: int, cat_title: string, cat_image: string|null, cat_type: int, anime_status: string|null, episodes: int|null, anime_type: string|null, banner_md: string|null, cover_md: string|null, views: int}>
+     */
+    public function getTrendingCards(int $days = 7, int $limit = 12): array
+    {
+        $trending = $this->getTrendingAnime($days, $limit);
+
+        if ($trending->isEmpty()) {
+            return [];
+        }
+
+        $viewsById = $trending->pluck('views', 'cat_id');
+
+        return Anime::query()
+            ->whereIn('cat_id', $viewsById->keys())
+            ->select('cat_id', 'cat_title', 'cat_image', 'cat_type', 'anime_status', 'episodes', 'anime_type', 'cat_banner')
+            ->get()
+            ->map(fn (Anime $a): array => [
+                'cat_id' => (int) $a->cat_id,
+                'cat_title' => (string) $a->cat_title,
+                'cat_image' => $a->cat_image,
+                'cat_type' => (int) $a->cat_type,
+                'anime_status' => $a->anime_status,
+                'episodes' => $a->episodes,
+                'anime_type' => $a->anime_type,
+                'banner_md' => $a->banner_md,
+                'cover_md' => $a->cover_md,
+                'views' => (int) $viewsById->get($a->cat_id, 0),
+            ])
+            // whereIn returns rows in database order — re-sort so the rail is
+            // actually ranked by traffic.
+            ->sortByDesc('views')
+            ->values()
+            ->all();
     }
 
     /**
