@@ -895,7 +895,11 @@ class BookmarkButtonTest extends TestCase
         $response = $this->get('/anime/701');
 
         $response->assertOk();
-        $response->assertSee('href="/member/login"', false);
+        // data-bookmarked="guest" is unique to this component. Asserting on a
+        // bare /member/login href would pass on the site header's login link
+        // alone, even if the component never rendered.
+        $response->assertSee('data-bookmarked="guest"', false);
+        $response->assertDontSee('data-bookmarked="false"', false);
     }
 
     public function test_member_sees_an_unset_toggle_when_not_bookmarked(): void
@@ -954,7 +958,7 @@ Create `resources/views/components/bookmark-button.blade.php`:
     </button>
 @else
     {{-- Guests get a plain link, styled identically so there is no shift. --}}
-    <a href="/member/login" class="btn btn-ghost">+ เพิ่มในรายการ</a>
+    <a href="/member/login" class="btn btn-ghost" data-bookmarked="guest">+ เพิ่มในรายการ</a>
 @endif
 ```
 
