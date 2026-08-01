@@ -34,7 +34,6 @@ class IndexController extends Controller
         });
 
         $recommended = Cache::remember('featured:recommended', 60, fn () => $this->getFeatured('recommended'));
-        $popular = Cache::remember('featured:popular', 60, fn () => $this->getFeatured('popular'));
 
         // 600s, not the 60s used above: trending is a 7-day rolling aggregate
         // that barely moves, so a short TTL just re-runs the Mongo pipeline.
@@ -43,7 +42,6 @@ class IndexController extends Controller
         return view('index', [
             'anime' => $anime,
             'recommended' => $recommended,
-            'popular' => $popular,
             'trending' => $trending,
         ]);
     }
