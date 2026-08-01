@@ -9,7 +9,9 @@
     // Hero source mirrors Index.vue: >=3 recommended → recommended, else latest.
     $heroSource = (! empty($recommended) && count($recommended) >= 3) ? $recommended : $anime->items();
     $heroItems = CardPresenter::collection(array_slice($heroSource, 0, 5));
-    $popularItems = CardPresenter::collection(! empty($popular) ? $popular : array_slice($anime->items(), 0, 10));
+    // Capped at 5 so the row fits on one screen — rendered as a grid, not a
+    // rail, so there is no horizontal scrollbar.
+    $popularItems = CardPresenter::collection(array_slice(! empty($popular) ? $popular : $anime->items(), 0, 5));
     $latestItems = CardPresenter::collection($anime->items());
 
     // Rail is hidden below 6 cards — a half-empty rail reads as broken, and
@@ -42,7 +44,11 @@
     @if (! empty($popularItems))
         <section class="mx-auto mt-20 max-w-[1440px] px-6 lg:px-10">
             <x-section-header eyebrow="กำลังมาแรง" title="ยอดนิยม" />
-            <x-rail :items="$popularItems" />
+            <div class="grid grid-cols-2 gap-x-5 gap-y-8 sm:grid-cols-3 lg:grid-cols-5">
+                @foreach ($popularItems as $item)
+                    <x-poster-card :item="$item" />
+                @endforeach
+            </div>
         </section>
     @endif
 
