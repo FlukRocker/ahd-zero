@@ -1,7 +1,7 @@
 @extends('layouts.app')
 
-@section('title', $categoryName . ' — ดูอนิเมะออนไลน์ HD')
-@section('description', 'ดูอนิเมะ ' . $categoryName . ' ออนไลน์ฟรี คุณภาพ HD ครบทุกเรื่อง อัปเดตทุกวัน รับชมได้ทุกอุปกรณ์ผ่าน Anime HD Zero')
+@section('title', 'อนิเมะ' . $genreName . ' — ดูออนไลน์ HD')
+@section('description', 'ดูอนิเมะแนว ' . $genreName . ' ออนไลน์ฟรี คุณภาพ HD ครบทุกเรื่อง อัปเดตทุกวัน รับชมได้ทุกอุปกรณ์ผ่าน Anime HD Zero')
 
 @php
     use App\Support\CardPresenter;
@@ -11,12 +11,12 @@
 @section('content')
     <x-json-ld :data="\App\Support\Schema::breadcrumb([
         ['name' => 'หน้าแรก', 'url' => '/'],
-        ['name' => $categoryName, 'url' => '/category/' . $currentType],
+        ['name' => $genreName, 'url' => '/genre/' . $genreSlug],
     ])" />
 
     <x-content-with-sidebar class="mt-10">
         <div class="mb-2 font-mono text-[10px] tracking-[0.22em] uppercase" style="color: hsl(var(--fg-faint))">หมวดหมู่</div>
-        <h1 class="font-display text-[40px] leading-none italic md:text-[52px]">{{ $categoryName }}</h1>
+        <h1 class="font-display text-[40px] leading-none italic md:text-[52px]">{{ $genreName }}</h1>
 
         <div class="mt-10">
             @if (! empty($items))

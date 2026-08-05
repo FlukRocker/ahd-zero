@@ -121,23 +121,27 @@
 
     {{-- Ads below the player so the episode title is the LCP (a fast text
          element), not a heavy above-the-fold ad; ads load lazily below fold. --}}
+    {{-- Everything below the player shares the sidebar column; the 16:9 player
+         above keeps the full width so its LCP tuning is unaffected. --}}
+    <x-content-with-sidebar>
     @if (! empty($adsBanners))
-        <section class="mx-auto mt-8 max-w-[1440px] px-6 lg:px-10">
+        <section class="mt-8">
             <x-ads-banner :banners="$adsBanners" />
         </section>
     @endif
 
     @if (! empty($relatedCards))
-        <section class="mx-auto mt-8 max-w-[1440px] px-6 lg:px-10">
+        <section class="mt-8">
             <x-section-header eyebrow="คุณอาจชอบ" title="อนิเมะที่เกี่ยวข้อง" />
             <x-rail :items="$relatedCards" />
         </section>
     @endif
 
     {{-- Comment section: mount point only. The Alpine comment component lands in Phase 3. --}}
-    <section class="mx-auto mt-12 mb-20 max-w-[1440px] px-6 lg:px-10">
+    <section class="mt-12 mb-20">
         <div id="comments" data-commentable-type="episode" data-commentable-id="{{ $currentEpisode['list_id'] }}"></div>
     </section>
+    </x-content-with-sidebar>
 
     <x-ads-floating :payload="$floatingAds ?? null" />
 @endsection

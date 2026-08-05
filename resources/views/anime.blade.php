@@ -126,14 +126,17 @@
     {{-- Ads below the hero so the preloaded hero image is the LCP; the ad
          creatives (many, heavy, third-party) then load lazily below the fold
          and can't dominate LCP. --}}
+    {{-- Everything below the hero shares the sidebar column; the hero above
+         keeps the full width so its preloaded LCP image is unaffected. --}}
+    <x-content-with-sidebar>
     @if (! empty($adsBanners))
-        <section class="mx-auto mt-8 max-w-[1440px] px-6 lg:px-10">
+        <section class="mt-8">
             <x-ads-banner :banners="$adsBanners" />
         </section>
     @endif
 
     @if (! empty($anime['episode_list']))
-        <section class="mx-auto mt-10 max-w-[1440px] px-6 lg:px-10">
+        <section class="mt-10">
             <x-section-header eyebrow="สตรีม" :title="'ตอนทั้งหมด (' . count($anime['episode_list']) . ')'" />
             <div class="grid gap-2" style="grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));">
                 @foreach ($anime['episode_list'] as $ep)
@@ -147,7 +150,7 @@
     @endif
 
     @if (! empty($anime['characters']))
-        <section class="mx-auto mt-20 max-w-[1440px] px-6 lg:px-10">
+        <section class="mt-20">
             <x-section-header eyebrow="นักแสดง" title="ตัวละครและนักพากย์" />
             <div class="grid gap-4" style="grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));">
                 @foreach (array_slice($anime['characters'], 0, 12) as $c)
@@ -168,16 +171,17 @@
     @endif
 
     @if (! empty($seriesCards))
-        <section class="mx-auto mt-20 max-w-[1440px] px-6 lg:px-10">
+        <section class="mt-20">
             <x-section-header eyebrow="ซีรีส์" title="ภาคอื่นในซีรีส์" />
             <x-rail :items="$seriesCards" />
         </section>
     @endif
 
     {{-- Comment section: mount point only. The Alpine comment component lands in Phase 3. --}}
-    <section class="mx-auto mt-20 mb-20 max-w-[1440px] px-6 lg:px-10">
+    <section class="mt-20 mb-20">
         <div id="comments" data-commentable-type="anime" data-commentable-id="{{ $anime['cat_id'] }}"></div>
     </section>
+    </x-content-with-sidebar>
 
     <x-ads-floating :payload="$floatingAds ?? null" />
 @endsection

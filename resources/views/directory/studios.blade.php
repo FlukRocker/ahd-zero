@@ -4,7 +4,7 @@
 @section('description', 'รายชื่อสตูดิโอผู้ผลิตอนิเมะทั้งหมด ค้นหาและดูผลงานของแต่ละสตูดิโอที่ Anime HD Zero')
 
 @section('content')
-    <section class="mx-auto mt-10 max-w-[1440px] px-6 lg:px-10">
+    <x-content-with-sidebar class="mt-10">
         <div class="mb-2 font-mono text-[10px] tracking-[0.22em] uppercase" style="color: hsl(var(--fg-faint))">ไดเรกทอรี</div>
         <h1 class="font-display text-[40px] leading-none italic md:text-[52px]">สตูดิโอ</h1>
         <x-directory-search action="/studios" :query="$query" placeholder="ค้นหาสตูดิโอ…" />
@@ -26,5 +26,5 @@
                 <p class="py-16 text-center" style="color: hsl(var(--fg-muted))">ไม่พบสตูดิโอ</p>
             @endif
         </div>
-    </section>
+    </x-content-with-sidebar>
 @endsection

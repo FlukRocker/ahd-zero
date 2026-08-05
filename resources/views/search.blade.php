@@ -10,14 +10,14 @@
 @endphp
 
 @section('content')
-    <section class="mx-auto mt-10 max-w-[1440px] px-6 lg:px-10">
+    <x-content-with-sidebar class="mt-10">
         <div class="mb-2 font-mono text-[10px] tracking-[0.22em] uppercase" style="color: hsl(var(--fg-faint))">ผลการค้นหา</div>
         <h1 class="font-display text-[36px] leading-none italic md:text-[46px]">“{{ $query }}”</h1>
         <div class="mt-2 font-mono text-[12px]" style="color: hsl(var(--fg-muted))">พบ {{ $animes->total() }} รายการ</div>
 
         <div class="mt-10">
             @if (! empty($items))
-                <x-card-grid>
+                <x-card-grid class="!grid-cols-2 sm:!grid-cols-3 lg:!grid-cols-4">
                     @foreach ($items as $item)
                         <x-poster-card :item="$item" />
                     @endforeach
@@ -27,5 +27,5 @@
                 <p class="py-16 text-center" style="color: hsl(var(--fg-muted))">ไม่พบอนิเมะที่ตรงกับคำค้นหา</p>
             @endif
         </div>
-    </section>
+    </x-content-with-sidebar>
 @endsection

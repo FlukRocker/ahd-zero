@@ -37,15 +37,15 @@
         </section>
     @endif
 
-    <section class="mx-auto mt-24 max-w-[1440px] px-6 lg:px-10">
+    <x-content-with-sidebar class="mt-24">
         <x-section-header eyebrow="อัปเดตล่าสุด" title="ตอนใหม่ล่าสุด" />
-        <x-card-grid>
+        <x-card-grid class="!grid-cols-2 sm:!grid-cols-3 lg:!grid-cols-4">
             @foreach ($latestItems as $item)
                 <x-poster-card :item="$item" />
             @endforeach
         </x-card-grid>
         {{ $anime->links('pagination.ahd') }}
-    </section>
+    </x-content-with-sidebar>
 
     <x-about-seo />
 @endsection

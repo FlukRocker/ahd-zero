@@ -18,7 +18,7 @@
         ['name' => $voiceActor['name'], 'url' => '/voice-actor/' . $voiceActor['id']],
     ])" />
 
-    <section class="mx-auto mt-10 max-w-[1440px] px-6 lg:px-10">
+    <x-content-with-sidebar class="mt-10">
         <div class="flex items-center gap-5">
             @if (! empty($voiceActor['image_url']))
                 <img src="{{ $voiceActor['image_url'] }}" alt="{{ $voiceActor['name'] }}" loading="eager" decoding="async" width="88" height="88" class="h-22 w-22 shrink-0 rounded-full object-cover" style="height:88px;width:88px;">
@@ -34,7 +34,7 @@
 
         <div class="mt-10">
             @if (! empty($items))
-                <x-card-grid>
+                <x-card-grid class="!grid-cols-2 sm:!grid-cols-3 lg:!grid-cols-4">
                     @foreach ($items as $item)
                         <x-poster-card :item="$item" />
                     @endforeach
@@ -44,5 +44,5 @@
                 <p class="py-16 text-center" style="color: hsl(var(--fg-muted))">ยังไม่มีผลงานการพากย์</p>
             @endif
         </div>
-    </section>
+    </x-content-with-sidebar>
 @endsection

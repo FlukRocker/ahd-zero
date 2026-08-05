@@ -28,24 +28,39 @@ class AnalyticsService
     }
 
     /**
+     * Build the trending aggregation. A null `$days` means all time: the
+     * `created_at` clause is removed rather than widened, because a very old
+     * `$gte` would still drop documents that have no `created_at` at all.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    protected function trendingPipeline(?int $days, int $limit): array
+    {
+        $match = [
+            'site' => $this->site,
+            'page_type' => 'anime',
+            'page_id' => ['$ne' => null],
+        ];
+
+        if ($days !== null) {
+            $match['created_at'] = ['$gte' => new UTCDateTime(now()->subDays($days))];
+        }
+
+        return [
+            ['$match' => $match],
+            ['$group' => ['_id' => '$page_id', 'views' => ['$sum' => 1]]],
+            ['$sort' => ['views' => -1]],
+            ['$limit' => $limit],
+        ];
+    }
+
+    /**
      * @return Collection<int, array{cat_id: int, views: int}>
      */
-    public function getTrendingAnime(int $days = 7, int $limit = 10): Collection
+    public function getTrendingAnime(?int $days = 7, int $limit = 10): Collection
     {
         return $this->safe(function () use ($days, $limit): Collection {
-            $since = new UTCDateTime(now()->subDays($days));
-
-            $pipeline = [
-                ['$match' => [
-                    'site' => $this->site,
-                    'page_type' => 'anime',
-                    'created_at' => ['$gte' => $since],
-                    'page_id' => ['$ne' => null],
-                ]],
-                ['$group' => ['_id' => '$page_id', 'views' => ['$sum' => 1]]],
-                ['$sort' => ['views' => -1]],
-                ['$limit' => $limit],
-            ];
+            $pipeline = $this->trendingPipeline($days, $limit);
 
             /** @var iterable<object{_id: mixed, views: int}> $results */
             $results = PageView::raw(fn ($collection) => $collection->aggregate($pipeline));
@@ -64,7 +79,7 @@ class AnalyticsService
      *
      * @return list<array{cat_id: int, cat_title: string, cat_image: string|null, cat_type: int, anime_status: string|null, episodes: int|null, anime_type: string|null, banner_md: string|null, cover_md: string|null, views: int}>
      */
-    public function getTrendingCards(int $days = 7, int $limit = 12): array
+    public function getTrendingCards(?int $days = 7, int $limit = 12): array
     {
         $trending = $this->getTrendingAnime($days, $limit);
 

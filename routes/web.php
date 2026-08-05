@@ -8,6 +8,7 @@ use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\CommentController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DirectoryController;
+use App\Http\Controllers\GenreController;
 use App\Http\Controllers\IndexController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\SitemapController;
@@ -28,6 +29,7 @@ Route::get('/robots.txt', [SitemapController::class, 'robots']);
 Route::middleware('track')->group(function (): void {
     Route::get('/', [IndexController::class, 'renderIndex'])->name('home');
     Route::get('/category/{type}', [CategoryController::class, 'index'])->name('category');
+    Route::get('/genre/{slug}', [GenreController::class, 'show'])->name('genre.show');
     Route::get('/anime/{id}', [AnimeController::class, 'show'])->name('anime.show');
     Route::get('/anime/{id}/episode/{listId}', [AnimeController::class, 'episode'])->name('anime.episode');
 });

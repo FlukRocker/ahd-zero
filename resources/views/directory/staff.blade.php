@@ -4,7 +4,7 @@
 @section('description', 'รายชื่อทีมงานผู้สร้างอนิเมะทั้งหมด ค้นหาและดูผลงานของแต่ละคนที่ Anime HD Zero')
 
 @section('content')
-    <section class="mx-auto mt-10 max-w-[1440px] px-6 lg:px-10">
+    <x-content-with-sidebar class="mt-10">
         <div class="mb-2 font-mono text-[10px] tracking-[0.22em] uppercase" style="color: hsl(var(--fg-faint))">ไดเรกทอรี</div>
         <h1 class="font-display text-[40px] leading-none italic md:text-[52px]">ทีมงาน</h1>
         <x-directory-search action="/staff" :query="$query" placeholder="ค้นหาทีมงาน…" />
@@ -33,5 +33,5 @@
                 <p class="py-16 text-center" style="color: hsl(var(--fg-muted))">ไม่พบทีมงาน</p>
             @endif
         </div>
-    </section>
+    </x-content-with-sidebar>
 @endsection
