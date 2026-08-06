@@ -177,10 +177,9 @@
         </section>
     @endif
 
-    {{-- Comment section: mount point only. The Alpine comment component lands in Phase 3. --}}
-    <section class="mt-20 mb-20">
-        <div id="comments" data-commentable-type="anime" data-commentable-id="{{ $anime['cat_id'] }}"></div>
-    </section>
+    <div id="comments" class="mt-20 mb-20">
+        <x-comment-section type="anime" :id="$anime['cat_id']" />
+    </div>
     </x-content-with-sidebar>
 
     <x-ads-floating :payload="$floatingAds ?? null" />

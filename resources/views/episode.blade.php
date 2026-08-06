@@ -137,10 +137,9 @@
         </section>
     @endif
 
-    {{-- Comment section: mount point only. The Alpine comment component lands in Phase 3. --}}
-    <section class="mt-12 mb-20">
-        <div id="comments" data-commentable-type="episode" data-commentable-id="{{ $currentEpisode['list_id'] }}"></div>
-    </section>
+    <div id="comments" class="mt-12 mb-20">
+        <x-comment-section type="episode" :id="$currentEpisode['list_id']" />
+    </div>
     </x-content-with-sidebar>
 
     <x-ads-floating :payload="$floatingAds ?? null" />
