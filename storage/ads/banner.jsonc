@@ -6,21 +6,15 @@
 //   col:  6 (half-width) or 12 (full-width). Defaults to 6.
 //   rel:  optional override (default "nofollow noopener sponsored noreferrer ugc")
 [
-    { "href": "https://ibit.ly/ufagool",   "src": "https://img-cdn.shirokami.me/2026/03/07/1.webp", "alt": "Ufagool",   "col": 12 },
-    { "href": "https://ibit.ly/ufaza",     "src": "https://img-cdn.shirokami.me/2026/03/07/2.webp", "alt": "Ufaza",     "col": 12 },
-    { "href": "https://ibit.ly/sexy365bet","src": "https://img-cdn.shirokami.me/2026/03/07/3.webp", "alt": "sexy365bet","col": 12 },
-    { "href": "https://ibit.ly/mahagame66","src": "https://img-cdn.shirokami.me/2026/03/07/4.webp", "alt": "mahagame66","col": 12 },
-    { "href": "https://ibit.ly/vip168sa",  "src": "https://img-cdn.shirokami.me/2026/03/07/5.webp", "alt": "sa168vip",  "col": 12 },
 
     { "href": "https://www.huc66.link/signUp?pid=animehdzero", "src": "https://img.shirokami.me/images/2025/09/02/635249782e4c50a221ce8cb3fc38ea60.gif", "alt": "huc66" },
     { "href": "https://ufabet1688us.org/",                "src": "https://img-cdn.shirokami.me/2026/04/30/e292233f0a34ae1ef79197e33cda2be5.gif", "alt": "ยูฟ่าเบท", "rel": "dofollow noopener sponsored noreferrer ugc" },
 
     { "href": "https://8xbet238.com/", "src": "https://img-cdn.shirokami.me/2026/05/09/756b939fb76d47ee98091dff34c955b9.gif", "alt": "8xbe253", "col": 12 },
 
-
+    { "href": "https://m.jingjai168af.com/register?affiliate=jingjai16849978",  "src": "https://img-cdn.shirokami.me/2026/08/04/daa4b5611d2458b358bbaa6e49afa1f8.gif", "alt": "หวยออนไลน์" },
     { "href": "https://rebrand.ly/hengslot-animehdzero",  "src": "https://img.shirokami.me/images/2026/02/21/7f4878fea1c05cac9bada353373bc0a8.gif", "alt": "hengslot" },
-    { "href": "https://joker123zone.com",                 "src": "https://img.shirokami.me/images/2024/08/05/cd5d03c5fcf14bf873d6f1a735087de2.gif", "alt": "joker123" },
-    { "href": "https://www.pussy888fun.tv",               "src": "https://img.shirokami.me/images/2025/10/29/e9f38922b0c1f105065cf2bdde574744.gif", "alt": "pussy888" },
 
-    { "href": "https://pgbet.anthonyhead.com/","src": "https://img-cdn.shirokami.me/2026/07/05/77816ea0d96330b418903aad461d7866.gif", "alt": "สล็อตเว็บตรง"}
+    { "href": "https://menu.goldenbrownbakery.com/","src": "https://img-cdn.shirokami.me/2026/07/05/77816ea0d96330b418903aad461d7866.gif", "alt": "สล็อตเว็บตรง"},
+    { "href": "https://goldenbrownbakery.com/","src": "https://img-cdn.shirokami.me/2026/07/05/77816ea0d96330b418903aad461d7866.gif", "alt": "สล็อตเว็บตรง"}
 ]

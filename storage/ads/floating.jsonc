@@ -10,25 +10,9 @@
 // to hide that position.
 {
     "left": {
-        "href": "https://ibit.ly/ufazeed",
-        "src": "https://img-cdn.shirokami.me/2026/03/08/160x600-ufazeed.webp",
-        "alt": "ufazeed"
     },
     "right": {
-        "href": "https://ibit.ly/brazil999",
-        "src": "https://img-cdn.shirokami.me/2026/03/08/160x600-brazil.webp",
-        "alt": "brazil999"
     },
     "bottom": [
-        {
-            "href": "https://ibit.ly/ufafat",
-            "src": "https://image.cdend.com/wp-content/uploads/2024/03/728x90-ufafat.gif",
-            "alt": "ufafat"
-        },
-        {
-            "href": "https://ibit.ly/lotto432",
-            "src": "https://image.cdend.com/wp-content/uploads/2024/03/728x90-LOTTO432.gif",
-            "alt": "lotto432"
-        }
     ]
 }

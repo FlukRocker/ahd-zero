@@ -16,7 +16,7 @@
     // Server-compute both player URLs (no client base64 needed). Force https so
     // a misconfigured http env can't trigger a mixed-content block.
     $playerUrl = $currentEpisode['player_url'] ?? null;
-    $adsEmbed = preg_replace('#^http://#i', 'https://', $playerConfig['adsEmbedUrl'] ?? 'https://anime-hdzero.com/player/embed.php');
+    $adsEmbed = preg_replace('#^http://#i', 'https://', $playerConfig['adsEmbedUrl'] ?? 'https://animehdzero.net/player/embed.php');
     $srcAds = $playerUrl ? $adsEmbed . '?link=' . urlencode(base64_encode($playerUrl)) : null;
     $srcDirect = $playerUrl ? preg_replace('#^http://#i', 'https://', $playerUrl) : null;
 
@@ -38,6 +38,13 @@
 @endif
 
 @section('content')
+
+    @if (! empty($adsBanners))
+        <section class="mx-auto mt-8 max-w-[1440px] px-6 lg:px-10">
+            <x-ads-banner :banners="$adsBanners" />
+        </section>
+    @endif
+
     <x-json-ld :data="$videoObject" />
     <x-json-ld :data="\App\Support\Schema::breadcrumb([
         ['name' => 'หน้าแรก', 'url' => '/'],
@@ -121,11 +128,6 @@
 
     {{-- Ads below the player so the episode title is the LCP (a fast text
          element), not a heavy above-the-fold ad; ads load lazily below fold. --}}
-    @if (! empty($adsBanners))
-        <section class="mx-auto mt-8 max-w-[1440px] px-6 lg:px-10">
-            <x-ads-banner :banners="$adsBanners" />
-        </section>
-    @endif
 
     @if (! empty($relatedCards))
         <section class="mx-auto mt-8 max-w-[1440px] px-6 lg:px-10">
