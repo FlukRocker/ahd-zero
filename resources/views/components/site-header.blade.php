@@ -22,9 +22,12 @@
 >
     <div class="mx-auto flex h-[68px] max-w-[1440px] items-center gap-8 px-6 lg:px-10">
         <a href="/" class="flex shrink-0 items-center gap-2">
-            <div class="relative flex h-8 w-8 items-center justify-center rounded-lg" style="background: linear-gradient(135deg, hsl(var(--accent)), hsl(var(--accent) / 0.6));">
-                <span class="font-display text-xl leading-none text-white italic" style="transform: translateY(-1px)">z</span>
-            </div>
+            {{-- 64px source for a 32px slot so the mark stays sharp on 2x
+                 displays; width/height are set so it reserves space and
+                 cannot shift the header while loading. --}}
+            <img src="/ahd-logo-64.png" alt="{{ config('app.name', 'Anime HD Zero') }}"
+                 width="32" height="32" fetchpriority="high" decoding="async"
+                 class="h-8 w-8 shrink-0">
             <div class="leading-tight">
                 <div class="font-display text-[22px] leading-none italic">Zero</div>
                 <div class="font-mono text-[9px] tracking-[0.22em] uppercase" style="color: hsl(var(--fg-muted))">anime · hd</div>

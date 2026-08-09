@@ -4,7 +4,18 @@
 
     $seoTitle = trim($__env->yieldContent('title', $defaultTitle));
     $seoDescription = trim($__env->yieldContent('description', $defaultDescription));
-    $seoImage = trim($__env->yieldContent('og_image', asset('og-default.jpg')));
+    // Anime and episode pages yield the cover; everything else falls back to
+    // the logo card. A page that yields an empty value (an anime with no
+    // artwork) must fall back too, or og:image ships blank.
+    $ogFallback = asset('og-default.jpg');
+    $seoImage = trim($__env->yieldContent('og_image', $ogFallback));
+    if ($seoImage === '') {
+        $seoImage = $ogFallback;
+    }
+    // Crawlers require an absolute URL; a relative one is silently dropped.
+    if (! str_starts_with($seoImage, 'http://') && ! str_starts_with($seoImage, 'https://')) {
+        $seoImage = url($seoImage);
+    }
     $seoType = trim($__env->yieldContent('og_type', 'website'));
     $seoRobots = trim($__env->yieldContent('robots', 'index,follow,max-image-preview:large,max-snippet:-1'));
     $seoUrl = url()->current();

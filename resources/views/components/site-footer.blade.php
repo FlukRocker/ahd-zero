@@ -3,9 +3,9 @@
         <div class="grid grid-cols-2 gap-8 md:grid-cols-5">
             <div class="col-span-2">
                 <div class="mb-4 flex items-center gap-2">
-                    <div class="relative flex h-10 w-10 items-center justify-center rounded-lg" style="background: linear-gradient(135deg, hsl(var(--accent)), hsl(var(--accent) / 0.6));">
-                        <span class="font-display text-2xl leading-none text-white italic" style="transform: translateY(-1px)">z</span>
-                    </div>
+                    <img src="/ahd-logo-64.png" alt="" aria-hidden="true"
+                         width="40" height="40" loading="lazy" decoding="async"
+                         class="h-10 w-10 shrink-0">
                     <div class="font-display text-[28px] leading-none italic">Anime HD Zero</div>
                 </div>
                 <p class="max-w-sm text-[14px]" style="color: hsl(var(--fg-muted))">ดูอนิเมะออนไลน์ ทั้งซับไทย พากย์ไทย เดอะมูฟวี่ คุณภาพ HD รับชมได้ทุกเรื่อง</p>

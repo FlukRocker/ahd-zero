@@ -88,8 +88,9 @@
         <link rel="preload" href="{{ $fontHref }}" as="font" type="font/woff2" crossorigin>
     @endforeach
 
-    <link rel="icon" type="image/png" href="/favicon.png">
-    <link rel="shortcut icon" type="image/png" href="/favicon.png">
+    <link rel="icon" href="/favicon.ico" sizes="any">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
     <link rel="apple-touch-icon" type="image/png" href="/apple-touch-icon.png">
 
     @if ($gaId = config('services.google_analytics.measurement_id'))
