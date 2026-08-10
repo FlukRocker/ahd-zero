@@ -24,6 +24,22 @@ class Img
     public const HERO_SIZES = '100vw';
 
     /**
+     * True when url() will send this through Bunny — which also means url()
+     * strips any .md/.th suffix off it, so resolving a variant for this URL is
+     * work whose answer is thrown away.
+     */
+    public static function isProxied(?string $url): bool
+    {
+        if ($url === null || $url === '') {
+            return false;
+        }
+
+        $parsed = parse_url($url);
+
+        return $parsed !== false && ($parsed['host'] ?? null) === self::PROXIED_SOURCE_HOST;
+    }
+
+    /**
      * Build a Bunny Optimizer URL. Non-shirokami-proxied origins pass through
      * unchanged. Ports resources/js/lib/img.ts `bunnyImg`.
      *

@@ -82,6 +82,22 @@ class ImageVariantServiceTest extends TestCase
         $this->assertNotNull(Cache::get('img_variant:'.md5(self::VARIANT).':probing'));
     }
 
+    public function test_bunny_proxied_images_are_never_probed_or_variant_resolved(): void
+    {
+        Http::fake();
+        // Img::url() strips .md before Bunny sees the path, so resolving the
+        // variant here would be discarded downstream. This is the host almost
+        // every anime image lives on, so it is where the cost was.
+        $url = 'https://img-cdn.shirokami.me/2026/07/27/abc.webp';
+
+        $result = (new ImageVariantService)->getVariant($url, 'md');
+
+        $this->assertSame($url, $result);
+        Http::assertNothingSent();
+        // Not even a background probe should be scheduled for these.
+        $this->assertNull(Cache::get('img_variant:'.md5('https://img-cdn.shirokami.me/2026/07/27/abc.md.webp').':probing'));
+    }
+
     public function test_non_chevereto_urls_are_passed_through_untouched(): void
     {
         Http::fake();

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Support\Img;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 
@@ -26,6 +27,15 @@ class ImageVariantService
         }
 
         if (! str_contains($url, 'shirokami.me')) {
+            return $url;
+        }
+
+        // Img::url() strips .md/.th before handing the path to Bunny, which
+        // resizes from the canonical original — so for proxied images the
+        // variant we'd resolve here is discarded downstream. Probing for it was
+        // pure waste, and at ~3s a probe it was what dragged card-heavy pages
+        // past 30s and out to a 524.
+        if (Img::isProxied($url)) {
             return $url;
         }
 
