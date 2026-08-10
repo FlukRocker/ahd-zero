@@ -49,7 +49,7 @@ return [
     ],
 
     'akuma_player' => [
-        'ads_embed_url' => env('AKUMA_PLAYER_ADS_EMBED', 'https://anime-hdzero.com/player/embed.php'),
+        'ads_embed_url' => env('AKUMA_PLAYER_ADS_EMBED', 'https://animehdzero.net/player/embed.php'),
     ],
 
     'akuma_stream' => [

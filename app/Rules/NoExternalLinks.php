@@ -27,6 +27,9 @@ class NoExternalLinks implements ValidationRule
 {
     /** @var list<string> */
     private const ALLOWED_HOSTS = [
+        'animehdzero.net',
+        // The v1 domain stays allowed so links inside existing comments do not
+        // start failing validation on edit.
         'anime-hdzero.com',
         'akuma-player.xyz',
         'img.shirokami.me',

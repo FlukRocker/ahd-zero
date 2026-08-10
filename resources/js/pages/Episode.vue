@@ -19,7 +19,7 @@ import { computed, onMounted, ref, watch } from 'vue';
 
 type PlayerMode = 'ads' | 'direct';
 const STORAGE_KEY = 'ahd.playerMode';
-const ADS_EMBED_FALLBACK = 'https://anime-hdzero.com/player/embed.php';
+const ADS_EMBED_FALLBACK = 'https://animehdzero.net/player/embed.php';
 
 // SSR-safe base64. Browsers + Node 18+ both expose `btoa` globally; Buffer is
 // the explicit Node fallback. Keeps SSR + client output identical so Vue
