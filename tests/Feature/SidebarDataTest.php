@@ -49,6 +49,28 @@ final class EmptyAnalytics extends AnalyticsService
     }
 }
 
+/**
+ * Counts aggregation runs. The all-time window scans the whole page_views
+ * collection, so how often it is executed is the thing that matters.
+ */
+final class CountingAnalytics extends AnalyticsService
+{
+    public int $calls = 0;
+
+    public function __construct()
+    {
+        parent::__construct('test');
+    }
+
+    #[Override]
+    public function getTrendingAnime(?int $days = 7, int $limit = 10): Collection
+    {
+        $this->calls++;
+
+        return collect([['cat_id' => 101, 'views' => 10]]);
+    }
+}
+
 class SidebarDataTest extends TestCase
 {
     use RefreshDatabase;
@@ -122,6 +144,51 @@ class SidebarDataTest extends TestCase
         $this->assertSame([], $popular['7d']);
         $this->assertSame([], $popular['30d']);
         $this->assertSame([], $popular['all']);
+    }
+
+    public function test_repeat_requests_do_not_rerun_the_aggregation(): void
+    {
+        DB::table('yu_anime_catagory')->insert([
+            ['cat_id' => 101, 'cat_title' => 'Cached Show', 'cat_type' => 1, 'cat_update' => now()],
+        ]);
+
+        $analytics = new CountingAnalytics;
+        $data = new SidebarData($analytics);
+
+        $data->popular();
+        $afterFirst = $analytics->calls;
+        $data->popular();
+        $data->popular();
+
+        // Three windows on the first call, nothing after — otherwise every
+        // request on every page would hit Mongo three times.
+        $this->assertSame(3, $afterFirst);
+        $this->assertSame(3, $analytics->calls);
+    }
+
+    public function test_a_stale_window_is_still_served_without_blocking_on_a_recompute(): void
+    {
+        DB::table('yu_anime_catagory')->insert([
+            ['cat_id' => 101, 'cat_title' => 'Cached Show', 'cat_type' => 1, 'cat_update' => now()],
+        ]);
+
+        $analytics = new CountingAnalytics;
+        $data = new SidebarData($analytics);
+        $data->popular();
+
+        // Past the 7d window's fresh period (15m) but well inside its stale
+        // period (24h). The caller must still get data immediately; the refresh
+        // happens behind a lock rather than in this request's critical path.
+        $this->travel(30)->minutes();
+
+        $popular = $data->popular();
+
+        $this->assertSame('Cached Show', $popular['7d'][0]['title']);
+        // The key guarantee: the reader did not run the aggregation itself. A
+        // plain TTL would have expired here and made this request pay for the
+        // recompute — which, multiplied by every concurrent request, is the
+        // stampede that produced the 524s.
+        $this->assertSame(3, $analytics->calls);
     }
 
     public function test_popular_entries_carry_the_card_fields_the_sidebar_renders(): void

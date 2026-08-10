@@ -22,11 +22,33 @@ class SidebarData
      */
     public const WINDOWS = ['7d' => 7, '30d' => 30, 'all' => null];
 
-    /** Popular is a rolling aggregate that barely moves; matches the homepage rail. */
-    private const POPULAR_TTL = 600;
+    /**
+     * [fresh, stale] seconds per window, for Cache::flexible.
+     *
+     * Within `fresh` the cached value is returned outright. Between `fresh` and
+     * `stale` it is still returned immediately while a single lock-holding
+     * worker recomputes in the background. That distinction is the whole point:
+     * a plain TTL means every concurrent request misses at the same instant and
+     * they all run the aggregation at once, which is what saturated Mongo and
+     * produced 524s under load.
+     *
+     * The all-time window is the expensive one — it drops the created_at filter
+     * and therefore scans the whole page_views collection — so it gets much the
+     * longest fresh window. It is an all-time ranking; it does not move.
+     *
+     * @var array<string, array{0: int, 1: int}>
+     */
+    private const POPULAR_TTL = [
+        '7d' => [900, 86400],
+        '30d' => [3600, 172800],
+        'all' => [21600, 604800],
+    ];
+
+    /** Only one worker should recompute a window; the rest serve stale. */
+    private const REFRESH_LOCK_SECONDS = 120;
 
     /** The genre list is effectively static — re-querying it per request is waste. */
-    private const GENRES_TTL = 3600;
+    private const GENRES_TTL = 86400;
 
     private const POPULAR_LIMIT = 10;
 
@@ -62,12 +84,13 @@ class SidebarData
         $out = [];
 
         foreach (self::WINDOWS as $key => $days) {
-            $out[$key] = Cache::remember(
+            $out[$key] = Cache::flexible(
                 "sidebar:popular:{$key}",
-                self::POPULAR_TTL,
+                self::POPULAR_TTL[$key],
                 fn (): array => CardPresenter::collection(
                     $this->analytics->getTrendingCards($days, self::POPULAR_LIMIT)
                 ),
+                ['seconds' => self::REFRESH_LOCK_SECONDS],
             );
         }
 
