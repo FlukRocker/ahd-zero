@@ -30,16 +30,28 @@ Route::middleware('track')->group(function (): void {
     Route::get('/', [IndexController::class, 'renderIndex'])->name('home');
     Route::get('/category/{type}', [CategoryController::class, 'index'])->name('category');
     Route::get('/genre/{slug}', [GenreController::class, 'show'])->name('genre.show');
-    Route::get('/anime/{id}', [AnimeController::class, 'show'])->name('anime.show');
-    Route::get('/anime/{id}/episode/{listId}', [AnimeController::class, 'episode'])->name('anime.episode');
+    // whereNumber, not decoration: these bind to int-typed controller
+    // arguments, so an unconstrained non-numeric segment raises a TypeError
+    // and 500s instead of 404ing.
+    Route::get('/anime/{id}', [AnimeController::class, 'show'])
+        ->whereNumber('id')
+        ->name('anime.show');
+    Route::get('/anime/{id}/episode/{listId}', [AnimeController::class, 'episode'])
+        ->whereNumber('id')
+        ->whereNumber('listId')
+        ->name('anime.episode');
 });
 
 // Directories
 Route::get('/studios', [DirectoryController::class, 'studios'])->name('studios.index');
 Route::get('/voice-actors', [DirectoryController::class, 'voiceActors'])->name('voice-actors.index');
 Route::get('/staff', [DirectoryController::class, 'staff'])->name('staff.index');
-Route::get('/studio/{id}', [StudioController::class, 'show'])->name('studio.show');
-Route::get('/voice-actor/{id}', [VoiceActorController::class, 'show'])->name('voice-actor.show');
+Route::get('/studio/{id}', [StudioController::class, 'show'])
+    ->whereNumber('id')
+    ->name('studio.show');
+Route::get('/voice-actor/{id}', [VoiceActorController::class, 'show'])
+    ->whereNumber('id')
+    ->name('voice-actor.show');
 
 // Search results page
 Route::get('/search/results', [SearchController::class, 'index'])->name('search.results');
