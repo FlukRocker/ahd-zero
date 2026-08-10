@@ -46,12 +46,32 @@ class ImageVariantService
             return $url;
         }
 
-        // Not cached — check via HTTP HEAD (async-safe, fast)
-        $exists = $this->checkUrlExists($variantUrl);
+        // Unknown. Never probe inline: this runs once per image per page, the
+        // probe is a 3s-timeout network round-trip, and pages that render many
+        // cards would serialise dozens of them into one response — which is
+        // what pushed requests past the edge timeout (524) whenever this cache
+        // went cold. Serve the original now; resolve the variant out of band.
+        $this->probeInBackground($cacheKey, $variantUrl);
 
-        Cache::put($cacheKey, $exists ? 'valid' : 'invalid', self::CACHE_TTL);
+        return $url;
+    }
 
-        return $exists ? $variantUrl : $url;
+    /**
+     * Resolve the variant after the response has been sent, and only once per
+     * URL at a time — otherwise every concurrent request for an uncached image
+     * would queue its own probe.
+     */
+    private function probeInBackground(string $cacheKey, string $variantUrl): void
+    {
+        if (! Cache::add($cacheKey.':probing', 1, 60)) {
+            return;
+        }
+
+        defer(function () use ($cacheKey, $variantUrl): void {
+            $exists = $this->checkUrlExists($variantUrl);
+            Cache::put($cacheKey, $exists ? 'valid' : 'invalid', self::CACHE_TTL);
+            Cache::forget($cacheKey.':probing');
+        });
     }
 
     private function buildVariantUrl(string $url, string $suffix): ?string
