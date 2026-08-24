@@ -20,6 +20,7 @@ class SearchController extends Controller
         $animes = Anime::query()->where('cat_title', 'LIKE', '%'.$validated['q'].'%')
             ->select('cat_id', 'cat_title', 'cat_image', 'cat_type', 'anime_status', 'episodes', 'anime_type')
             ->withCount('episodeList')
+            ->orderByDesc('cat_id')
             ->paginate(24)
             ->appends(['q' => $validated['q']]);
 
