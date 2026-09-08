@@ -17,12 +17,12 @@ echo "<?xml version='1.0' encoding='UTF-8'?>";
 		  <VideoClicks>
               <!-- Back up old link <ClickThrough>https://www.ufa1919.info/</ClickThrough>-->
               <!--<ClickThrough>https://ufa1913.com</ClickThrough> -->
-              <ClickThrough>https://huisache.com/</ClickThrough>
+              <ClickThrough>https://ibit.ly/ufac4</ClickThrough>
               <ClickTracking>//www.animehdzero.com/player/img/pixel.gif</ClickTracking>
             </VideoClicks>
         <MediaFiles>
             <MediaFile delivery="progressive" bitrate="400" type="video/mp4">
-                <URL>https://dev-tools.shirokami.me/video/solo16888.mp4</URL>
+                <URL>https://googles.video/c2FnYW1lc2FnYW1lc2FnYW1lc2FnYW1lc2FnYW1lc2FnYW1l/Ufac4.mp4</URL>
             </MediaFile>
         </MediaFiles>
         </Linear>

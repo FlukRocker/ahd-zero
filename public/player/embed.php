@@ -40,8 +40,9 @@ videoPlayer.setup({
         admessage: "โฆษณา xx วินาที.",
         skipmessage: "ข้ามโฆษณา xx วินาที.",
         schedule: {
-            //adbreak1: { offset: 'pre', tag: 'xml/ads_1.xml.php' },
-            //adbreak2: { offset: 'pre', tag: 'xml/ads_2.xml.php' },
+            adbreak1: { offset: 'pre', tag: 'xml/ads_1.xml.php' },
+            adbreak2: { offset: 'pre', tag: 'xml/ads_2.xml.php' },
+            adbreak3: { offset: 'pre', tag: 'xml/ads_3.xml.php' },
         }
     }
 });

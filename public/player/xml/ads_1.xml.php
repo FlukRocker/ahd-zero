@@ -16,12 +16,12 @@ echo "<?xml version='1.0' encoding='UTF-8'?>";
         <AdParameters>
         </AdParameters>
 		  <VideoClicks>
-             <ClickThrough>https://ibit.ly/lalika168</ClickThrough>
+             <ClickThrough>https://ibit.ly/sbogool</ClickThrough>
 <ClickTracking>//www.animehdzero.com/player/img/pixel.gif</ClickTracking>
 </VideoClicks>
         <MediaFiles>
             <MediaFile delivery="progressive" bitrate="400" type="video/mp4">
-                <URL>https://googles.video/c2FnYW1lc2FnYW1lc2FnYW1lc2FnYW1lc2FnYW1lc2FnYW1l/lalikabet168.mp4</URL>
+                <URL>https://googles.video/c2FnYW1lc2FnYW1lc2FnYW1lc2FnYW1lc2FnYW1lc2FnYW1l/sbogool2.mp4</URL>
             </MediaFile>
         </MediaFiles>
         </Linear>
