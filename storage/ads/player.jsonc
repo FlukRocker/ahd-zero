@@ -1,30 +1,34 @@
-// Single-banner ad slots flanking the player on /anime/{id}/episode/{id}.
-// Each slot is one banner — set to null or remove to hide.
+// Ad slots flanking the player on /anime/{id}/episode/{id}.
+// Each slot takes one banner object OR a list of them (stacked in order).
 //   top:    rendered above the iframe
 //   bottom: rendered between the player controls row and the synopsis
+// Set a slot to null / [] or remove the key to hide it.
+//
+// Each entry: { href, src, alt, rel? } — rel defaults to
+// "nofollow noopener sponsored noreferrer ugc".
 {
-     "top": [
+    "top": [
         {
-         "href": "https://ibit.ly/hydra88",
-         "src": "https://image.cdend.com/wp-content/uploads/2025/03/728X90-Hydra888.gif",
-         "alt": "HYDRA88"
+            "href": "https://ibit.ly/hydra88",
+            "src": "https://image.cdend.com/wp-content/uploads/2025/03/728X90-Hydra888.gif",
+            "alt": "HYDRA88"
         },
         {
-         "href": "https://ibit.ly/vip168sa",
-         "src": "https://image.cdend.com/wp-content/uploads/2024/03/728x90-vip168sa.gif",
-         "alt": "VIP168SA"
+            "href": "https://ibit.ly/vip168sa",
+            "src": "https://image.cdend.com/wp-content/uploads/2024/03/728x90-vip168sa.gif",
+            "alt": "VIP168SA"
         }
-     ],
-     "bottom": [
+    ],
+    "bottom": [
         {
-         "href": "https://ibit.ly/sexygame1688",
-         "src": "https://image.cdend.com/wp-content/uploads/2024/03/728x90-sexygame1688.gif",
-         "alt": "SEXYGAME1688"
+            "href": "https://ibit.ly/sexygame1688",
+            "src": "https://image.cdend.com/wp-content/uploads/2024/03/728x90-sexygame1688.gif",
+            "alt": "SEXYGAME1688"
         },
         {
-         "href": "https://ibit.ly/sagame1688",
-         "src": "https://image.cdend.com/wp-content/uploads/2024/03/728x90-SA1688.gif",
-         "alt": "1688SAGAME"
+            "href": "https://ibit.ly/sagame1688",
+            "src": "https://image.cdend.com/wp-content/uploads/2024/03/728x90-SA1688.gif",
+            "alt": "1688SAGAME"
         }
-     ]
+    ]
 }

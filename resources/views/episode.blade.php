@@ -61,7 +61,7 @@
         <div class="grid grid-cols-12 gap-6" x-data="{ mode: (localStorage.getItem('ahd.playerMode') === 'direct' ? 'direct' : 'ads'), set(m) { this.mode = m; try { localStorage.setItem('ahd.playerMode', m); } catch (e) {} } }">
             <div class="col-span-12 lg:col-span-8">
                 @if (! empty($playerAds['top']))
-                    <x-player-ad-slot :ad="$playerAds['top']" class="mb-3" />
+                    <x-player-ad-slot :ads="$playerAds['top']" class="mb-3" />
                 @endif
 
                 <div class="relative w-full overflow-hidden rounded-2xl" style="aspect-ratio: 16/9; background: #000">
@@ -96,7 +96,7 @@
                 </div>
 
                 @if (! empty($playerAds['bottom']))
-                    <x-player-ad-slot :ad="$playerAds['bottom']" class="mt-4" />
+                    <x-player-ad-slot :ads="$playerAds['bottom']" class="mt-4" />
                 @endif
 
                 @if (! empty($anime['cat_desc']))
