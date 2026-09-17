@@ -1,7 +1,17 @@
 @extends('layouts.app')
 
 @section('title', $anime['cat_title'])
-@section('description', \Illuminate\Support\Str::limit(strip_tags($anime['cat_desc'] ?? ('ดู ' . $anime['cat_title'] . ' ออนไลน์')), 200, ''))
+@php
+    // Lead with the title so a sub and a dub record don't ship the same
+    // description — they share one synopsis, and the variant is the only thing
+    // that differs. html_entity_decode because the imported synopses contain
+    // entities: without it "&nbsp;" was escaped again and reached the SERP as
+    // the literal text "&nbsp;".
+    $animeSynopsis = trim(html_entity_decode(strip_tags((string) ($anime['cat_desc'] ?? '')), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+    $animeSynopsis = trim(preg_replace('/\s+/u', ' ', $animeSynopsis));
+    $animeDescription = 'ดู '.$anime['cat_title'].' ออนไลน์ฟรี HD'.($animeSynopsis !== '' ? ' — '.$animeSynopsis : '');
+@endphp
+@section('description', \Illuminate\Support\Str::limit($animeDescription, 200, ''))
 @section('og_type', 'video.tv_show')
 @if (! empty($anime['cat_image']))
     @section('og_image', $anime['cat_image'])

@@ -53,4 +53,54 @@ class AnimeDetailPageTest extends TestCase
     {
         $this->get('/anime/99999')->assertStatus(404);
     }
+
+    /**
+     * A sub and a dub record share one synopsis and differ only in the variant
+     * word at the very end of the title, so both the <title> and the meta
+     * description used to come out identical for the pair.
+     *
+     * @return array{0:string,1:string}
+     */
+    private function seoFor(string $catTitle): array
+    {
+        $id = DB::table('yu_anime_catagory')->insertGetId([
+            'cat_title' => $catTitle,
+            'cat_desc' => '<p>เรื่องราวของ ไคลน์ โมเรตติ&nbsp;ยังเป็นสมาชิก</p>',
+            'cat_type' => 1,
+            'cat_update' => now(),
+        ]);
+
+        $html = $this->get("/anime/{$id}")->getContent();
+        preg_match('#<title>(.*?)</title>#s', $html, $t);
+        preg_match('#<meta name="description" content="(.*?)"#s', $html, $d);
+
+        // Returned raw, exactly as served: the entity bug was a double escape
+        // ("&amp;amp;nbsp;"), which decoding here would hide.
+        return [$t[1] ?? '', $d[1] ?? ''];
+    }
+
+    public function test_long_sub_and_dub_titles_do_not_collide(): void
+    {
+        $base = 'Tsuihou sareta Tensei Juukishi wa Game Chishiki de Musou suru เกิดใหม่เป็นอัศวินเกราะหนักผู้ถูกขับไล่ ';
+        [$subTitle, $subDesc] = $this->seoFor($base.'ซับไทย');
+        [$dubTitle, $dubDesc] = $this->seoFor($base.'พากย์ไทย');
+
+        $this->assertNotSame($subTitle, $dubTitle, '<title> must distinguish sub from dub');
+        $this->assertNotSame($subDesc, $dubDesc, 'meta description must distinguish sub from dub');
+
+        // The variant is the highest-volume keyword set; truncation must keep it.
+        $this->assertStringContainsString('ซับไทย', $subTitle);
+        $this->assertStringContainsString('พากย์ไทย', $dubTitle);
+    }
+
+    public function test_meta_description_decodes_entities_from_the_imported_synopsis(): void
+    {
+        [, $desc] = $this->seoFor('Lord of Mysteries ราชันเร้นลับ ซับไทย');
+
+        // The synopsis holds "&nbsp;", which was escaped twice on the way out
+        // and reached the SERP snippet as the literal text "&amp;nbsp;".
+        $this->assertStringNotContainsString('nbsp', $desc);
+        $this->assertStringNotContainsString('&amp;amp;', $desc);
+        $this->assertStringNotContainsString('<p>', $desc);
+    }
 }

@@ -258,7 +258,9 @@ class SitemapController extends Controller
 
         $title = trim($meta['title'].' — '.$ep->list_title);
         // Google rejects an empty description, so fall back to the title.
-        $description = trim(strip_tags((string) $meta['desc'])) ?: $title;
+        // Decode first: the imported synopses carry entities, and shipping
+        // "&nbsp;" as literal text is worse than shipping the character.
+        $description = trim(html_entity_decode(strip_tags((string) $meta['desc']), ENT_QUOTES | ENT_HTML5, 'UTF-8')) ?: $title;
 
         return '<video:video>'
             .'<video:thumbnail_loc>'.self::xml($thumbnail).'</video:thumbnail_loc>'

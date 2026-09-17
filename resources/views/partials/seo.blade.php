@@ -20,8 +20,16 @@
     $seoRobots = trim($__env->yieldContent('robots', 'index,follow,max-image-preview:large,max-snippet:-1'));
     $seoUrl = url()->current();
 
-    // <title> tag capped at ~60 chars for SERP; og/twitter keep full string.
-    $titleTag = mb_strlen($seoTitle) > 60 ? mb_substr($seoTitle, 0, 59) . '…' : $seoTitle;
+    // <title> trimmed for SERP, but from the MIDDLE so the tail survives.
+    // Series titles end in the variant — ซับไทย / พากย์ไทย / มูฟวี่ — which is
+    // both the highest-volume keyword set in Search Console and the only thing
+    // telling a sub and a dub record apart. Cutting from the right dropped it,
+    // which made long sub/dub pairs collide on an identical <title>.
+    $titleTag = $seoTitle;
+    if (mb_strlen($seoTitle) > 60) {
+        $tail = mb_substr($seoTitle, -12);
+        $titleTag = mb_substr($seoTitle, 0, 47).'…'.$tail;
+    }
 @endphp
 
 <title>{{ $titleTag }}</title>

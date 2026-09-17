@@ -27,7 +27,9 @@
     $videoObject = $srcDirect
         ? Schema::videoObject([
             'name' => $pageTitle,
-            'description' => $anime['cat_desc'] ? strip_tags($anime['cat_desc']) : null,
+            // Decoded because the imported synopses carry entities, which
+            // would otherwise reach the JSON-LD as literal "&nbsp;".
+            'description' => $anime['cat_desc'] ? html_entity_decode(strip_tags($anime['cat_desc']), ENT_QUOTES | ENT_HTML5, 'UTF-8') : null,
             'thumbnailUrl' => $anime['cat_image'] ?? null,
             'uploadDate' => $currentEpisode['upload_date_iso'] ?? null,
             // Use the https-normalised URL so embedUrl matches the iframe src exactly.
