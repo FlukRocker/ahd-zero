@@ -221,9 +221,19 @@ class AnimeController extends Controller
         abort_unless($currentEpisodeRow !== null, 404);
 
         // Drive ID / video UUID → app.akuma-stream.com/watch/{uuid}.
-        $playerService = app(\App\Services\PlayerService::class);
-        $playerUrl = $playerService->getPlayerUrl($currentEpisodeRow->list_url ?? null)
-            ?? $playerService->getPlayerUrl($currentEpisodeRow->file_src ?? null);
+        // Prefer the URL `player:backfill` already resolved: that turns the
+        // common case into a local read instead of an akuma-stream round trip.
+        // A row with a null watch_url means the API has answered "nothing ready"
+        // recently, so fall through and let PlayerService re-check.
+        $playerUrl = \App\Models\EpisodePlayerUrl::query()
+            ->whereKey($currentEpisodeRow->list_id)
+            ->value('watch_url');
+
+        if ($playerUrl === null) {
+            $playerService = app(\App\Services\PlayerService::class);
+            $playerUrl = $playerService->getPlayerUrl($currentEpisodeRow->list_url ?? null)
+                ?? $playerService->getPlayerUrl($currentEpisodeRow->file_src ?? null);
+        }
 
         $related = (function () use ($anime): array {
             $relations = $this->safe(fn () => $anime->relations()->with('relatedAnime')->get());

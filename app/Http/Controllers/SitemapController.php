@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Anime;
 use App\Models\Episode;
+use App\Models\EpisodePlayerUrl;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Cache;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -81,7 +82,7 @@ class SitemapController extends Controller
                 ->chunkById(1000, function ($animes) use ($baseUrl): void {
                     foreach ($animes as $anime) {
                         $loc = "{$baseUrl}/anime/{$anime->cat_id}";
-                        $lastmod = $anime->cat_update?->toIso8601String() ?? '';
+                        $lastmod = self::lastmod($anime->cat_update);
                         echo '<url>';
                         echo "<loc>{$loc}</loc>";
                         if ($lastmod !== '') {
@@ -111,18 +112,39 @@ class SitemapController extends Controller
 
         return new StreamedResponse(function () use ($baseUrl, $offset, $limit): void {
             echo '<?xml version="1.0" encoding="UTF-8"?>';
-            echo '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">';
+            echo '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"'
+                .' xmlns:video="http://www.google.com/schemas/sitemap-video/1.1">';
+
+            // Find where this page starts once, then walk forward by primary
+            // key. OFFSET per chunk made every chunk scan and discard all the
+            // rows before it — 2.4s a chunk by the middle of a page, which is
+            // what used to run the stream into the execution-time limit.
+            $cursor = Episode::query()
+                ->whereNull('deleted_at')
+                ->orderBy('list_id')
+                ->offset($offset)
+                ->limit(1)
+                ->value('list_id');
+
+            if ($cursor === null) {
+                echo '</urlset>';
+
+                return;
+            }
 
             $chunkSize = 1000;
             $processed = 0;
+            // An anime has many episodes, so the same cat_id repeats across
+            // chunks. Held for the whole stream, each series is fetched once.
+            $series = [];
 
             while ($processed < $limit) {
                 $take = min($chunkSize, $limit - $processed);
                 $rows = Episode::query()
                     ->whereNull('deleted_at')
-                    ->select('list_id', 'catagory_id', 'adddate')
+                    ->select('list_id', 'catagory_id', 'adddate', 'list_title')
+                    ->where('list_id', '>=', $cursor)
                     ->orderBy('list_id')
-                    ->offset($offset + $processed)
                     ->limit($take)
                     ->get();
 
@@ -130,9 +152,15 @@ class SitemapController extends Controller
                     break;
                 }
 
+                // One query per chunk for the resolved player URLs, plus one for
+                // whichever series this chunk introduced. Per-row lookups would
+                // make this 90k queries.
+                $watchUrls = $this->watchUrlsFor($rows->pluck('list_id')->all());
+                $this->loadSeriesMeta($rows->pluck('catagory_id')->unique()->all(), $series);
+
                 foreach ($rows as $ep) {
                     $loc = "{$baseUrl}/anime/{$ep->catagory_id}/episode/{$ep->list_id}";
-                    $lastmod = $ep->adddate?->toIso8601String() ?? '';
+                    $lastmod = self::lastmod($ep->adddate);
                     echo '<url>';
                     echo "<loc>{$loc}</loc>";
                     if ($lastmod !== '') {
@@ -140,12 +168,14 @@ class SitemapController extends Controller
                     }
                     echo '<changefreq>monthly</changefreq>';
                     echo '<priority>0.5</priority>';
+                    echo $this->videoTag($ep, $watchUrls, $series);
                     echo '</url>';
                 }
 
                 $processed += $rows->count();
+                $cursor = $rows->last()->list_id + 1;
                 flush();
-                unset($rows);
+                unset($rows, $watchUrls);
             }
 
             echo '</urlset>';
@@ -153,6 +183,111 @@ class SitemapController extends Controller
             'Content-Type' => 'application/xml',
             'Cache-Control' => 'public, max-age=3600',
         ]);
+    }
+
+    /**
+     * Resolved player URLs, keyed by list_id. Only episodes that actually have
+     * a video come back — the rest get no <video:video>, which keeps the
+     * sitemap consistent with the noindex those pages already render.
+     *
+     * @param  array<int,int>  $listIds
+     * @return array<int,string>
+     */
+    private function watchUrlsFor(array $listIds): array
+    {
+        return EpisodePlayerUrl::query()
+            ->whereIn('list_id', $listIds)
+            ->whereNotNull('watch_url')
+            ->pluck('watch_url', 'list_id')
+            ->all();
+    }
+
+    /**
+     * Fill $series (keyed by cat_id) with any of $catIds it doesn't hold yet.
+     * The cache is what makes this one query per chunk rather than per episode.
+     *
+     * @param  array<int,int>  $catIds
+     * @param  array<int,array{title:string,image:?string,desc:?string}>  $series
+     */
+    private function loadSeriesMeta(array $catIds, array &$series): void
+    {
+        $missing = array_values(array_diff($catIds, array_keys($series)));
+
+        if ($missing === []) {
+            return;
+        }
+
+        foreach (Anime::query()->whereIn('cat_id', $missing)->get(['cat_id', 'cat_title', 'cat_image', 'cat_desc']) as $anime) {
+            $series[$anime->cat_id] = [
+                'title' => (string) $anime->cat_title,
+                'image' => $anime->cat_image,
+                'desc' => $anime->cat_desc,
+            ];
+        }
+    }
+
+    /**
+     * Google requires thumbnail_loc, title, description and a player_loc or
+     * content_loc. If any of them is missing the whole tag is dropped: a
+     * partial <video:video> is a sitemap error, not a partial win.
+     *
+     * @param  array<int,string>  $watchUrls
+     * @param  array<int,array{title:string,image:?string,desc:?string}>  $series
+     */
+    private function videoTag(Episode $ep, array $watchUrls, array $series): string
+    {
+        $watchUrl = $watchUrls[$ep->list_id] ?? null;
+        $meta = $series[$ep->catagory_id] ?? null;
+
+        if ($watchUrl === null || $meta === null) {
+            return '';
+        }
+
+        $thumbnail = $meta['image'];
+        if ($thumbnail === null || $thumbnail === '') {
+            return '';
+        }
+
+        $title = trim($meta['title'].' — '.$ep->list_title);
+        // Google rejects an empty description, so fall back to the title.
+        $description = trim(strip_tags((string) $meta['desc'])) ?: $title;
+
+        return '<video:video>'
+            .'<video:thumbnail_loc>'.self::xml($thumbnail).'</video:thumbnail_loc>'
+            .'<video:title>'.self::xml(self::clamp($title, 100)).'</video:title>'
+            .'<video:description>'.self::xml(self::clamp($description, 2048)).'</video:description>'
+            .'<video:player_loc>'.self::xml($watchUrl).'</video:player_loc>'
+            .'<video:family_friendly>yes</video:family_friendly>'
+            .'<video:live>no</video:live>'
+            .'</video:video>';
+    }
+
+    /**
+     * The imported tables carry zero dates ("0000-00-00"), which Carbon hands
+     * back as year -0001. Emitting that produces a <lastmod> Google rejects, so
+     * anything implausible is dropped — the tag is optional, a broken one isn't.
+     */
+    private static function lastmod(?\Illuminate\Support\Carbon $date): string
+    {
+        if ($date === null || $date->year < 1990 || $date->isFuture()) {
+            return '';
+        }
+
+        return $date->toIso8601String();
+    }
+
+    private static function xml(string $value): string
+    {
+        return htmlspecialchars($value, ENT_XML1 | ENT_QUOTES, 'UTF-8');
+    }
+
+    /**
+     * Multibyte-safe so a cut never lands mid-character and breaks the XML —
+     * these titles and descriptions are Thai.
+     */
+    private static function clamp(string $value, int $max): string
+    {
+        return mb_strlen($value) > $max ? mb_substr($value, 0, $max) : $value;
     }
 
     public function robots(): Response
