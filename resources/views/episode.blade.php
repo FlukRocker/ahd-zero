@@ -20,15 +20,21 @@
     $srcAds = $playerUrl ? $adsEmbed . '?link=' . urlencode(base64_encode($playerUrl)) : null;
     $srcDirect = $playerUrl ? preg_replace('#^http://#i', 'https://', $playerUrl) : null;
 
-    $videoObject = Schema::videoObject([
-        'name' => $pageTitle,
-        'description' => $anime['cat_desc'] ? strip_tags($anime['cat_desc']) : null,
-        'thumbnailUrl' => $anime['cat_image'] ?? null,
-        'uploadDate' => $currentEpisode['upload_date_iso'] ?? null,
-        // Use the https-normalised URL so embedUrl matches the iframe src exactly.
-        'embedUrl' => $srcDirect,
-        'partOfSeries' => ['name' => $anime['cat_title'], 'url' => '/anime/' . $anime['cat_id']],
-    ]);
+    // PlayerService returns null when it can't resolve a watch URL, and the page
+    // then renders a "can't play" placeholder. Such a page has no video, so it
+    // must not claim one: a VideoObject without embedUrl/contentUrl is invalid
+    // and Search Console reports it as an unprocessable video.
+    $videoObject = $srcDirect
+        ? Schema::videoObject([
+            'name' => $pageTitle,
+            'description' => $anime['cat_desc'] ? strip_tags($anime['cat_desc']) : null,
+            'thumbnailUrl' => $anime['cat_image'] ?? null,
+            'uploadDate' => $currentEpisode['upload_date_iso'] ?? null,
+            // Use the https-normalised URL so embedUrl matches the iframe src exactly.
+            'embedUrl' => $srcDirect,
+            'partOfSeries' => ['name' => $anime['cat_title'], 'url' => '/anime/' . $anime['cat_id']],
+        ])
+        : null;
 @endphp
 
 @section('title', $pageTitle)
@@ -37,6 +43,13 @@
 @if (! empty($anime['cat_image']))
     @section('og_image', $anime['cat_image'])
 @endif
+@unless ($srcDirect)
+    {{-- No resolvable player: the page is a placeholder, so keep it out of the
+         index (a 200 with nothing to watch reads as a soft 404) while still
+         letting crawlers follow through to the series and sibling episodes.
+         It flips back to indexable on its own once PlayerService resolves. --}}
+    @section('robots', 'noindex,follow')
+@endunless
 
 @section('content')
 
@@ -46,7 +59,9 @@
         </section>
     @endif
 
-    <x-json-ld :data="$videoObject" />
+    @if ($videoObject)
+        <x-json-ld :data="$videoObject" />
+    @endif
     <x-json-ld :data="\App\Support\Schema::breadcrumb([
         ['name' => 'หน้าแรก', 'url' => '/'],
         ['name' => $anime['cat_title'], 'url' => '/anime/' . $anime['cat_id']],
