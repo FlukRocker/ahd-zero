@@ -49,8 +49,16 @@
          posters/banners AND the raw Chevereto host where hero/cover PNGs live)
          so the LCP image doesn't pay a full DNS+TCP+TLS handshake on demand
          (that was the dominant "load delay" in the hero LCP). --}}
-    <link rel="preconnect" href="https://img-cdn-proxy.shirokami.me" crossorigin>
-    <link rel="preconnect" href="https://img.shirokami.me" crossorigin>
+    {{-- No crossorigin: every <img> here is a plain non-CORS request, and a
+         crossorigin preconnect warms an anonymous connection those requests
+         can't reuse — it would open a socket and still pay the handshake.
+         Fonts below do need it, which is why they keep the attribute. --}}
+    <link rel="preconnect" href="https://img-cdn-proxy.shirokami.me">
+    <link rel="preconnect" href="https://img.shirokami.me">
+    {{-- MAL serves the hero/poster artwork that is usually the LCP element on
+         the index and anime pages, and was the one LCP host with no warm
+         connection at all. --}}
+    <link rel="preconnect" href="https://cdn.myanimelist.net">
     <link rel="dns-prefetch" href="https://img-cdn.shirokami.me">
     <link rel="dns-prefetch" href="https://akuma-player.xyz">
 
