@@ -84,7 +84,7 @@ class SitemapController extends Controller
                         $loc = "{$baseUrl}/anime/{$anime->cat_id}";
                         $lastmod = self::lastmod($anime->cat_update);
                         echo '<url>';
-                        echo "<loc>{$loc}</loc>";
+                        echo '<loc>'.self::xml($loc).'</loc>';
                         if ($lastmod !== '') {
                             echo "<lastmod>{$lastmod}</lastmod>";
                         }
@@ -159,10 +159,18 @@ class SitemapController extends Controller
                 $this->loadSeriesMeta($rows->pluck('catagory_id')->unique()->all(), $series);
 
                 foreach ($rows as $ep) {
+                    // Some imported rows carry a series title in catagory_id
+                    // instead of an id. The route matches digits only, so those
+                    // URLs 404 — and a title containing "&" made the whole
+                    // 45k-URL file fail to parse as XML.
+                    if (! ctype_digit((string) $ep->catagory_id)) {
+                        continue;
+                    }
+
                     $loc = "{$baseUrl}/anime/{$ep->catagory_id}/episode/{$ep->list_id}";
                     $lastmod = self::lastmod($ep->adddate);
                     echo '<url>';
-                    echo "<loc>{$loc}</loc>";
+                    echo '<loc>'.self::xml($loc).'</loc>';
                     if ($lastmod !== '') {
                         echo "<lastmod>{$lastmod}</lastmod>";
                     }

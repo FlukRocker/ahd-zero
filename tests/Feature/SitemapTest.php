@@ -197,4 +197,55 @@ class SitemapTest extends TestCase
         $this->assertCount(2500, $ids, 'every episode should appear');
         $this->assertSame(count($ids), count(array_unique($ids)), 'no episode should appear twice');
     }
+
+    public function test_episodes_with_a_non_numeric_catagory_id_are_skipped(): void
+    {
+        $animeId = DB::table('yu_anime_catagory')->insertGetId([
+            'cat_title' => 'Good Series',
+            'cat_image' => 'https://img.example.com/cover.jpg',
+            'cat_type' => 1,
+            'cat_update' => now(),
+        ]);
+        DB::table('yu_anime_list')->insert([
+            'catagory_id' => $animeId, 'list_title' => 'EP 1', 'uuid' => 'u1',
+            'list_url' => 'https://example.com/1', 'adddate' => now(),
+        ]);
+        // Imported rows sometimes hold a series title here instead of an id.
+        // This exact shape — a title containing "&" — made the live
+        // 45k-URL sitemap fail XML parsing outright.
+        DB::table('yu_anime_list')->insert([
+            'catagory_id' => 'Tom and Jerry Cartoons ทอม & เจ', 'list_title' => 'EP 2',
+            'uuid' => 'u2', 'list_url' => 'https://example.com/2', 'adddate' => now(),
+        ]);
+
+        $xml = $this->get('/sitemap-episodes-1.xml')->streamedContent();
+
+        $this->assertStringContainsString("/anime/{$animeId}/episode/", $xml);
+        $this->assertStringNotContainsString('Tom and Jerry', $xml);
+        $this->assertStringEndsWith('</urlset>', $xml);
+    }
+
+    public function test_episode_sitemap_parses_as_xml(): void
+    {
+        DB::table('yu_anime_catagory')->insertGetId([
+            'cat_title' => 'Tom & Jerry <Complete>',
+            'cat_image' => 'https://img.example.com/cover.jpg',
+            'cat_type' => 1, 'cat_update' => now(),
+        ]);
+        DB::table('yu_anime_list')->insert([
+            'catagory_id' => 'Bad & Broken <id>', 'list_title' => 'EP 1',
+            'uuid' => 'u1', 'list_url' => 'https://example.com/1', 'adddate' => now(),
+        ]);
+
+        $xml = $this->get('/sitemap-episodes-1.xml')->streamedContent();
+
+        $previous = libxml_use_internal_errors(true);
+        $parsed = simplexml_load_string($xml);
+        $errors = libxml_get_errors();
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+
+        $this->assertNotFalse($parsed, 'sitemap must parse as XML');
+        $this->assertSame([], $errors);
+    }
 }
