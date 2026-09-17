@@ -25,7 +25,8 @@
         'description' => $anime['cat_desc'] ? strip_tags($anime['cat_desc']) : null,
         'thumbnailUrl' => $anime['cat_image'] ?? null,
         'uploadDate' => $currentEpisode['upload_date_iso'] ?? null,
-        'embedUrl' => $playerUrl,
+        // Use the https-normalised URL so embedUrl matches the iframe src exactly.
+        'embedUrl' => $srcDirect,
         'partOfSeries' => ['name' => $anime['cat_title'], 'url' => '/anime/' . $anime['cat_id']],
     ]);
 @endphp
@@ -67,6 +68,10 @@
                 <div class="relative w-full overflow-hidden rounded-2xl" style="aspect-ratio: 16/9; background: #000">
                     @if ($srcAds)
                         <iframe
+                            {{-- Static src so Google's video crawler sees a player without running JS.
+                                 Must stay in sync with the VideoObject embedUrl above. Alpine swaps
+                                 it to the ads wrapper on init for viewers in the default 'ads' mode. --}}
+                            src="{{ $srcDirect }}"
                             :src="mode === 'ads' ? @js($srcAds) : @js($srcDirect)"
                             title="{{ $anime['cat_title'] }} — {{ $currentEpisode['list_title'] }}"
                             referrerpolicy="strict-origin-when-cross-origin"
