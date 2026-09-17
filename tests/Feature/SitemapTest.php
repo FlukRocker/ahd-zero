@@ -248,4 +248,27 @@ class SitemapTest extends TestCase
         $this->assertNotFalse($parsed, 'sitemap must parse as XML');
         $this->assertSame([], $errors);
     }
+
+    public function test_robots_disallows_every_member_route(): void
+    {
+        $body = $this->get('/robots.txt')->getContent();
+
+        // /member/settings/* and /member/bookmarks answer a guest with a 302 to
+        // login, so crawling any of them is a wasted hop.
+        $this->assertStringContainsString('Disallow: /member/', $body);
+    }
+
+    public function test_llms_txt_describes_the_site_for_ai_crawlers(): void
+    {
+        $response = $this->get('/llms.txt');
+
+        $response->assertOk();
+        $this->assertStringStartsWith('text/plain', (string) $response->headers->get('Content-Type'));
+
+        $body = $response->getContent();
+        $this->assertStringStartsWith('# ', $body);
+        $this->assertStringContainsString('/category/1', $body);
+        $this->assertStringContainsString('/studios', $body);
+        $this->assertStringContainsString('/sitemap.xml', $body);
+    }
 }

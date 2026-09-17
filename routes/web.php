@@ -22,6 +22,7 @@ Route::get('/sitemap-pages.xml', [SitemapController::class, 'pages']);
 Route::get('/sitemap-anime.xml', [SitemapController::class, 'anime']);
 Route::get('/sitemap-episodes-{page}.xml', [SitemapController::class, 'episodes'])->whereNumber('page');
 Route::get('/robots.txt', [SitemapController::class, 'robots']);
+Route::get('/llms.txt', [SitemapController::class, 'llms']);
 
 // Public anime site — wrapped in `track` so internal MongoDB analytics
 // (PageView) record each unique session+page tuple. Site is tagged via

@@ -298,6 +298,41 @@ class SitemapController extends Controller
         return mb_strlen($value) > $max ? mb_substr($value, 0, $max) : $value;
     }
 
+    /**
+     * https://llmstxt.org — a plain-language map of the site for LLM crawlers,
+     * which robots.txt already allows. Deliberately a short index of hubs, not
+     * a catalogue dump: the sitemaps carry the 95k episode URLs.
+     */
+    public function llms(): Response
+    {
+        $baseUrl = rtrim((string) config('app.url'), '/');
+        $name = config('app.name', 'Anime HD Zero');
+
+        $content = "# {$name}\n\n";
+        $content .= "> ดูอนิเมะออนไลน์ ซับไทย พากย์ไทย และเดอะมูฟวี่ คุณภาพ HD อัปเดตทุกวัน\n\n";
+        $content .= "{$name} is a Thai-language anime streaming catalogue. Every series has a detail\n";
+        $content .= "page listing its episodes, and each episode has its own watch page.\n\n";
+
+        $content .= "## หมวดหมู่ (Categories)\n\n";
+        foreach ([1 => 'อนิเมะซับไทย', 2 => 'อนิเมะพากย์ไทย', 3 => 'อนิเมะเดอะมูฟวี่'] as $id => $label) {
+            $content .= "- [{$label}]({$baseUrl}/category/{$id})\n";
+        }
+
+        $content .= "\n## ไดเรกทอรี (Directories)\n\n";
+        foreach (['studios' => 'สตูดิโอ', 'voice-actors' => 'นักพากย์', 'staff' => 'ทีมงาน'] as $path => $label) {
+            $content .= "- [{$label}]({$baseUrl}/{$path})\n";
+        }
+
+        $content .= "\n## โครงสร้าง URL (URL patterns)\n\n";
+        $content .= "- Series: `{$baseUrl}/anime/{id}`\n";
+        $content .= "- Episode: `{$baseUrl}/anime/{id}/episode/{episodeId}`\n";
+
+        $content .= "\n## Optional\n\n";
+        $content .= "- [Sitemap index]({$baseUrl}/sitemap.xml)\n";
+
+        return response($content, 200, ['Content-Type' => 'text/plain; charset=utf-8']);
+    }
+
     public function robots(): Response
     {
         $baseUrl = config('app.url');
@@ -310,8 +345,10 @@ class SitemapController extends Controller
         $content .= "Disallow: /settings/*\n";
         $content .= "Disallow: /login\n";
         $content .= "Disallow: /two-factor-challenge\n";
-        $content .= "Disallow: /member/login\n";
-        $content .= "Disallow: /member/register\n";
+        // Every /member route is gated, so none of it is crawlable — and the
+        // ones that aren't login/register answer a guest with a 302 to login,
+        // which is a wasted hop rather than a page.
+        $content .= "Disallow: /member/\n";
         $content .= "Disallow: /api/\n";
         $content .= "Disallow: /search/results\n";
         $content .= "Disallow: /*?page=\n";

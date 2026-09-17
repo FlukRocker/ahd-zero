@@ -29,8 +29,15 @@
             <div>
                 <div class="mb-3 font-mono text-[10px] tracking-[0.22em] uppercase" style="color: hsl(var(--fg-faint))">บัญชี</div>
                 <ul class="space-y-2 text-[14px]">
-                    <li><a href="/member/login" class="u-grow inline-block py-1">เข้าสู่ระบบ</a></li>
-                    <li><a href="/member/settings/profile" class="u-grow inline-block py-1">ตั้งค่า</a></li>
+                    {{-- Settings only for signed-in members. Rendering it for
+                         guests put a link to a 302 (→ /member/login) in the
+                         footer of every page, which is a redirect hop on every
+                         crawled URL for a page a crawler can never reach. --}}
+                    @if ($memberAuth)
+                        <li><a href="/member/settings/profile" class="u-grow inline-block py-1">ตั้งค่า</a></li>
+                    @else
+                        <li><a href="/member/login" class="u-grow inline-block py-1">เข้าสู่ระบบ</a></li>
+                    @endif
                 </ul>
             </div>
         </div>
