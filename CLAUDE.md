@@ -59,6 +59,12 @@ Alias: `@/*` → `resources/js/*`.
 
 Don't write migrations against `yu_anime_*` tables in prod — schema is imported. The local-only shim migrations (`2024_01_01_000001_*`, `2024_01_01_000002_*`) are guarded with `Schema::hasTable()` so they no-op against the real DB and only run for in-memory sqlite during tests.
 
+**Do not create new migration files in this repo.** Schema is owned elsewhere (`ahd-admin` for the anime tables, imports for `yu_anime_*`), and this app's `migrations` table is out of sync with the real database — a plain `php84 artisan migrate` dies on `0001_01_01_000000_create_users_table` with "table already exists". Need a new table? Create it in `ahd-admin`, or apply it by hand and record the row. If a shim is genuinely needed for tests only, add it to an existing `2024_01_01_*` shim file behind `Schema::hasTable()`: those are already recorded as run, so editing one changes the sqlite test schema without touching prod. Running a one-off migration on the server means naming it explicitly, never a bare `migrate`:
+
+```bash
+php84 artisan migrate --force --path=database/migrations/<file>.php
+```
+
 ### Inertia shared props
 `HandleInertiaRequests` injects: `name`, `appUrl`, `auth.user`, `memberAuth.member`, `playerConfig.adsEmbedUrl`, `siteConfig.registrationEnabled`, `quote`, `sidebarOpen`. Front pages read these via `usePage<{...}>()`.
 
