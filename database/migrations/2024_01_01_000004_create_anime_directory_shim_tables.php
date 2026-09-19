@@ -65,6 +65,21 @@ return new class extends Migration
                 $table->index(['voice_actor_id', 'anime_id']);
             });
         }
+
+        if (! Schema::hasTable('anime_relations')) {
+            Schema::create('anime_relations', function (Blueprint $table): void {
+                $table->id();
+                $table->unsignedBigInteger('anime_id');
+                // Null when the related title isn't in the catalogue — only a
+                // MAL id and a name, with no page of ours to link to.
+                $table->unsignedBigInteger('related_anime_id')->nullable();
+                $table->unsignedBigInteger('related_mal_id')->nullable();
+                $table->string('related_title')->nullable();
+                $table->string('relation_type')->nullable();
+                $table->timestamps();
+                $table->index('anime_id');
+            });
+        }
     }
 
     public function down(): void
@@ -75,6 +90,7 @@ return new class extends Migration
             return;
         }
 
+        Schema::dropIfExists('anime_relations');
         Schema::dropIfExists('anime_character');
         Schema::dropIfExists('anime_studio');
         Schema::dropIfExists('staff');

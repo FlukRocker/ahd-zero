@@ -36,6 +36,27 @@
     $poster = $anime['cover_md'] ?: ($anime['cat_image'] ?? null);
     $seriesCards = CardPresenter::collection($anime['series_anime'] ?? []);
 
+    // Relations only earn a card when we actually host the other title —
+    // related_anime_id is null for MAL entries that aren't in the catalogue,
+    // and a card with nowhere to go is worse than no card. Anything already in
+    // the series rail is dropped so the two rails don't repeat each other.
+    $seriesIds = array_column($seriesCards, 'id');
+    $relatedCards = CardPresenter::collection(
+        collect($anime['related_anime'] ?? [])
+            ->filter(fn (array $r): bool => ! empty($r['related_anime_id'])
+                && (int) $r['related_anime_id'] !== (int) $anime['cat_id']
+                && ! in_array($r['related_anime_id'], $seriesIds))
+            ->unique('related_anime_id')
+            ->map(fn (array $r): array => [
+                'cat_id' => $r['related_anime_id'],
+                'cat_title' => $r['related_title'],
+                'cat_image' => $r['related_image'],
+                'cat_type' => $r['related_cat_type'] ?? null,
+            ])
+            ->values()
+            ->all()
+    );
+
     $tvSeries = Schema::tvSeries([
         'name' => $anime['cat_title'],
         'alternateName' => $anime['title_japanese'] ?? null,
@@ -166,6 +187,13 @@
         <section class="mt-20">
             <x-section-header eyebrow="ซีรีส์" title="ภาคอื่นในซีรีส์" />
             <x-rail :items="$seriesCards" />
+        </section>
+    @endif
+
+    @if (! empty($relatedCards))
+        <section class="mt-20">
+            <x-section-header eyebrow="เกี่ยวข้อง" title="อนิเมะที่เกี่ยวข้อง" />
+            <x-rail :items="$relatedCards" />
         </section>
     @endif
 

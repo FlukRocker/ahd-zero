@@ -159,6 +159,9 @@ class AnimeController extends Controller
             'related_title' => $rel->relatedAnime->cat_title ?? $rel->related_title,
             'related_image' => $rel->relatedAnime?->cat_image,
             'related_anime_id' => $rel->related_anime_id,
+            // Needed for the card badge — without it every related card would
+            // claim to be ซับไทย regardless of what the other record is.
+            'related_cat_type' => $rel->relatedAnime?->cat_type,
             'related_mal_id' => $rel->related_mal_id,
         ])->values();
 

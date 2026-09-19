@@ -103,4 +103,44 @@ class AnimeDetailPageTest extends TestCase
         $this->assertStringNotContainsString('&amp;amp;', $desc);
         $this->assertStringNotContainsString('<p>', $desc);
     }
+
+    public function test_related_anime_rail_lists_only_titles_we_host(): void
+    {
+        $mk = fn (string $title): int => DB::table('yu_anime_catagory')->insertGetId([
+            'cat_title' => $title, 'cat_type' => 1, 'cat_update' => now(),
+        ]);
+
+        $anime = $mk('Main Series ซับไทย');
+        $sequel = $mk('Sequel Series ซับไทย');
+
+        DB::table('anime_relations')->insert([
+            // Hosted — earns a card.
+            ['anime_id' => $anime, 'related_anime_id' => $sequel, 'related_mal_id' => 1,
+                'related_title' => 'Sequel Series ซับไทย', 'relation_type' => 'Sequel'],
+            // Not in the catalogue: a card here would link nowhere.
+            ['anime_id' => $anime, 'related_anime_id' => null, 'related_mal_id' => 54857,
+                'related_title' => 'Unhosted Prequel', 'relation_type' => 'Prequel'],
+        ]);
+
+        $html = $this->get("/anime/{$anime}")->getContent();
+
+        $this->assertStringContainsString('อนิเมะที่เกี่ยวข้อง', $html);
+        $this->assertStringContainsString("/anime/{$sequel}", $html);
+        $this->assertStringNotContainsString('Unhosted Prequel', $html);
+    }
+
+    public function test_related_rail_is_hidden_when_nothing_related_is_hosted(): void
+    {
+        $anime = DB::table('yu_anime_catagory')->insertGetId([
+            'cat_title' => 'Lonely Series ซับไทย', 'cat_type' => 1, 'cat_update' => now(),
+        ]);
+        DB::table('anime_relations')->insert([
+            ['anime_id' => $anime, 'related_anime_id' => null, 'related_mal_id' => 54857,
+                'related_title' => 'Unhosted Prequel', 'relation_type' => 'Prequel'],
+        ]);
+
+        $html = $this->get("/anime/{$anime}")->getContent();
+
+        $this->assertStringNotContainsString('อนิเมะที่เกี่ยวข้อง', $html);
+    }
 }
