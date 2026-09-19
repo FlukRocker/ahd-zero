@@ -159,6 +159,16 @@
         </section>
     @endif
 
+    {{-- Other seasons sit above the cast: they are the next thing a viewer
+         actually wants after the episode list, and they are internal links to
+         other series pages rather than a leaf listing. --}}
+    @if (! empty($seriesCards))
+        <section class="mt-20">
+            <x-section-header eyebrow="ซีรีส์" title="ภาคอื่นในซีรีส์" />
+            <x-rail :items="$seriesCards" />
+        </section>
+    @endif
+
     @if (! empty($anime['characters']))
         <section class="mt-20">
             <x-section-header eyebrow="นักแสดง" title="ตัวละครและนักพากย์" />
@@ -177,13 +187,6 @@
                     </div>
                 @endforeach
             </div>
-        </section>
-    @endif
-
-    @if (! empty($seriesCards))
-        <section class="mt-20">
-            <x-section-header eyebrow="ซีรีส์" title="ภาคอื่นในซีรีส์" />
-            <x-rail :items="$seriesCards" />
         </section>
     @endif
 
