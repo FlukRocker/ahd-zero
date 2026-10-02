@@ -30,6 +30,16 @@ final class FakeTrendingAnalytics extends AnalyticsService
     {
         return $this->rows;
     }
+
+    /**
+     * The network ranking reads the shared Mongo database, which these tests
+     * must not depend on; rank by the stubbed rows instead.
+     */
+    #[Override]
+    public function getNetworkTrendingCards(int $limit = 12): array
+    {
+        return $this->getTrendingCards(7, $limit);
+    }
 }
 
 /**

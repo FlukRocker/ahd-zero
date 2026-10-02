@@ -40,6 +40,25 @@ return [
             'database' => env('MONGO_DATABASE', 'kurokami'),
         ],
 
+        /**
+         * The database every site in the network shares for trending: each
+         * site's published snapshot and the settings ahd-admin edits. See
+         * App\Services\TrendingNetwork. The user needs readWrite on it; it
+         * defaults to the same server and credentials as `mongodb`.
+         *
+         * Short timeouts: this sits on the homepage render path, and the
+         * driver's default is to wait thirty seconds for a server.
+         */
+        'network' => [
+            'driver' => 'mongodb',
+            'dsn' => env('NETWORK_MONGO_URI') ?: env('MONGO_URI', 'mongodb://localhost:27017'),
+            'database' => env('NETWORK_MONGO_DATABASE', 'network'),
+            'options' => [
+                'serverSelectionTimeoutMS' => (int) env('NETWORK_MONGO_TIMEOUT_MS', 2000),
+                'connectTimeoutMS' => (int) env('NETWORK_MONGO_TIMEOUT_MS', 2000),
+            ],
+        ],
+
         'sqlite' => [
             'driver' => 'sqlite',
             'url' => env('DB_URL'),

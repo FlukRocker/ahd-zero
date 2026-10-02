@@ -25,6 +25,10 @@
         <env name="CACHE_STORE" value="array"/>
         <env name="DB_CONNECTION" value="sqlite"/>
         <env name="DB_DATABASE" value=":memory:"/>
+        <!-- Never the real network database; unreachable fails fast. -->
+        <env name="NETWORK_MONGO_URI" value="mongodb://127.0.0.1:27017" force="true"/>
+        <env name="NETWORK_MONGO_DATABASE" value="network_test" force="true"/>
+        <env name="NETWORK_MONGO_TIMEOUT_MS" value="200"/>
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>

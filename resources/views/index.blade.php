@@ -32,7 +32,7 @@
 
     @if (! empty($trendingItems))
         <section class="mx-auto mt-20 max-w-[1440px] px-6 lg:px-10">
-            <x-section-header eyebrow="จากยอดวิว 7 วันล่าสุด" title="มาแรงตอนนี้" />
+            <x-section-header eyebrow="จากยอดวิวล่าสุด" title="มาแรงตอนนี้" />
             <x-rail :items="$trendingItems" />
         </section>
     @endif

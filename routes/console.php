@@ -15,3 +15,7 @@ Schedule::command('player:backfill --limit=600 --rate=5')
     ->hourly()
     ->withoutOverlapping()
     ->runInBackground();
+
+// Keeps this site's trending snapshot fresh for the rest of the network even
+// when nobody is loading the homepage.
+Schedule::command('trending:publish --show=0')->everyTenMinutes()->withoutOverlapping()->runInBackground();

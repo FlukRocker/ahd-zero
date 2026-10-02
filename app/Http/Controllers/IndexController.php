@@ -35,9 +35,10 @@ class IndexController extends Controller
 
         $recommended = Cache::remember('featured:recommended', 60, fn () => $this->getFeatured('recommended'));
 
-        // 600s, not the 60s used above: trending is a 7-day rolling aggregate
-        // that barely moves, so a short TTL just re-runs the Mongo pipeline.
-        $trending = Cache::remember('trending:cards:7d', 600, fn (): array => $analytics->getTrendingCards(7, 12));
+        // 600s, not the 60s used above: trending is a rolling aggregate that
+        // barely moves, and a refresh may republish this site's network
+        // snapshot. Central setting changes land within this TTL.
+        $trending = Cache::remember('trending:cards', 600, fn (): array => $analytics->getNetworkTrendingCards(12));
 
         return view('index', [
             'anime' => $anime,

@@ -87,10 +87,40 @@ class AnalyticsService
             return [];
         }
 
-        $viewsById = $trending->pluck('views', 'cat_id');
+        return $this->hydrateCards($trending->sortByDesc('views')->values()->all(), $limit);
+    }
+
+    /**
+     * The homepage rail: ranked across the whole site network under the
+     * settings on ahd-admin's Trending page (see TrendingNetwork). Falls back
+     * to this site's own 7-day traffic when the network database is
+     * unreachable.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function getNetworkTrendingCards(int $limit = 12): array
+    {
+        // Twice the rail: ids the catalog no longer has, or soft-deleted, drop
+        // out while hydrating and must not leave the rail short.
+        $ranked = $this->safe(
+            fn (): array => (new TrendingNetwork($this->site))->rank($limit * 2),
+            null,
+        ) ?? $this->getTrendingAnime(7, $limit * 2)->all();
+
+        return $ranked === [] ? [] : $this->hydrateCards($ranked, $limit);
+    }
+
+    /**
+     * @param  array<int, array{cat_id: int, views: int}>  $ranked  best first
+     * @return list<array<string, mixed>>
+     */
+    private function hydrateCards(array $ranked, int $limit): array
+    {
+        $position = array_flip(array_column($ranked, 'cat_id'));
+        $views = array_column($ranked, 'views', 'cat_id');
 
         return Anime::query()
-            ->whereIn('cat_id', $viewsById->keys())
+            ->whereIn('cat_id', array_keys($position))
             ->select('cat_id', 'cat_title', 'cat_image', 'cat_type', 'anime_status', 'episodes', 'anime_type', 'cat_banner')
             ->get()
             ->map(fn (Anime $a): array => [
@@ -103,11 +133,12 @@ class AnalyticsService
                 'anime_type' => $a->anime_type,
                 'banner_md' => $a->banner_md,
                 'cover_md' => $a->cover_md,
-                'views' => (int) $viewsById->get($a->cat_id, 0),
+                'views' => (int) ($views[$a->cat_id] ?? 0),
             ])
-            // whereIn returns rows in database order — re-sort so the rail is
-            // actually ranked by traffic.
-            ->sortByDesc('views')
+            // whereIn returns rows in database order — restore the ranking's.
+            // It is not views alone once pins and blend weights apply.
+            ->sortBy(fn (array $card): int => $position[$card['cat_id']])
+            ->take($limit)
             ->values()
             ->all();
     }
