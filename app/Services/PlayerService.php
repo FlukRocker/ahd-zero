@@ -12,6 +12,24 @@ use function preg_match;
 class PlayerService
 {
     /**
+     * How long a resolved watch URL is trusted.
+     *
+     * It is only valid while the akuma-stream video row exists and is ready,
+     * and nothing tells this app when that stops being true: re-saving an
+     * episode in ahd-admin re-registers or replaces the row, and the old uuid
+     * then answers `404 {"error":"not found"}` — raw JSON, rendered straight
+     * into the player iframe. Ten minutes bounds that window; the lookup is a
+     * single cached server-side call, so re-resolving is cheap.
+     */
+    private const READY_TTL = 600;
+
+    /**
+     * How long a failure is remembered. Short, so the player appears as soon
+     * as a video finishes processing instead of being pinned to "no player".
+     */
+    private const MISS_TTL = 60;
+
+    /**
      * Get the player iframe URL for an episode.
      *
      * Resolves the akuma-stream watch URL from a Google Drive link (external
@@ -34,6 +52,14 @@ class PlayerService
                 return null;
             }
 
+            // Pass through ONLY an absolute http(s) URL. The column also holds
+            // junk for hundreds of rows ("-", the episode title); a relative
+            // value would be resolved against the watch page and make the
+            // iframe load some unrelated path of this site.
+            if (! preg_match('#^https?://#i', $listUrl)) {
+                return null;
+            }
+
             return $listUrl;
         }
 
@@ -45,10 +71,7 @@ class PlayerService
 
         $watchUrl = $this->fetchWatchUrl($ref);
 
-        // Cache ready videos for 24h. Cache misses (still processing, 404,
-        // transient API outage) for only 60s so the player appears as soon
-        // as the video becomes ready instead of being pinned to "no player".
-        Cache::put($cacheKey, $watchUrl ?? '', $watchUrl !== null ? 86400 : 60);
+        Cache::put($cacheKey, $watchUrl ?? '', $watchUrl !== null ? self::READY_TTL : self::MISS_TTL);
 
         return $watchUrl;
     }

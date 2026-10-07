@@ -182,6 +182,68 @@ class PlayerServiceTest extends TestCase
         Http::assertNothingSent();
     }
 
+    public function test_resolved_watch_url_is_not_cached_for_a_whole_day(): void
+    {
+        // The watch URL stays valid only while the akuma-stream video row
+        // exists AND is ready. Updating an episode in ahd-admin replaces or
+        // re-fetches that row, so a long-lived cache entry keeps pointing the
+        // iframe at /watch/{dead-uuid} — which answers with the raw JSON body
+        // {"error":"not found"}. Short TTL bounds how long viewers see that.
+        Cache::flush();
+
+        // A sequence, not two Http::fake() calls: the first stub would keep
+        // matching and the replacement would never be served. Exactly two
+        // requests are expected — the middle assertion is served from cache.
+        Http::fakeSequence()
+            ->push([
+                'id' => 'db2019e9-92a2-46e6-a2e5-a273a2cfe4d4',
+                'status' => 'ready',
+                'watchUrl' => '/watch/db2019e9-92a2-46e6-a2e5-a273a2cfe4d4',
+            ], 200)
+            ->push(['error' => 'not found'], 404);
+
+        config([
+            'services.akuma_stream.url' => 'https://app.akuma-stream.com',
+            'services.akuma_stream.admin_token' => 'test-admin-token',
+        ]);
+
+        $service = new PlayerService;
+        $driveUrl = 'https://drive.google.com/file/d/STALE1/view';
+
+        $this->assertSame(
+            'https://app.akuma-stream.com/watch/db2019e9-92a2-46e6-a2e5-a273a2cfe4d4',
+            $service->getPlayerUrl($driveUrl),
+        );
+
+        // The video is replaced on the stream side; the old uuid is now gone,
+        // which is what the second queued response stands for.
+        $this->travel(5)->minutes();
+        $this->assertSame(
+            'https://app.akuma-stream.com/watch/db2019e9-92a2-46e6-a2e5-a273a2cfe4d4',
+            $service->getPlayerUrl($driveUrl),
+            'within the cache window the previous answer is reused',
+        );
+
+        $this->travel(11)->minutes();
+        $this->assertNull(
+            $service->getPlayerUrl($driveUrl),
+            'a stale watch URL must expire in minutes, not a day',
+        );
+    }
+
+    public function test_non_url_list_url_does_not_reach_the_iframe(): void
+    {
+        // 471 prod rows hold junk in list_url — "-", or the episode title.
+        // Passing those through made them the iframe src, which resolves
+        // against the page and renders whatever that path answers.
+        $service = new PlayerService;
+
+        $this->assertNull($service->getPlayerUrl('-'));
+        $this->assertNull($service->getPlayerUrl('Paw Patrol Season 2 ตอนที่ 6 พากย์ไทย'));
+        $this->assertNull($service->getPlayerUrl('ftp://example.com/video.mp4'));
+        $this->assertNull($service->getPlayerUrl('//example.com/video.mp4'));
+    }
+
     private function extractDriveId(string $url): ?string
     {
         $ref = new ReflectionClass(PlayerService::class);
