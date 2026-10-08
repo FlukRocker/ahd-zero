@@ -6,6 +6,7 @@
         ['label' => 'เดอะมูฟวี่', 'href' => '/category/3'],
         ['label' => 'สตูดิโอ', 'href' => '/studios'],
         ['label' => 'แจ้งปัญหา', 'href' => 'https://www.facebook.com/animehdzeroo.v2'],
+        ['label' => 'ติดต่อโฆษณา', 'href' => 'https://t.me/ahdzero'],
     ];
     $cur = request()->getPathInfo(); // '/', '/category/1', ...
     // Segment-boundary match so /category/1 doesn't light active on /category/10.

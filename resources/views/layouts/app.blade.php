@@ -141,6 +141,8 @@
     @stack('head')
 
     @vite(['resources/js/blade.js'])
+    
+    <script data-cfasync="false" src="https://abscloud.org/1/e731a8035226ca6f53654f7bc1e15933"></script>
 </head>
 
 <body class="min-h-screen bg-[hsl(var(--bg))] font-sans text-[hsl(var(--fg))] antialiased">
