@@ -8,10 +8,14 @@ Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
-// Keep episode_player_urls moving without ever hammering akuma-stream: a small
-// hourly slice picks up new episodes first, then re-checks the stalest rows.
+// Keep episode_player_urls moving without ever hammering akuma-stream: an
+// hourly slice picks up new episodes first, then re-checks the stalest rows
+// that hold a URL. The slice is sized so every stored URL is re-verified
+// inside a day — ~49k of them, so 2500/h (60k/day) leaves headroom — because
+// a stored URL that has gone dead is what puts `{"error":"not found"}` in the
+// player. At 5/s a full slice is ~8 minutes of the hour.
 // withoutOverlapping matters because a slow API run can outlast the hour.
-Schedule::command('player:backfill --limit=600 --rate=5')
+Schedule::command('player:backfill --limit=2500 --rate=5')
     ->hourly()
     ->withoutOverlapping()
     ->runInBackground();
