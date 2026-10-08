@@ -26,7 +26,16 @@ class SecurityHeaders
             ."img-src 'self' data: blob: https: http:; "
             ."style-src 'self' 'unsafe-inline'; "
             ."font-src 'self' data:; "
-            ."script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://challenges.cloudflare.com https://static.cloudflareinsights.com; "
+            // The ad tags in the layout load from hosts their networks build at
+            // runtime — the abscloud loader holds only 'https://' and a path,
+            // and assembles the rest — so no list of names can cover them, and
+            // an allowlist that has to be patched after every complaint is not
+            // protecting anything either. Take the scheme, which is what
+            // img-src, frame-src and media-src already do. 'unsafe-inline' and
+            // 'unsafe-eval' are both already here, so the host list was not the
+            // thing holding XSS back. Everything that does hold is below:
+            // object-src none, base-uri self, form-action self, style-src self.
+            ."script-src 'self' 'unsafe-inline' 'unsafe-eval' https: blob:; "
             ."connect-src 'self' https: wss: ws:; "
             .'frame-src https: http:; '
             ."media-src 'self' https: http: blob:; "
