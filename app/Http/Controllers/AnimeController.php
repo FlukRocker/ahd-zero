@@ -228,9 +228,14 @@ class AnimeController extends Controller
         // common case into a local read instead of an akuma-stream round trip.
         // A row with a null watch_url means the API has answered "nothing ready"
         // recently, so fall through and let PlayerService re-check.
-        $playerUrl = \App\Models\EpisodePlayerUrl::query()
-            ->whereKey($currentEpisodeRow->list_id)
-            ->value('watch_url');
+        // rebase() pins the row's path to the configured akuma-stream host and
+        // discards anything that is not a URL, so an old hostname or pre-guard
+        // junk in the column cannot reach the iframe.
+        $playerUrl = \App\Models\EpisodePlayerUrl::rebase(
+            \App\Models\EpisodePlayerUrl::query()
+                ->whereKey($currentEpisodeRow->list_id)
+                ->value('watch_url')
+        );
 
         if ($playerUrl === null) {
             $playerService = app(\App\Services\PlayerService::class);

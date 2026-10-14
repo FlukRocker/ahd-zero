@@ -207,6 +207,12 @@ class SitemapController extends Controller
             ->whereIn('list_id', $listIds)
             ->whereNotNull('watch_url')
             ->pluck('watch_url', 'list_id')
+            // A <video:player_loc> on a retired host, or holding the leftover
+            // junk some rows still carry, is a sitemap error Search Console
+            // reports. rebase() fixes the first and nulls the second; the
+            // filter then drops those rows exactly like a null watch_url.
+            ->map(fn (string $url): ?string => EpisodePlayerUrl::rebase($url))
+            ->filter()
             ->all();
     }
 

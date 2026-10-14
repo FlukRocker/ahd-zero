@@ -70,7 +70,7 @@ class SitemapTest extends TestCase
 
     public function test_episode_sitemap_declares_the_video_namespace(): void
     {
-        $this->seedEpisode('https://control.akuma-stream.com/watch/abc');
+        $this->seedEpisode('https://app.akuma-stream.com/watch/abc');
 
         $response = $this->get('/sitemap-episodes-1.xml');
 
@@ -83,13 +83,13 @@ class SitemapTest extends TestCase
 
     public function test_episode_with_a_resolved_player_gets_a_video_entry(): void
     {
-        $this->seedEpisode('https://control.akuma-stream.com/watch/abc');
+        $this->seedEpisode('https://app.akuma-stream.com/watch/abc');
 
         $xml = $this->get('/sitemap-episodes-1.xml')->streamedContent();
 
         $this->assertStringContainsString('<video:video>', $xml);
         $this->assertStringContainsString(
-            '<video:player_loc>https://control.akuma-stream.com/watch/abc</video:player_loc>',
+            '<video:player_loc>https://app.akuma-stream.com/watch/abc</video:player_loc>',
             $xml
         );
         $this->assertStringContainsString('<video:thumbnail_loc>https://img.example.com/cover.jpg</video:thumbnail_loc>', $xml);
@@ -110,7 +110,7 @@ class SitemapTest extends TestCase
 
     public function test_video_entry_is_dropped_when_the_series_has_no_artwork(): void
     {
-        $this->seedEpisode('https://control.akuma-stream.com/watch/abc', '');
+        $this->seedEpisode('https://app.akuma-stream.com/watch/abc', '');
 
         $xml = $this->get('/sitemap-episodes-1.xml')->streamedContent();
 
@@ -134,7 +134,7 @@ class SitemapTest extends TestCase
         ]);
         EpisodePlayerUrl::create([
             'list_id' => $listId,
-            'watch_url' => 'https://control.akuma-stream.com/watch/abc',
+            'watch_url' => 'https://app.akuma-stream.com/watch/abc',
             'resolved_at' => now(),
         ]);
 

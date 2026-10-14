@@ -73,7 +73,7 @@ class EpisodePageTest extends TestCase
         [$animeId, $ep1] = $this->seedAnimeWithEpisodes();
         EpisodePlayerUrl::create([
             'list_id' => $ep1,
-            'watch_url' => 'https://control.akuma-stream.com/watch/persisted-uuid',
+            'watch_url' => 'https://app.akuma-stream.com/watch/persisted-uuid',
             'resolved_at' => now(),
         ]);
         // Any outbound call would be a regression: the row is the whole point.
@@ -82,7 +82,7 @@ class EpisodePageTest extends TestCase
         $response = $this->get("/anime/{$animeId}/episode/{$ep1}");
 
         $response->assertOk();
-        $response->assertSee('src="https://control.akuma-stream.com/watch/persisted-uuid"', false);
+        $response->assertSee('src="https://app.akuma-stream.com/watch/persisted-uuid"', false);
         $response->assertSee('VideoObject', false);
         $response->assertSee('index,follow', false);
     }
@@ -110,5 +110,52 @@ class EpisodePageTest extends TestCase
         $response->assertDontSee('<iframe', false);
         // Still crawlable onward to the series and sibling episodes.
         $response->assertSee('BreadcrumbList', false);
+    }
+
+    public function test_a_stored_url_on_the_retired_host_is_served_on_the_configured_one(): void
+    {
+        // ~48k prod rows were written while akuma-stream answered on
+        // control.akuma-stream.com, which no longer resolves at all. The uuid
+        // is still good, so the page must serve it on the configured host
+        // rather than hand the iframe a dead domain.
+        config(['services.akuma_stream.url' => 'https://app.akuma-stream.com']);
+        [$animeId, $ep1] = $this->seedAnimeWithEpisodes();
+
+        EpisodePlayerUrl::query()->create([
+            'list_id' => $ep1,
+            'watch_url' => 'https://control.akuma-stream.com/watch/e7d4c0d8-179e-4f60-a797-e5aa61db1882',
+            'resolved_at' => now(),
+            'attempts' => 1,
+        ]);
+
+        $response = $this->get("/anime/{$animeId}/episode/{$ep1}");
+
+        $response->assertOk();
+        $response->assertSee('https://app.akuma-stream.com/watch/e7d4c0d8-179e-4f60-a797-e5aa61db1882', false);
+        $response->assertDontSee('control.akuma-stream.com', false);
+    }
+
+    public function test_junk_in_a_stored_url_never_reaches_the_iframe(): void
+    {
+        // Rows written before PlayerService rejected non-URLs still hold the
+        // episode title or a dash; as an iframe src that resolves against this
+        // page and loads whatever that path answers.
+        [$animeId, $ep1] = $this->seedAnimeWithEpisodes();
+        Http::fake(['*' => Http::response(['error' => 'not found'], 404)]);
+
+        EpisodePlayerUrl::query()->create([
+            'list_id' => $ep1,
+            'watch_url' => '-',
+            'resolved_at' => now(),
+            'attempts' => 1,
+        ]);
+
+        $response = $this->get("/anime/{$animeId}/episode/{$ep1}");
+
+        $response->assertOk();
+        // Dropped, so the page fell through to the episode's own URL instead
+        // of making the junk an iframe src relative to this page.
+        $response->assertDontSee('src="-"', false);
+        $response->assertSee('src="https://example.com/watch/one"', false);
     }
 }
