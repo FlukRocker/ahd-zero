@@ -1,4 +1,24 @@
+<?php
+// The player URL arrives base64-encoded in ?link= and is framed after the
+// pre-roll ads. Only an https URL may get that far: unchecked, a javascript:
+// or data: link ran script on this site's origin for anyone who opened a
+// crafted URL.
+$raw = $_GET['link'] ?? null;
+$link = is_string($raw) ? base64_decode($raw, true) : false;
+$valid = is_string($link)
+    && filter_var($link, FILTER_VALIDATE_URL) !== false
+    && strtolower((string) parse_url($link, PHP_URL_SCHEME)) === 'https'
+    && (string) parse_url($link, PHP_URL_HOST) !== '';
+if (! $valid) {
+    http_response_code(404);
+    echo 'Not found';
 
+    return;
+}
+// Tell the inner player to start immediately: the viewer already pressed
+// play before the ad ran.
+$link .= (strpos($link, '?') !== false ? '&' : '?').'autoplay=1';
+?>
 <!doctype html>
 <html lang="en">
 <head>
@@ -15,6 +35,8 @@
 
 <div id="player"></div>
 <script type="text/javascript">
+// json_encode with the HEX flags: no quote or < can end this string or the script.
+var playerUrl = <?php echo json_encode($link, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_SLASHES); ?>;
 var videoPlayer = jwplayer("player");
 var isAdPlaying = false;
 var fallbackPending = false;
@@ -89,15 +111,17 @@ function triggerFallback() {
     }
 
     if ($("#player").find("iframe").length === 0) {
-        $("#player").html("<div class=\"uplay-iframe\"> <iframe src=\"<?php
-            $link = base64_decode($_GET['link'] ?? '');
-            // Tell the inner player to start immediately — the viewer already
-            // pressed play before the ad ran.
-            if ($link !== '') {
-                $link .= (strpos($link, '?') !== false ? '&' : '?') . 'autoplay=1';
-            }
-            echo htmlspecialchars($link, ENT_QUOTES);
-        ?>\" width=\"100%\" height=\"100%\" frameborder=\"0\" allowfullscreen=\"allowfullscreen\" allow=\"autoplay; fullscreen; encrypted-media; picture-in-picture\" class=\"uplay-box\"></iframe></div>");
+        // Built as elements, so the URL is an attribute value, never markup.
+        var frame = $("<iframe>", {
+            src: playerUrl,
+            width: "100%",
+            height: "100%",
+            frameborder: "0",
+            allowfullscreen: "allowfullscreen",
+            allow: "autoplay; fullscreen; encrypted-media; picture-in-picture",
+            "class": "uplay-box"
+        });
+        $("#player").empty().append($("<div class=\"uplay-iframe\"></div>").append(frame));
     }
 }
 
