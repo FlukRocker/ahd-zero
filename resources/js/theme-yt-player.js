@@ -28,15 +28,33 @@ const ICON = {
 };
 
 const BOX_CLOSED = {
-    position: 'fixed', right: '0', bottom: '0', width: '1px', height: '1px',
-    opacity: '0', pointerEvents: 'none', overflow: 'hidden', zIndex: '2147483000',
+    position: 'fixed',
+    right: '0',
+    bottom: '0',
+    width: '1px',
+    height: '1px',
+    opacity: '0',
+    pointerEvents: 'none',
+    overflow: 'hidden',
+    zIndex: '2147483000',
 };
 
 const BOX_OPEN = {
-    position: 'fixed', right: '12px', bottom: '12px', width: '200px', height: 'auto',
-    opacity: '1', pointerEvents: 'auto', overflow: 'visible', zIndex: '2147483000',
-    background: '#000', color: '#fff', borderRadius: '8px', padding: '0 0 6px',
-    boxShadow: '0 8px 24px rgba(0,0,0,.4)', font: '13px/1.4 system-ui, sans-serif',
+    position: 'fixed',
+    right: '12px',
+    bottom: '12px',
+    width: '200px',
+    height: 'auto',
+    opacity: '1',
+    pointerEvents: 'auto',
+    overflow: 'visible',
+    zIndex: '2147483000',
+    background: '#000',
+    color: '#fff',
+    borderRadius: '8px',
+    padding: '0 0 6px',
+    boxShadow: '0 8px 24px rgba(0,0,0,.4)',
+    font: '13px/1.4 system-ui, sans-serif',
 };
 
 const TEMPLATE = `
@@ -102,9 +120,13 @@ export function loadYouTubeApi(timeoutMs = 10000) {
         const script = document.createElement('script');
         script.src = API_SRC;
         script.async = true;
-        script.onerror = () => reject(new Error('YouTube IFrame API failed to load'));
+        script.onerror = () =>
+            reject(new Error('YouTube IFrame API failed to load'));
         document.head.appendChild(script);
-        setTimeout(() => reject(new Error('YouTube IFrame API timed out')), timeoutMs);
+        setTimeout(
+            () => reject(new Error('YouTube IFrame API timed out')),
+            timeoutMs,
+        );
     });
 
     return apiPromise;
@@ -112,7 +134,11 @@ export function loadYouTubeApi(timeoutMs = 10000) {
 
 /** The one hidden YouTube player behind every card on the page. */
 export class Engine {
-    constructor({ loadApi = loadYouTubeApi, gestureTimeoutMs = 3000, tickMs = 250 } = {}) {
+    constructor({
+        loadApi = loadYouTubeApi,
+        gestureTimeoutMs = 3000,
+        tickMs = 250,
+    } = {}) {
         this.loadApi = loadApi;
         this.gestureTimeoutMs = gestureTimeoutMs;
         this.tickMs = tickMs;
@@ -137,8 +163,11 @@ export class Engine {
     unregister(card) {
         this.cards.delete(card);
         if (this.current === card) {
-            // An SPA navigation removes the card but not the player in <body>.
+            // An SPA navigation removes the card but not the player in <body>,
+            // nor the fallback box: both must go quiet with the card.
             this.pause(card);
+            this.stopTicker();
+            this.closeBox();
             this.current = null;
         }
     }
@@ -148,30 +177,38 @@ export class Engine {
         if (this.player) return Promise.resolve(this.player);
 
         if (!this.starting) {
-            this.starting = this.loadApi().then((YT) => new Promise((resolve) => {
-                this.box = this.buildBox();
-                const mount = document.createElement('div');
-                this.box.prepend(mount);
+            this.starting = this.loadApi().then(
+                (YT) =>
+                    new Promise((resolve) => {
+                        this.box = this.buildBox();
+                        const mount = document.createElement('div');
+                        this.box.prepend(mount);
 
-                new YT.Player(mount, {
-                    host: 'https://www.youtube-nocookie.com',
-                    width: 200,
-                    height: 113,
-                    playerVars: {
-                        playsinline: 1, controls: 0, disablekb: 1, rel: 0, iv_load_policy: 3,
-                        origin: window.location.origin,
-                    },
-                    events: {
-                        onReady: (event) => {
-                            this.player = event.target;
-                            if (this.muted) this.player.mute();
-                            resolve(this.player);
-                        },
-                        onStateChange: (event) => this.onState(event.data),
-                        onError: () => this.onError(),
-                    },
-                });
-            }));
+                        new YT.Player(mount, {
+                            host: 'https://www.youtube-nocookie.com',
+                            width: 200,
+                            height: 113,
+                            playerVars: {
+                                playsinline: 1,
+                                controls: 0,
+                                disablekb: 1,
+                                rel: 0,
+                                iv_load_policy: 3,
+                                origin: window.location.origin,
+                            },
+                            events: {
+                                onReady: (event) => {
+                                    this.player = event.target;
+                                    if (this.muted) this.player.mute();
+                                    resolve(this.player);
+                                },
+                                onStateChange: (event) =>
+                                    this.onState(event.data),
+                                onError: () => this.onError(),
+                            },
+                        });
+                    }),
+            );
 
             this.starting.catch(() => {
                 this.failed = true;
@@ -191,7 +228,13 @@ export class Engine {
         if (!this.player) {
             // Not ready yet. By the time it is, the tap no longer counts as a
             // gesture on most phones; the fallback below covers that.
-            this.prepare().then(() => this.play(card), () => {});
+            // Only if the card is still on the page by then.
+            this.prepare().then(
+                () => {
+                    if (this.cards.has(card)) this.play(card);
+                },
+                () => {},
+            );
             return;
         }
 
@@ -240,8 +283,12 @@ export class Engine {
 
         if (state === STATE.PLAYING || state === STATE.BUFFERING) {
             card.setPlaying(true);
-            this.clearGestureTimer();
-            this.closeBox();
+            // Buffering is not proof the phone allowed playback: it can fall
+            // back to unstarted, so leave the 3s fallback armed until PLAYING.
+            if (state === STATE.PLAYING) {
+                this.clearGestureTimer();
+                this.closeBox();
+            }
             this.startTicker();
         } else if (state === STATE.PAUSED) {
             card.setPlaying(false);
@@ -277,7 +324,10 @@ export class Engine {
 
     report() {
         if (this.current && this.player) {
-            this.current.setProgress(this.player.getCurrentTime(), this.player.getDuration());
+            this.current.setProgress(
+                this.player.getCurrentTime(),
+                this.player.getDuration(),
+            );
         }
     }
 
@@ -286,7 +336,8 @@ export class Engine {
         this.gestureTimer = setTimeout(() => {
             this.gestureTimer = null;
             const state = this.player ? this.player.getPlayerState() : -1;
-            if (state !== STATE.PLAYING && state !== STATE.BUFFERING) this.openBox();
+            if (state !== STATE.PLAYING && state !== STATE.BUFFERING)
+                this.openBox();
         }, this.gestureTimeoutMs);
     }
 
@@ -307,9 +358,20 @@ export class Engine {
         close.type = 'button';
         close.textContent = 'ปิด';
         close.setAttribute('aria-label', 'ปิดวิดีโอ');
-        Object.assign(close.style, { margin: '4px 8px 0', background: 'none', border: '0', color: 'inherit', cursor: 'pointer', textDecoration: 'underline' });
+        Object.assign(close.style, {
+            margin: '4px 8px 0',
+            background: 'none',
+            border: '0',
+            color: 'inherit',
+            cursor: 'pointer',
+            textDecoration: 'underline',
+        });
         close.addEventListener('click', () => {
-            if (this.current) this.pause(this.current);
+            // Pause the player itself: the visitor may have started it by
+            // tapping the video after its card was gone.
+            if (this.player) this.player.pauseVideo();
+            if (this.current) this.current.setPlaying(false);
+            this.clearGestureTimer();
             this.closeBox();
         });
 
@@ -323,7 +385,9 @@ export class Engine {
     openBox() {
         if (!this.box) return;
         Object.assign(this.box.style, BOX_OPEN);
-        this.extras.forEach((el) => { el.style.display = ''; });
+        this.extras.forEach((el) => {
+            el.style.display = '';
+        });
         this.box.setAttribute('data-open', 'true');
     }
 
@@ -333,7 +397,9 @@ export class Engine {
         box.style.background = '';
         box.style.padding = '';
         box.style.boxShadow = '';
-        (this.extras || []).forEach((el) => { el.style.display = 'none'; });
+        (this.extras || []).forEach((el) => {
+            el.style.display = 'none';
+        });
         box.setAttribute('data-open', 'false');
     }
 }
@@ -364,8 +430,14 @@ export function createPlayerElement(engine) {
             this.el = (selector) => root.querySelector(selector);
 
             this.el('.title').textContent = this.getAttribute('song') || '';
-            this.el('.thumb').setAttribute('src', `https://i.ytimg.com/vi/${this.videoId}/mqdefault.jpg`);
-            this.el('.unavailable a').setAttribute('href', `https://www.youtube.com/watch?v=${this.videoId}`);
+            this.el('.thumb').setAttribute(
+                'src',
+                `https://i.ytimg.com/vi/${this.videoId}/mqdefault.jpg`,
+            );
+            this.el('.unavailable a').setAttribute(
+                'href',
+                `https://www.youtube.com/watch?v=${this.videoId}`,
+            );
             this.setPlaying(false);
 
             this.el('.play').addEventListener('click', () => {
@@ -383,7 +455,9 @@ export function createPlayerElement(engine) {
                 engine.seek(this, Number(seek.value));
             });
 
-            this.el('.mute').addEventListener('click', () => engine.toggleMute());
+            this.el('.mute').addEventListener('click', () =>
+                engine.toggleMute(),
+            );
         }
 
         observe() {
@@ -391,12 +465,15 @@ export function createPlayerElement(engine) {
             // Without it the player is created on the first play instead.
             if (typeof Observer !== 'function' || this.observer) return;
 
-            this.observer = new Observer((entries) => {
-                if (!entries.some((entry) => entry.isIntersecting)) return;
-                this.observer.disconnect();
-                this.observer = null;
-                engine.prepare().catch(() => {});
-            }, { rootMargin: '300px' });
+            this.observer = new Observer(
+                (entries) => {
+                    if (!entries.some((entry) => entry.isIntersecting)) return;
+                    this.observer.disconnect();
+                    this.observer = null;
+                    engine.prepare().catch(() => {});
+                },
+                { rootMargin: '300px' },
+            );
             this.observer.observe(this);
         }
 
@@ -404,7 +481,10 @@ export function createPlayerElement(engine) {
             this.playing = playing;
             const button = this.el('.play');
             button.innerHTML = playing ? ICON.pause : ICON.play;
-            button.setAttribute('aria-label', playing ? 'หยุดชั่วคราว' : 'เล่น');
+            button.setAttribute(
+                'aria-label',
+                playing ? 'หยุดชั่วคราว' : 'เล่น',
+            );
         }
 
         setProgress(seconds, duration) {
@@ -418,8 +498,12 @@ export function createPlayerElement(engine) {
         }
 
         showTime(seconds, duration) {
-            this.el('.time').textContent = `${formatTime(seconds)} / ${duration > 0 ? formatTime(duration) : '--:--'}`;
-            this.el('.seek').setAttribute('aria-valuetext', formatTime(seconds));
+            this.el('.time').textContent =
+                `${formatTime(seconds)} / ${duration > 0 ? formatTime(duration) : '--:--'}`;
+            this.el('.seek').setAttribute(
+                'aria-valuetext',
+                formatTime(seconds),
+            );
         }
 
         setMuted(muted) {

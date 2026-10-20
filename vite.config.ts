@@ -16,7 +16,11 @@ export default defineConfig({
             // client-rendered) and `blade.js` (Alpine — the public Blade site).
             // No SSR entry: the Inertia SSR daemon was removed; the public
             // site is server-rendered Blade.
-            input: ['resources/js/app.ts', 'resources/js/blade.js', 'resources/js/theme-yt-player.js'],
+            input: [
+                'resources/js/app.ts',
+                'resources/js/blade.js',
+                'resources/js/theme-yt-player.js',
+            ],
             refresh: true,
         }),
         tailwindcss(),
@@ -40,7 +44,10 @@ export default defineConfig({
                     // Pull motion into its own long-cacheable chunk so swapping
                     // app code doesn't bust the animation lib cache, and the
                     // front pages share one motion fetch across navigations.
-                    if (id.includes('node_modules/motion') || id.includes('node_modules/framer-motion')) {
+                    if (
+                        id.includes('node_modules/motion') ||
+                        id.includes('node_modules/framer-motion')
+                    ) {
                         return 'motion';
                     }
                     if (id.includes('node_modules/@inertiajs')) {

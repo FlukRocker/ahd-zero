@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Engine, defineThemeYtPlayer } from '@/theme-yt-player.js';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const PLAYING = 1;
 const ENDED = 0;
@@ -33,15 +33,33 @@ class FakePlayer {
         this.opts.events.onError({ data: code });
     }
 
-    loadVideoById(id: string) { this.calls.push(['load', id]); }
-    playVideo() { this.calls.push(['play']); }
-    pauseVideo() { this.calls.push(['pause']); }
-    seekTo(seconds: number) { this.calls.push(['seek', seconds]); }
-    mute() { this.calls.push(['mute']); }
-    unMute() { this.calls.push(['unMute']); }
-    getPlayerState() { return this.state; }
-    getCurrentTime() { return this.time; }
-    getDuration() { return this.duration; }
+    loadVideoById(id: string) {
+        this.calls.push(['load', id]);
+    }
+    playVideo() {
+        this.calls.push(['play']);
+    }
+    pauseVideo() {
+        this.calls.push(['pause']);
+    }
+    seekTo(seconds: number) {
+        this.calls.push(['seek', seconds]);
+    }
+    mute() {
+        this.calls.push(['mute']);
+    }
+    unMute() {
+        this.calls.push(['unMute']);
+    }
+    getPlayerState() {
+        return this.state;
+    }
+    getCurrentTime() {
+        return this.time;
+    }
+    getDuration() {
+        return this.duration;
+    }
 }
 
 let observers: Array<{ cb: (entries: any[]) => void; el?: Element }> = [];
@@ -53,12 +71,18 @@ class FakeIntersectionObserver {
         this.cb = cb;
         observers.push(this);
     }
-    observe(el: Element) { this.el = el; }
-    disconnect() { observers = observers.filter((o) => o !== this); }
+    observe(el: Element) {
+        this.el = el;
+    }
+    disconnect() {
+        observers = observers.filter((o) => o !== this);
+    }
 }
 
 function scrollNear() {
-    [...observers].forEach((o) => o.cb([{ isIntersecting: true, target: o.el }]));
+    [...observers].forEach((o) =>
+        o.cb([{ isIntersecting: true, target: o.el }]),
+    );
 }
 
 async function flush() {
@@ -104,7 +128,9 @@ describe('<theme-yt-player>', () => {
         const card = make('1tk1pqwrOys', 'Kaikai Kitan · Eve');
 
         expect($(card, '.title').textContent).toBe('Kaikai Kitan · Eve');
-        expect($(card, '.thumb').getAttribute('src')).toBe('https://i.ytimg.com/vi/1tk1pqwrOys/mqdefault.jpg');
+        expect($(card, '.thumb').getAttribute('src')).toBe(
+            'https://i.ytimg.com/vi/1tk1pqwrOys/mqdefault.jpg',
+        );
         expect($(card, '.play').getAttribute('aria-label')).toBe('เล่น');
     });
 
@@ -225,7 +251,10 @@ describe('<theme-yt-player>', () => {
         expect($(a, '.play').getAttribute('aria-label')).toBe('เล่น');
 
         $(a, '.play').click();
-        expect(FakePlayer.last.calls.slice(-2)).toEqual([['seek', 0], ['play']]);
+        expect(FakePlayer.last.calls.slice(-2)).toEqual([
+            ['seek', 0],
+            ['play'],
+        ]);
     });
 
     it('offers YouTube instead when a video cannot be embedded', async () => {
@@ -239,7 +268,9 @@ describe('<theme-yt-player>', () => {
         FakePlayer.last.fail(150);
 
         expect(a.getAttribute('data-state')).toBe('unavailable');
-        expect($(a, '.unavailable a').getAttribute('href')).toBe('https://www.youtube.com/watch?v=1tk1pqwrOys');
+        expect($(a, '.unavailable a').getAttribute('href')).toBe(
+            'https://www.youtube.com/watch?v=1tk1pqwrOys',
+        );
     });
 
     it('marks every card unavailable when the YouTube API cannot load', async () => {
@@ -308,12 +339,82 @@ describe('<theme-yt-player>', () => {
 
     it('defining the element twice is harmless', () => {
         const first = defineThemeYtPlayer('test-yt-player-twice', new Engine());
-        const second = defineThemeYtPlayer('test-yt-player-twice', new Engine());
+        const second = defineThemeYtPlayer(
+            'test-yt-player-twice',
+            new Engine(),
+        );
 
         expect(second).toBe(first);
     });
 
     it('registers <theme-yt-player> on import', () => {
         expect(customElements.get('theme-yt-player')).toBeDefined();
+    });
+
+    it('does not start a song whose card left the page before the player was ready', async () => {
+        const { make } = setup();
+        const a = make('1tk1pqwrOys');
+        scrollNear();
+        await flush();
+
+        $(a, '.play').click();
+        a.remove();
+        FakePlayer.last.ready();
+        await flush();
+
+        expect(FakePlayer.last.calls.filter((c) => c[0] === 'load')).toEqual(
+            [],
+        );
+    });
+
+    it('closes the fallback box when the playing card leaves the page', async () => {
+        vi.useFakeTimers();
+        const { make, engine } = setup();
+        const a = make('1tk1pqwrOys');
+        scrollNear();
+        await flush();
+        FakePlayer.last.ready();
+
+        $(a, '.play').click();
+        vi.advanceTimersByTime(3000);
+        expect(engine.box!.getAttribute('data-open')).toBe('true');
+
+        a.remove();
+
+        expect(engine.box!.getAttribute('data-open')).toBe('false');
+    });
+
+    it('the fallback box close button always pauses the player', async () => {
+        vi.useFakeTimers();
+        const { make, engine } = setup();
+        const a = make('1tk1pqwrOys');
+        scrollNear();
+        await flush();
+        FakePlayer.last.ready();
+
+        $(a, '.play').click();
+        vi.advanceTimersByTime(3000);
+        a.remove();
+        FakePlayer.last.calls = [];
+        FakePlayer.last.emit(PLAYING);
+        engine.box!.querySelector('button')!.click();
+
+        expect(FakePlayer.last.calls).toContainEqual(['pause']);
+    });
+
+    it('still offers the fallback when playback buffers and then stalls', async () => {
+        vi.useFakeTimers();
+        const { make, engine } = setup();
+        const a = make('1tk1pqwrOys');
+        scrollNear();
+        await flush();
+        FakePlayer.last.ready();
+
+        $(a, '.play').click();
+        FakePlayer.last.emit(3); // BUFFERING
+        FakePlayer.last.emit(-1); // blocked: back to UNSTARTED
+        vi.advanceTimersByTime(3000);
+
+        expect(engine.box!.getAttribute('data-open')).toBe('true');
     });
 });
