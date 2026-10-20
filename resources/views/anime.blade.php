@@ -218,6 +218,8 @@
         </section>
     @endif
 
+    <x-theme-songs :opening="$anime['opening_themes']" :ending="$anime['ending_themes']" />
+
     <div id="comments" class="mt-20 mb-20">
         <x-comment-section type="anime" :id="$anime['cat_id']" />
     </div>

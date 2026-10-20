@@ -143,4 +143,21 @@ class AnimeDetailPageTest extends TestCase
 
         $this->assertStringNotContainsString('อนิเมะที่เกี่ยวข้อง', $html);
     }
+
+    public function test_anime_detail_lists_theme_songs_with_their_players(): void
+    {
+        $id = DB::table('yu_anime_catagory')->insertGetId([
+            'cat_title' => 'Jujutsu Kaisen',
+            'cat_type' => 1,
+            'cat_update' => now(),
+            'opening_themes' => json_encode([['name' => 'Kaikai Kitan', 'spotify' => null, 'youtube' => '1tk1pqwrOys']]),
+            'ending_themes' => json_encode(['"Lost in Paradise" by ALI']),
+        ]);
+
+        $response = $this->get('/anime/'.$id);
+
+        $response->assertOk();
+        $response->assertSee('<theme-yt-player video-id="1tk1pqwrOys" song="Kaikai Kitan"></theme-yt-player>', false);
+        $response->assertSee('&quot;Lost in Paradise&quot; by ALI', false);
+    }
 }
