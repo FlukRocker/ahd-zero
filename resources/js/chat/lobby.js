@@ -7,6 +7,8 @@
  *  2. Echo and pusher-js are imported dynamically, so the ~40 KB socket client
  *     is fetched on /chat only and not on every SEO page.
  */
+import { allowedActions } from './permissions';
+
 // The only custom properties a chat line may set, and the only image path it
 // may load from. The server (CosmeticStyle) already validated the values; this
 // is a second, independent gate so a malformed cached record cannot reach CSS.
@@ -51,6 +53,9 @@ export default function chatLobby() {
         draft: '',
         sending: false,
         error: '',
+        notice: '',
+        busy: {},
+        menuOpen: null,
         config: null,
 
         start() {
@@ -98,16 +103,7 @@ export default function chatLobby() {
                 .listen('.message.deleted', ({ id }) => {
                     this.messages = this.messages.filter((line) => line.id !== id);
                 })
-                .listen('.member.sanctioned', ({ uuid, action }) => {
-                    // Cosmetic only — the server already refuses their
-                    // posts and their next subscribe. Leaving the roster on
-                    // our own say-so just stops a banned name sitting in
-                    // the online list until the socket drops.
-                    if (uuid === this.config.me && (action === 'ban' || action === 'kick')) {
-                        echo.leave('chat.roster');
-                        this.roster = this.roster.filter((p) => p.uuid !== uuid);
-                    }
-                });
+                .listen('.member.sanctioned', (event) => this.onSanctioned(event, echo));
 
             if (this.config.canPost) {
                 echo.join('chat.roster')
@@ -117,6 +113,33 @@ export default function chatLobby() {
                         this.roster = this.roster.filter((p) => p.uuid !== person.uuid);
                     });
             }
+        },
+
+        onSanctioned({ uuid, action }, echo) {
+            if (uuid !== this.config.me) {
+                return;
+            }
+
+            if (action === 'gag') {
+                this.notice = 'A moderator gagged you for a while.';
+            } else if (action === 'ungag') {
+                this.notice = '';
+            } else if (action === 'ban' || action === 'kick') {
+                // Cosmetic only: the server already refuses their posts and
+                // their next subscribe. Leaving the roster on our own say-so
+                // just stops a banned name sitting in the online list until
+                // the socket drops.
+                echo.leave('chat.roster');
+                this.roster = this.roster.filter((p) => p.uuid !== uuid);
+            }
+        },
+
+        actionsFor(line) {
+            return allowedActions(this.config?.myRank ?? null, this.config?.me ?? null, !!this.config?.canPost, line);
+        },
+
+        toggleMenu(line) {
+            this.menuOpen = this.menuOpen === line.id ? null : line.id;
         },
 
         /** An object of validated custom properties, applied via style.setProperty. */
@@ -196,6 +219,77 @@ export default function chatLobby() {
                 this.error = 'You appear to be offline.';
             } finally {
                 this.sending = false;
+            }
+        },
+
+        async moderate(line, action) {
+            const key = String(line.id) + action;
+
+            if (this.busy[key]) {
+                return;
+            }
+
+            const own = line.uuid === this.config?.me;
+            let request;
+
+            if (action === 'delete') {
+                if (!own && !window.confirm('Delete this message?')) {
+                    return;
+                }
+
+                request = { url: '/chat/messages/' + encodeURIComponent(line.id), method: 'DELETE', body: null };
+            } else {
+                const body = { action, target_uuid: line.uuid };
+
+                if (action === 'gag') {
+                    body.minutes = 10;
+                } else if (action === 'ban') {
+                    const reason = window.prompt('Reason for the ban (optional):', '');
+
+                    if (reason === null || !window.confirm('Ban this member for 24 hours?')) {
+                        return;
+                    }
+
+                    body.reason = reason;
+                    body.minutes = 1440;
+                }
+
+                request = { url: '/chat/moderate', method: 'POST', body: JSON.stringify(body) };
+            }
+
+            this.busy = { ...this.busy, [key]: true };
+            this.error = '';
+            this.menuOpen = null;
+
+            try {
+                const response = await fetch(request.url, {
+                    method: request.method,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Accept: 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content ?? '',
+                    },
+                    credentials: 'same-origin',
+                    body: request.body,
+                });
+
+                if (!response.ok) {
+                    const payload = await response.json().catch(() => ({}));
+                    this.error = payload.message
+                        ?? (response.status === 429 ? 'Slow down a moment.' : 'That action failed.');
+
+                    return;
+                }
+
+                if (action === 'delete') {
+                    this.messages = this.messages.filter((m) => m.id !== line.id);
+                }
+            } catch {
+                this.error = 'You appear to be offline.';
+            } finally {
+                const rest = { ...this.busy };
+                delete rest[key];
+                this.busy = rest;
             }
         },
     };

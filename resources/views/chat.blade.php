@@ -49,6 +49,8 @@
                 </template>
             </ul>
 
+            <p class="px-3 pb-2 text-xs text-amber-400" x-show="notice" x-text="notice"></p>
+
             @if ($canPost)
                 <form class="flex gap-2 border-t border-white/10 p-3" @submit.prevent="send()">
                     <input

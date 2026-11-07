@@ -122,6 +122,16 @@ class ChatPageTest extends TestCase
         $this->assertArrayNotHasKey('echo', $data);
     }
 
+    public function test_lobby_markup_has_moderation_hooks_and_no_x_html(): void
+    {
+        $html = $this->get('/chat')->assertOk()->getContent();
+
+        $this->assertStringContainsString('actionsFor(line)', $html);
+        $this->assertStringContainsString('moderate(', $html);
+        $this->assertStringNotContainsString('x-html', $html);
+        $this->assertStringNotContainsString('innerHTML', $html);
+    }
+
     public function test_a_guest_sees_the_room_read_only(): void
     {
         $response = $this->get('/chat');
