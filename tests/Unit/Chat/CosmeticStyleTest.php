@@ -136,13 +136,13 @@ class CosmeticStyleTest extends TestCase
 
     public function test_gradient_angle_and_glow_strength_must_be_in_range_ints(): void
     {
-        foreach ([90.0, '90', -1, null, true] as $angle) {
+        foreach ([90.5, '90', -1, null, true] as $angle) {
             $this->assertSame([], CosmeticStyle::for($this->cosmetic(CosmeticType::NameGradient, [
                 'from' => '#ff0000', 'to' => '#0000ff', 'angle' => $angle,
             ])), 'angle '.var_export($angle, true));
         }
 
-        foreach ([-1, 0, 4, 2.0, '2', null] as $strength) {
+        foreach ([-1, 0, 4, 2.5, '2', null] as $strength) {
             $this->assertSame([], CosmeticStyle::for($this->cosmetic(CosmeticType::Glow, [
                 'color' => '#ff0000', 'strength' => $strength,
             ])), 'strength '.var_export($strength, true));
