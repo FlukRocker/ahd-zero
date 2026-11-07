@@ -7,6 +7,7 @@ use App\Http\Controllers\AnimeController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\ChatController;
 use App\Http\Controllers\ChatModerationController;
+use App\Http\Controllers\ChatStoreController;
 use App\Http\Controllers\CommentController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DirectoryController;
@@ -127,6 +128,18 @@ Route::middleware(['auth:member', 'verified:member.verification.notice'])->group
     Route::post('/chat/moderate', ChatModerationController::class)
         ->middleware('throttle:30,1')
         ->name('chat.moderate');
+
+    Route::get('/chat/store', [ChatStoreController::class, 'index'])->name('chat.store');
+
+    Route::post('/chat/store/{cosmetic}/buy', [ChatStoreController::class, 'buy'])
+        ->whereNumber('cosmetic')
+        ->middleware('throttle:30,1')
+        ->name('chat.store.buy');
+
+    Route::post('/chat/cosmetics/{cosmetic}/equip', [ChatStoreController::class, 'equip'])
+        ->whereNumber('cosmetic')
+        ->middleware('throttle:60,1')
+        ->name('chat.cosmetics.equip');
 });
 
 // Authenticated admin area
