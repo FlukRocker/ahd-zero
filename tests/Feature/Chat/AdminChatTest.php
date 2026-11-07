@@ -1,0 +1,315 @@
+<?php
+
+namespace Tests\Feature\Chat;
+
+use App\Enums\ChatRank;
+use App\Enums\CosmeticType;
+use App\Models\ChatCosmetic;
+use App\Models\ChatMember;
+use App\Models\ChatMessage;
+use App\Models\ChatModerationLog;
+use App\Models\Member;
+use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
+use Tests\TestCase;
+
+class AdminChatTest extends TestCase
+{
+    use RefreshDatabase;
+
+    private User $admin;
+
+    private Member $member;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->withoutVite();
+
+        // User::$fillable is name/email/password only, so mass-assigning
+        // email_verified_at silently drops it — and the dashboard group's
+        // `verified` middleware would then bounce this admin. The factory
+        // is what DashboardTest uses.
+        $this->admin = User::factory()->create();
+
+        $this->member = Member::create([
+            'name' => 'Rin',
+            'email' => 'rin@example.test',
+            'password' => 'password123!',
+            'email_verified_at' => now(),
+        ]);
+    }
+
+    public function test_a_guest_cannot_reach_the_console(): void
+    {
+        $this->get('/dashboard/chat')->assertRedirect();
+    }
+
+    /**
+     * Deliberately logs in through the real form rather than actingAs().
+     *
+     * actingAs($member, 'member') calls shouldUse('member'), which makes
+     * the member guard the default — so the dashboard group's plain `auth`
+     * would check THAT guard and let the member in, failing this test on a
+     * codebase that is actually safe. Nothing in production ever sets the
+     * default guard to member. If this test goes red, fix the test; do not
+     * touch the shared admin middleware group.
+     */
+    public function test_a_member_cannot_reach_the_console(): void
+    {
+        $this->post('/member/login', [
+            'email' => 'rin@example.test',
+            'password' => 'password123!',
+        ]);
+
+        // Without this the test is worthless: a login that fails for any
+        // reason (throttle, Turnstile, a verification redirect) leaves a
+        // guest request, which redirects too and passes for the wrong
+        // reason.
+        $this->assertAuthenticatedAs($this->member, 'member');
+
+        $this->get('/dashboard/chat')->assertRedirect();
+    }
+
+    public function test_an_admin_sees_the_console(): void
+    {
+        $this->actingAs($this->admin)->get('/dashboard/chat')->assertOk();
+    }
+
+    public function test_an_admin_grants_coins_and_the_ledger_matches(): void
+    {
+        $this->actingAs($this->admin)
+            ->postJson("/dashboard/chat/members/{$this->member->id}/grant", [
+                'amount' => 250,
+                'note' => 'launch gift',
+            ])
+            ->assertOk();
+
+        $this->assertSame(250, ChatMember::query()->find($this->member->id)->balance);
+        $this->assertDatabaseHas('chat_transactions', [
+            'member_id' => $this->member->id,
+            'delta' => 250,
+            'reason' => 'admin_grant',
+            'admin_id' => $this->admin->id,
+        ]);
+        $this->assertDatabaseHas('chat_moderation_log', [
+            'admin_id' => $this->admin->id,
+            'target_member_id' => $this->member->id,
+            'action' => 'grant_coins',
+        ]);
+    }
+
+    public function test_a_negative_grant_is_rejected(): void
+    {
+        $this->actingAs($this->admin)
+            ->postJson("/dashboard/chat/members/{$this->member->id}/grant", ['amount' => -50])
+            ->assertStatus(422);
+
+        $this->assertDatabaseCount('chat_transactions', 0);
+    }
+
+    public function test_an_admin_sets_a_rank_without_holding_one(): void
+    {
+        $this->actingAs($this->admin)
+            ->postJson("/dashboard/chat/members/{$this->member->id}/rank", ['rank' => 'owner'])
+            ->assertOk();
+
+        $this->assertSame(ChatRank::Owner, ChatMember::query()->find($this->member->id)->rank);
+    }
+
+    public function test_a_cosmetic_with_a_bad_payload_is_rejected(): void
+    {
+        $this->actingAs($this->admin)
+            ->postJson('/dashboard/chat/cosmetics', [
+                'type' => 'name_color',
+                'name' => 'Broken',
+                'slug' => 'broken',
+                'payload' => ['color' => 'red; background: url(x)'],
+                'price' => 10,
+            ])
+            ->assertStatus(422);
+
+        $this->assertDatabaseCount('chat_cosmetics', 0);
+    }
+
+    public function test_deleting_a_cosmetic_only_deactivates_it(): void
+    {
+        $cosmetic = ChatCosmetic::create([
+            'type' => CosmeticType::NameColor,
+            'name' => 'Sunset',
+            'slug' => 'sunset',
+            'payload' => ['color' => '#ff8800'],
+            'price' => 100,
+            'active' => true,
+        ]);
+
+        $this->actingAs($this->admin)
+            ->deleteJson("/dashboard/chat/cosmetics/{$cosmetic->id}")
+            ->assertOk();
+
+        // The row survives, so every inventory and ledger row still means
+        // something.
+        $this->assertDatabaseHas('chat_cosmetics', ['id' => $cosmetic->id, 'active' => false]);
+    }
+
+    public function test_a_guest_cannot_post_to_the_console(): void
+    {
+        $this->postJson("/dashboard/chat/members/{$this->member->id}/grant", ['amount' => 5])->assertUnauthorized();
+        $this->assertDatabaseCount('chat_transactions', 0);
+    }
+
+    public function test_a_member_session_cannot_post_to_the_console(): void
+    {
+        $this->post('/member/login', ['email' => 'rin@example.test', 'password' => 'password123!']);
+        $this->assertAuthenticatedAs($this->member, 'member');
+
+        $this->postJson("/dashboard/chat/members/{$this->member->id}/grant", ['amount' => 5])->assertUnauthorized();
+        $this->assertDatabaseCount('chat_transactions', 0);
+        $this->assertSame(0, ChatMember::query()->count());
+    }
+
+    public function test_an_unknown_member_is_a_404_and_creates_nothing(): void
+    {
+        $this->actingAs($this->admin)->postJson('/dashboard/chat/members/99999/grant', ['amount' => 5])->assertNotFound();
+        $this->actingAs($this->admin)->postJson('/dashboard/chat/members/99999/rank', ['rank' => 'mod'])->assertNotFound();
+        $this->actingAs($this->admin)->postJson('/dashboard/chat/members/99999/ban')->assertNotFound();
+        $this->assertSame(0, ChatMember::query()->count());
+    }
+
+    public function test_a_non_numeric_member_id_is_a_404(): void
+    {
+        $this->actingAs($this->admin)->postJson('/dashboard/chat/members/abc/grant', ['amount' => 5])->assertNotFound();
+    }
+
+    public function test_the_grant_path_does_not_wrap_the_wallet_insert_in_a_transaction(): void
+    {
+        $baseline = DB::transactionLevel();
+        $levels = [];
+
+        DB::listen(function ($query) use (&$levels): void {
+            if (str_contains($query->sql, 'insert or ignore into "chat_members"') || str_contains($query->sql, 'insert ignore into `chat_members`')) {
+                $levels[] = DB::transactionLevel();
+            }
+        });
+
+        $this->actingAs($this->admin)
+            ->postJson("/dashboard/chat/members/{$this->member->id}/grant", ['amount' => 5])
+            ->assertOk();
+
+        $this->assertSame([$baseline], $levels);
+        $this->assertSame($baseline, DB::transactionLevel());
+    }
+
+    public function test_an_admin_bans_and_unbans_with_one_log_row_each(): void
+    {
+        $this->actingAs($this->admin)
+            ->postJson("/dashboard/chat/members/{$this->member->id}/ban", ['minutes' => 60, 'reason' => 'spam'])
+            ->assertOk();
+
+        $this->assertTrue(ChatMember::query()->find($this->member->id)->isBanned());
+        $this->assertDatabaseHas('chat_moderation_log', [
+            'admin_id' => $this->admin->id,
+            'actor_member_id' => null,
+            'target_member_id' => $this->member->id,
+            'action' => 'ban',
+        ]);
+
+        $this->actingAs($this->admin)
+            ->postJson("/dashboard/chat/members/{$this->member->id}/ban", ['unban' => true])
+            ->assertOk();
+
+        $this->assertFalse(ChatMember::query()->find($this->member->id)->isBanned());
+        $this->assertSame(1, ChatModerationLog::query()->where('action', 'unban')->where('admin_id', $this->admin->id)->count());
+        $this->assertSame(2, ChatModerationLog::query()->count());
+    }
+
+    public function test_rank_change_is_logged_with_the_admin_id_and_no_actor(): void
+    {
+        $this->actingAs($this->admin)
+            ->postJson("/dashboard/chat/members/{$this->member->id}/rank", ['rank' => 'main_owner'])
+            ->assertOk();
+
+        $this->assertSame(ChatRank::MainOwner, ChatMember::query()->find($this->member->id)->rank);
+        $this->assertDatabaseHas('chat_moderation_log', [
+            'admin_id' => $this->admin->id,
+            'actor_member_id' => null,
+            'action' => 'rank_change',
+        ]);
+        $this->assertSame(1, ChatModerationLog::query()->count());
+    }
+
+    public function test_an_admin_grants_a_cosmetic(): void
+    {
+        $cosmetic = ChatCosmetic::create([
+            'type' => CosmeticType::NameColor,
+            'name' => 'Sunset',
+            'slug' => 'sunset',
+            'payload' => ['color' => '#ff8800'],
+            'price' => 100,
+            'active' => true,
+        ]);
+
+        $this->actingAs($this->admin)
+            ->postJson("/dashboard/chat/members/{$this->member->id}/cosmetics", ['cosmetic_id' => $cosmetic->id])
+            ->assertOk();
+
+        $this->assertDatabaseHas('chat_cosmetic_member', ['member_id' => $this->member->id, 'cosmetic_id' => $cosmetic->id]);
+        $this->assertDatabaseHas('chat_moderation_log', [
+            'admin_id' => $this->admin->id,
+            'action' => 'grant_cosmetic',
+        ]);
+    }
+
+    public function test_a_valid_cosmetic_is_created(): void
+    {
+        $this->actingAs($this->admin)
+            ->postJson('/dashboard/chat/cosmetics', [
+                'type' => 'name_color',
+                'name' => 'Sunset',
+                'slug' => 'sunset',
+                'payload' => ['color' => '#ff8800'],
+                'price' => 10,
+            ])
+            ->assertOk();
+
+        $this->assertDatabaseHas('chat_cosmetics', ['slug' => 'sunset', 'active' => true]);
+    }
+
+    public function test_updating_a_cosmetic_with_a_bad_payload_is_rejected(): void
+    {
+        $cosmetic = ChatCosmetic::create([
+            'type' => CosmeticType::NameColor,
+            'name' => 'Sunset',
+            'slug' => 'sunset',
+            'payload' => ['color' => '#ff8800'],
+            'price' => 100,
+            'active' => true,
+        ]);
+
+        $this->actingAs($this->admin)
+            ->patchJson("/dashboard/chat/cosmetics/{$cosmetic->id}", ['payload' => ['color' => 'red; background: url(x)']])
+            ->assertStatus(422);
+
+        $this->assertSame(['color' => '#ff8800'], $cosmetic->fresh()->payload);
+    }
+
+    public function test_an_admin_deleting_a_message_writes_an_admin_log_row(): void
+    {
+        $message = ChatMessage::create(['member_id' => $this->member->id, 'body' => 'rude']);
+
+        $this->actingAs($this->admin)
+            ->deleteJson("/dashboard/chat/messages/{$message->id}")
+            ->assertOk();
+
+        $this->assertSoftDeleted('chat_messages', ['id' => $message->id]);
+        $this->assertDatabaseHas('chat_messages', ['id' => $message->id, 'deleted_by_admin_id' => $this->admin->id]);
+        $this->assertDatabaseHas('chat_moderation_log', [
+            'action' => 'delete_message',
+            'admin_id' => $this->admin->id,
+            'actor_member_id' => null,
+            'target_member_id' => $this->member->id,
+        ]);
+        $this->assertSame(1, ChatModerationLog::query()->count());
+    }
+}

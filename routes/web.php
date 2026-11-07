@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\ChatManagementController;
 use App\Http\Controllers\Admin\CommentManagementController;
 use App\Http\Controllers\Admin\MemberManagementController;
 use App\Http\Controllers\Admin\SiteSettingsController;
@@ -155,6 +156,16 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::delete('dashboard/comments/{commentId}', [CommentManagementController::class, 'destroy'])->name('admin.comments.destroy');
     Route::post('dashboard/comments/delete-all-by-user', [CommentManagementController::class, 'destroyAllByUser'])->name('admin.comments.destroyAllByUser');
     Route::post('dashboard/comments/{commentId}/delete-and-ban', [CommentManagementController::class, 'destroyAndBan'])->name('admin.comments.destroyAndBan');
+
+    Route::get('dashboard/chat', [ChatManagementController::class, 'index'])->name('admin.chat');
+    Route::post('dashboard/chat/cosmetics', [ChatManagementController::class, 'storeCosmetic'])->name('admin.chat.cosmetics.store');
+    Route::patch('dashboard/chat/cosmetics/{cosmetic}', [ChatManagementController::class, 'updateCosmetic'])->whereNumber('cosmetic')->name('admin.chat.cosmetics.update');
+    Route::delete('dashboard/chat/cosmetics/{cosmetic}', [ChatManagementController::class, 'destroyCosmetic'])->whereNumber('cosmetic')->name('admin.chat.cosmetics.destroy');
+    Route::post('dashboard/chat/members/{id}/grant', [ChatManagementController::class, 'grant'])->whereNumber('id')->name('admin.chat.grant');
+    Route::post('dashboard/chat/members/{id}/cosmetics', [ChatManagementController::class, 'grantCosmetic'])->whereNumber('id')->name('admin.chat.grantCosmetic');
+    Route::post('dashboard/chat/members/{id}/rank', [ChatManagementController::class, 'setRank'])->whereNumber('id')->name('admin.chat.rank');
+    Route::post('dashboard/chat/members/{id}/ban', [ChatManagementController::class, 'ban'])->whereNumber('id')->name('admin.chat.ban');
+    Route::delete('dashboard/chat/messages/{id}', [ChatManagementController::class, 'destroyMessage'])->whereNumber('id')->name('admin.chat.messages.destroy');
 
     Route::get('dashboard/site-settings', [SiteSettingsController::class, 'index'])->name('admin.settings');
     Route::post('dashboard/site-settings/maintenance', [SiteSettingsController::class, 'toggleMaintenance'])->name('admin.settings.maintenance');
