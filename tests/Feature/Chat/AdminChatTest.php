@@ -77,6 +77,22 @@ class AdminChatTest extends TestCase
         $this->actingAs($this->admin)->get('/dashboard/chat')->assertOk();
     }
 
+    public function test_index_lists_recent_messages_without_deleted_ones(): void
+    {
+        $kept = ChatMessage::create(['member_id' => $this->member->id, 'body' => 'kept']);
+        $gone = ChatMessage::create(['member_id' => $this->member->id, 'body' => 'gone']);
+        $gone->delete();
+
+        $this->actingAs($this->admin)->get('/dashboard/chat')->assertInertia(
+            fn ($page) => $page->has('messages', 1)
+                ->where('messages.0.id', $kept->id)
+                ->where('messages.0.body', 'kept')
+                ->where('messages.0.member.id', $this->member->id)
+                ->where('messages.0.member.name', 'Rin')
+                ->has('messages.0.created_at')
+        );
+    }
+
     public function test_an_admin_grants_coins_and_the_ledger_matches(): void
     {
         $this->actingAs($this->admin)

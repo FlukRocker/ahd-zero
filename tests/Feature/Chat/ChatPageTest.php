@@ -39,6 +39,19 @@ class ChatPageTest extends TestCase
         return json_decode($m[1], true, 512, JSON_THROW_ON_ERROR);
     }
 
+    public function test_bootstrap_carries_my_rank_and_null_for_guests(): void
+    {
+        $mod = $this->member('mod@example.test');
+        \App\Models\ChatMember::create(['member_id' => $mod->id, 'rank' => \App\Enums\ChatRank::Mod]);
+        $plain = $this->member('plain@example.test');
+
+        $this->assertSame('mod', $this->bootstrap($this->actingAs($mod, 'member')->get('/chat')->getContent())['myRank']);
+        $this->assertSame('member', $this->bootstrap($this->actingAs($plain, 'member')->get('/chat')->getContent())['myRank']);
+
+        $this->app['auth']->guard('member')->logout();
+        $this->assertNull($this->bootstrap($this->get('/chat')->getContent())['myRank']);
+    }
+
     public function test_a_hostile_message_body_cannot_break_out_of_the_bootstrap(): void
     {
         $member = $this->member();

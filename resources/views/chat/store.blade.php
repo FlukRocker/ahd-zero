@@ -6,11 +6,11 @@
         <p class="text-sm opacity-70">Balance: {{ $balance }} coins</p>
 
         <ul class="mt-4 grid gap-3 sm:grid-cols-2">
-            @foreach ($cosmetics as $cosmetic)
+            @foreach ($items as $item)
                 <li class="rounded-lg border border-white/10 p-3">
-                    <span class="font-medium">{{ $cosmetic->name }}</span>
-                    <span class="text-sm opacity-70">{{ $cosmetic->price }} coins</span>
-                    @if ($owned->contains($cosmetic->id))
+                    <span class="font-medium">{{ $item['name'] }}</span>
+                    <span class="text-sm opacity-70">{{ $item['price'] }} coins</span>
+                    @if ($item['owned'])
                         <span class="text-xs uppercase opacity-60">Owned</span>
                     @endif
                 </li>

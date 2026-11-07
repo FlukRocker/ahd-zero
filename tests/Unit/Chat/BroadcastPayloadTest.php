@@ -4,6 +4,10 @@ namespace Tests\Unit\Chat;
 
 use App\Events\Chat\MemberSanctioned;
 use App\Events\Chat\MessageDeleted;
+use App\Models\ChatMessage;
+use App\Models\Member;
+use App\Services\Chat\ChatService;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 /**
@@ -12,6 +16,19 @@ use Tests\TestCase;
  */
 class BroadcastPayloadTest extends TestCase
 {
+    use RefreshDatabase;
+
+    public function test_a_message_record_has_exactly_the_public_key_set(): void
+    {
+        $member = Member::create(['name' => 'Rin', 'email' => 'rin@example.test', 'password' => 'password123!']);
+        $message = ChatMessage::create(['member_id' => $member->id, 'body' => 'hi']);
+
+        $keys = array_keys($this->app->make(ChatService::class)->record($message));
+        sort($keys);
+
+        $this->assertSame(['at', 'body', 'id', 'name', 'parts', 'rank', 'style', 'uuid'], $keys);
+    }
+
     public function test_member_sanctioned_goes_to_the_lobby_with_only_uuid_and_action(): void
     {
         $event = new MemberSanctioned('11111111-2222-3333-4444-555555555555', 'ban');

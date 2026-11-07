@@ -18,6 +18,10 @@
         'history' => $history,
         'me' => $member?->uuid,
         'canPost' => $canPost,
+        // Null for guests; 'member' when there is no chat_members row.
+        'myRank' => $member === null
+            ? null
+            : (\App\Models\ChatMember::query()->whereKey($member->id)->first()?->rank->value ?? 'member'),
         // No socket config here on purpose: after `artisan optimize` env()
         // returns null outside config files. The browser values are compiled
         // into the bundle by Vite instead; see lobby.js.

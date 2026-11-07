@@ -197,6 +197,51 @@ class StoreTest extends TestCase
         $this->assertDatabaseCount('chat_transactions', 0);
     }
 
+    public function test_store_index_marks_owned_equipped_and_slot_and_hides_pawn_and_background(): void
+    {
+        $pawn = ChatCosmetic::create(['type' => CosmeticType::Pawn, 'name' => 'Pawn', 'slug' => 'pawn1', 'payload' => ['asset' => 'a'], 'price' => 1, 'active' => true]);
+        $bg = ChatCosmetic::create(['type' => CosmeticType::Background, 'name' => 'Bg', 'slug' => 'bg1', 'payload' => ['asset' => 'a'], 'price' => 1, 'active' => true]);
+        $other = ChatCosmetic::create(['type' => CosmeticType::Glow, 'name' => 'Glow', 'slug' => 'glow1', 'payload' => ['color' => '#ffffff', 'radius' => 4], 'price' => 5, 'active' => true]);
+        \App\Models\ChatCosmeticMember::create(['member_id' => $this->member->id, 'cosmetic_id' => $this->cosmetic->id, 'acquired_at' => now(), 'source' => 'purchase', 'equipped' => true]);
+        $this->fund(7);
+
+        $response = $this->actingAs($this->member, 'member')->get('/chat/store')->assertOk();
+        $items = collect($response->viewData('items'));
+
+        $this->assertSame(7, $response->viewData('balance'));
+        $this->assertFalse($items->contains('id', $pawn->id));
+        $this->assertFalse($items->contains('id', $bg->id));
+        $sunset = $items->firstWhere('id', $this->cosmetic->id);
+        $this->assertSame('name_color', $sunset['type']);
+        $this->assertSame('name', $sunset['slot']);
+        $this->assertTrue($sunset['owned']);
+        $this->assertTrue($sunset['equipped']);
+        $this->assertSame(100, $sunset['price']);
+        $glow = $items->firstWhere('id', $other->id);
+        $this->assertFalse($glow['owned']);
+        $this->assertFalse($glow['equipped']);
+        $this->assertSame('effect', $glow['slot']);
+    }
+
+    public function test_store_preview_style_is_empty_for_a_hostile_payload(): void
+    {
+        $this->cosmetic->forceFill(['payload' => ['color' => 'red;background:url(//evil)']])->save();
+
+        $items = collect($this->actingAs($this->member, 'member')->get('/chat/store')->assertOk()->viewData('items'));
+
+        $this->assertSame([], $items->firstWhere('id', $this->cosmetic->id)['style']);
+    }
+
+    public function test_buy_returns_the_new_balance(): void
+    {
+        $this->fund(130);
+
+        $this->actingAs($this->member, 'member')
+            ->postJson("/chat/store/{$this->cosmetic->id}/buy")
+            ->assertOk()
+            ->assertExactJson(['ok' => true, 'balance' => 30]);
+    }
+
     public function test_guests_cannot_buy(): void
     {
         $this->postJson("/chat/store/{$this->cosmetic->id}/buy")->assertUnauthorized();

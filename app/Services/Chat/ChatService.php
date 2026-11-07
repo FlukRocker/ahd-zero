@@ -71,6 +71,7 @@ class ChatService
             'parts' => $this->renderer->parts($message->body, $this->renderer->smiliesFor($memberId)),
             'style' => $this->renderer->styleFor($memberId),
             'at' => $message->created_at?->toIso8601String(),
+            'rank' => $this->renderer->rankFor($memberId),
         ];
     }
 
