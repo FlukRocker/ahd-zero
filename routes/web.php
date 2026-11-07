@@ -1,10 +1,14 @@
 <?php
 
+use App\Http\Controllers\Admin\ChatManagementController;
 use App\Http\Controllers\Admin\CommentManagementController;
 use App\Http\Controllers\Admin\MemberManagementController;
 use App\Http\Controllers\Admin\SiteSettingsController;
 use App\Http\Controllers\AnimeController;
 use App\Http\Controllers\CategoryController;
+use App\Http\Controllers\ChatController;
+use App\Http\Controllers\ChatModerationController;
+use App\Http\Controllers\ChatStoreController;
 use App\Http\Controllers\CommentController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DirectoryController;
@@ -109,6 +113,36 @@ Route::prefix('api')->group(function (): void {
     });
 });
 
+// Live chat lobby. Guests read; members post. `verified` must name the member
+// route — the bare middleware redirects to the admin Fortify notice.
+Route::get('/chat', [ChatController::class, 'show'])->name('chat.show');
+
+Route::middleware(['auth:member', 'verified:member.verification.notice'])->group(function (): void {
+    Route::post('/chat/messages', [ChatController::class, 'store'])
+        ->middleware('throttle:chat-send')
+        ->name('chat.messages.store');
+
+    Route::delete('/chat/messages/{id}', [ChatController::class, 'destroy'])
+        ->whereNumber('id')
+        ->name('chat.messages.destroy');
+
+    Route::post('/chat/moderate', ChatModerationController::class)
+        ->middleware('throttle:30,1')
+        ->name('chat.moderate');
+
+    Route::get('/chat/store', [ChatStoreController::class, 'index'])->name('chat.store');
+
+    Route::post('/chat/store/{cosmetic}/buy', [ChatStoreController::class, 'buy'])
+        ->whereNumber('cosmetic')
+        ->middleware('throttle:30,1')
+        ->name('chat.store.buy');
+
+    Route::post('/chat/cosmetics/{cosmetic}/equip', [ChatStoreController::class, 'equip'])
+        ->whereNumber('cosmetic')
+        ->middleware('throttle:60,1')
+        ->name('chat.cosmetics.equip');
+});
+
 // Authenticated admin area
 Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
@@ -122,6 +156,16 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::delete('dashboard/comments/{commentId}', [CommentManagementController::class, 'destroy'])->name('admin.comments.destroy');
     Route::post('dashboard/comments/delete-all-by-user', [CommentManagementController::class, 'destroyAllByUser'])->name('admin.comments.destroyAllByUser');
     Route::post('dashboard/comments/{commentId}/delete-and-ban', [CommentManagementController::class, 'destroyAndBan'])->name('admin.comments.destroyAndBan');
+
+    Route::get('dashboard/chat', [ChatManagementController::class, 'index'])->name('admin.chat');
+    Route::post('dashboard/chat/cosmetics', [ChatManagementController::class, 'storeCosmetic'])->name('admin.chat.cosmetics.store');
+    Route::patch('dashboard/chat/cosmetics/{cosmetic}', [ChatManagementController::class, 'updateCosmetic'])->whereNumber('cosmetic')->name('admin.chat.cosmetics.update');
+    Route::delete('dashboard/chat/cosmetics/{cosmetic}', [ChatManagementController::class, 'destroyCosmetic'])->whereNumber('cosmetic')->name('admin.chat.cosmetics.destroy');
+    Route::post('dashboard/chat/members/{id}/grant', [ChatManagementController::class, 'grant'])->whereNumber('id')->name('admin.chat.grant');
+    Route::post('dashboard/chat/members/{id}/cosmetics', [ChatManagementController::class, 'grantCosmetic'])->whereNumber('id')->name('admin.chat.grantCosmetic');
+    Route::post('dashboard/chat/members/{id}/rank', [ChatManagementController::class, 'setRank'])->whereNumber('id')->name('admin.chat.rank');
+    Route::post('dashboard/chat/members/{id}/ban', [ChatManagementController::class, 'ban'])->whereNumber('id')->name('admin.chat.ban');
+    Route::delete('dashboard/chat/messages/{id}', [ChatManagementController::class, 'destroyMessage'])->whereNumber('id')->name('admin.chat.messages.destroy');
 
     Route::get('dashboard/site-settings', [SiteSettingsController::class, 'index'])->name('admin.settings');
     Route::post('dashboard/site-settings/maintenance', [SiteSettingsController::class, 'toggleMaintenance'])->name('admin.settings.maintenance');

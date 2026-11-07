@@ -38,10 +38,105 @@ return new class extends Migration
                 $table->index('tag_id');
             });
         }
+
+        // Chat lobby tables. The real ones are created in ahd-admin
+        // (2026_11_07_000001_create_chat_tables.php); these exist only so the
+        // in-memory sqlite test DB has them.
+        //
+        // NO FOREIGN KEYS HERE: this file runs before
+        // 2026_03_22_000001_create_members_table, so `members` does not exist
+        // yet and a constrained() column would fail the whole test suite.
+        if (! Schema::hasTable('chat_members')) {
+            Schema::create('chat_members', function (Blueprint $table): void {
+                $table->unsignedBigInteger('member_id')->primary();
+                $table->string('rank')->default('member');
+                $table->unsignedInteger('balance')->default(0);
+                $table->timestamp('gagged_until')->nullable();
+                $table->timestamp('kicked_until')->nullable();
+                $table->timestamp('banned_at')->nullable();
+                $table->timestamp('banned_until')->nullable();
+                $table->string('ban_reason')->nullable();
+                $table->timestamps();
+            });
+        }
+
+        if (! Schema::hasTable('chat_messages')) {
+            Schema::create('chat_messages', function (Blueprint $table): void {
+                $table->id();
+                $table->unsignedBigInteger('member_id');
+                $table->text('body');
+                $table->timestamp('created_at')->nullable();
+                $table->timestamp('deleted_at')->nullable();
+                $table->unsignedBigInteger('deleted_by')->nullable();
+                $table->unsignedBigInteger('deleted_by_admin_id')->nullable();
+                $table->index('created_at');
+                $table->index('member_id');
+            });
+        }
+
+        if (! Schema::hasTable('chat_cosmetics')) {
+            Schema::create('chat_cosmetics', function (Blueprint $table): void {
+                $table->id();
+                $table->string('type');
+                $table->string('name');
+                $table->string('slug')->unique();
+                $table->json('payload');
+                $table->unsignedInteger('price')->default(0);
+                $table->boolean('active')->default(true);
+                $table->integer('sort')->default(0);
+                $table->timestamps();
+            });
+        }
+
+        if (! Schema::hasTable('chat_cosmetic_member')) {
+            Schema::create('chat_cosmetic_member', function (Blueprint $table): void {
+                $table->id();
+                $table->unsignedBigInteger('member_id');
+                $table->unsignedBigInteger('cosmetic_id');
+                $table->timestamp('acquired_at')->nullable();
+                $table->string('source')->default('purchase');
+                $table->boolean('equipped')->default(false);
+                $table->unique(['member_id', 'cosmetic_id']);
+            });
+        }
+
+        if (! Schema::hasTable('chat_transactions')) {
+            Schema::create('chat_transactions', function (Blueprint $table): void {
+                $table->id();
+                $table->unsignedBigInteger('member_id');
+                $table->integer('delta');
+                $table->unsignedInteger('balance_after');
+                $table->string('reason');
+                $table->unsignedBigInteger('cosmetic_id')->nullable();
+                $table->unsignedBigInteger('admin_id')->nullable();
+                $table->string('note')->nullable();
+                $table->timestamp('created_at')->nullable();
+                $table->index(['member_id', 'created_at']);
+            });
+        }
+
+        if (! Schema::hasTable('chat_moderation_log')) {
+            Schema::create('chat_moderation_log', function (Blueprint $table): void {
+                $table->id();
+                $table->unsignedBigInteger('actor_member_id')->nullable();
+                $table->unsignedBigInteger('admin_id')->nullable();
+                $table->unsignedBigInteger('target_member_id');
+                $table->string('action');
+                $table->json('meta')->nullable();
+                $table->timestamp('created_at')->nullable();
+                $table->index(['target_member_id', 'created_at']);
+            });
+        }
     }
 
     public function down(): void
     {
+        Schema::dropIfExists('chat_moderation_log');
+        Schema::dropIfExists('chat_transactions');
+        Schema::dropIfExists('chat_cosmetic_member');
+        Schema::dropIfExists('chat_cosmetics');
+        Schema::dropIfExists('chat_messages');
+        Schema::dropIfExists('chat_members');
         Schema::dropIfExists('taggables');
         Schema::dropIfExists('tags');
     }

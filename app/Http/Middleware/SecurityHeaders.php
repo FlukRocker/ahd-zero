@@ -52,6 +52,10 @@ class SecurityHeaders
             || str_starts_with($path, 'api/')
             || str_starts_with($path, 'login')
             || str_starts_with($path, 'member/')
+            // A chat page is per-viewer and changes every second. Letting
+            // Cloudflare hold it for s-maxage=300 would serve one visitor's
+            // render — roster and all — to the next.
+            || str_starts_with($path, 'chat')
             || str_starts_with($path, 'two-factor');
 
         if ($isGuest && $isGet && ! $skip) {

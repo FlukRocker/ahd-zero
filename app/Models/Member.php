@@ -12,7 +12,7 @@ use Illuminate\Notifications\Notifiable;
 use Override;
 
 /**
- * @property string $id
+ * @property int $id
  * @property string $uuid
  * @property string $name
  * @property string $email
@@ -81,6 +81,18 @@ class Member extends Authenticatable implements MustVerifyEmail
     public function uniqueIds(): array
     {
         return ['uuid'];
+    }
+
+    /**
+     * Presence channels broadcast this as `channel_data.user_id`, which
+     * every other subscriber in the room receives. The default is the
+     * bigint primary key; the uuid is the only member identifier that is
+     * safe to hand out.
+     */
+    #[Override]
+    public function getAuthIdentifierForBroadcasting(): string
+    {
+        return $this->uuid;
     }
 
     /**
