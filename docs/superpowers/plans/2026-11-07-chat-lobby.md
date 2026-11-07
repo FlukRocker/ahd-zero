@@ -3653,3 +3653,603 @@ git commit -m "feat(chat): render the lobby and connect it to the socket"
 ```
 
 ---
+
+## Task 10: The admin console
+
+**Files:**
+- Create: `app/Http/Controllers/Admin/ChatManagementController.php`
+- Create: `resources/js/pages/admin/Chat.vue`
+- Modify: `routes/web.php` (inside the existing `['auth', 'verified']` group)
+- Test: `tests/Feature/Chat/AdminChatTest.php`
+
+**Interfaces:**
+- Consumes: `StoreService`, `ModerationService`, `CosmeticPayload`, `ChatRank`, `CosmeticType`.
+- Produces: the dashboard routes listed in the spec. The `{id}` segment is `members.id` (a bigint), matching the existing `admin.members.ban` route, **not** the uuid used on the public side.
+
+- [ ] **Step 1: Write the failing test**
+
+```php
+<?php
+
+namespace Tests\Feature\Chat;
+
+use App\Enums\ChatRank;
+use App\Enums\CosmeticType;
+use App\Models\ChatCosmetic;
+use App\Models\ChatMember;
+use App\Models\Member;
+use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\TestCase;
+
+class AdminChatTest extends TestCase
+{
+    use RefreshDatabase;
+
+    private User $admin;
+
+    private Member $member;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->withoutVite();
+
+        $this->admin = User::create([
+            'name' => 'Admin',
+            'email' => 'admin@example.test',
+            'password' => 'password123!',
+            'email_verified_at' => now(),
+        ]);
+
+        $this->member = Member::create([
+            'name' => 'Rin',
+            'email' => 'rin@example.test',
+            'password' => 'password123!',
+            'email_verified_at' => now(),
+        ]);
+    }
+
+    public function test_a_guest_cannot_reach_the_console(): void
+    {
+        $this->get('/dashboard/chat')->assertRedirect();
+    }
+
+    public function test_a_member_cannot_reach_the_console(): void
+    {
+        $this->actingAs($this->member, 'member')->get('/dashboard/chat')->assertRedirect();
+    }
+
+    public function test_an_admin_sees_the_console(): void
+    {
+        $this->actingAs($this->admin)->get('/dashboard/chat')->assertOk();
+    }
+
+    public function test_an_admin_grants_coins_and_the_ledger_matches(): void
+    {
+        $this->actingAs($this->admin)
+            ->postJson("/dashboard/chat/members/{$this->member->id}/grant", [
+                'amount' => 250,
+                'note' => 'launch gift',
+            ])
+            ->assertOk();
+
+        $this->assertSame(250, ChatMember::query()->find($this->member->id)->balance);
+        $this->assertDatabaseHas('chat_transactions', [
+            'member_id' => $this->member->id,
+            'delta' => 250,
+            'reason' => 'admin_grant',
+            'admin_id' => $this->admin->id,
+        ]);
+        $this->assertDatabaseHas('chat_moderation_log', [
+            'admin_id' => $this->admin->id,
+            'target_member_id' => $this->member->id,
+            'action' => 'grant_coins',
+        ]);
+    }
+
+    public function test_a_negative_grant_is_rejected(): void
+    {
+        $this->actingAs($this->admin)
+            ->postJson("/dashboard/chat/members/{$this->member->id}/grant", ['amount' => -50])
+            ->assertStatus(422);
+
+        $this->assertDatabaseCount('chat_transactions', 0);
+    }
+
+    public function test_an_admin_sets_a_rank_without_holding_one(): void
+    {
+        $this->actingAs($this->admin)
+            ->postJson("/dashboard/chat/members/{$this->member->id}/rank", ['rank' => 'owner'])
+            ->assertOk();
+
+        $this->assertSame(ChatRank::Owner, ChatMember::query()->find($this->member->id)->rank);
+    }
+
+    public function test_a_cosmetic_with_a_bad_payload_is_rejected(): void
+    {
+        $this->actingAs($this->admin)
+            ->postJson('/dashboard/chat/cosmetics', [
+                'type' => 'name_color',
+                'name' => 'Broken',
+                'slug' => 'broken',
+                'payload' => ['color' => 'red; background: url(x)'],
+                'price' => 10,
+            ])
+            ->assertStatus(422);
+
+        $this->assertDatabaseCount('chat_cosmetics', 0);
+    }
+
+    public function test_deleting_a_cosmetic_only_deactivates_it(): void
+    {
+        $cosmetic = ChatCosmetic::create([
+            'type' => CosmeticType::NameColor,
+            'name' => 'Sunset',
+            'slug' => 'sunset',
+            'payload' => ['color' => '#ff8800'],
+            'price' => 100,
+            'active' => true,
+        ]);
+
+        $this->actingAs($this->admin)
+            ->deleteJson("/dashboard/chat/cosmetics/{$cosmetic->id}")
+            ->assertOk();
+
+        // The row survives, so every inventory and ledger row still means
+        // something.
+        $this->assertDatabaseHas('chat_cosmetics', ['id' => $cosmetic->id, 'active' => false]);
+    }
+}
+```
+
+- [ ] **Step 2: Run it to verify it fails**
+
+Run: `vendor/bin/phpunit --filter=AdminChatTest`
+Expected: FAIL — 404 on `/dashboard/chat`.
+
+- [ ] **Step 3: Write the controller**
+
+```php
+<?php
+
+namespace App\Http\Controllers\Admin;
+
+use App\Enums\ChatRank;
+use App\Enums\CosmeticType;
+use App\Http\Controllers\Controller;
+use App\Models\ChatCosmetic;
+use App\Models\ChatMember;
+use App\Models\ChatMessage;
+use App\Models\ChatModerationLog;
+use App\Rules\CosmeticPayload;
+use App\Services\Chat\ModerationService;
+use App\Services\Chat\StoreService;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
+use Inertia\Inertia;
+use Inertia\Response;
+
+/**
+ * The dashboard side of the chat.
+ *
+ * Admins have no chat rank — they are not in chat_members at all — so this
+ * controller does not consult ChatPolicy. Being in the dashboard IS the
+ * authorisation, exactly as it is for the existing member and comment screens.
+ * In-room powers require a member account; see ChatModerationController.
+ */
+class ChatManagementController extends Controller
+{
+    public function __construct(
+        private readonly StoreService $store,
+        private readonly ModerationService $moderation,
+    ) {}
+
+    public function index(): Response
+    {
+        return Inertia::render('admin/Chat', [
+            'cosmetics' => ChatCosmetic::query()->orderBy('sort')->get(),
+            'participants' => ChatMember::query()->with('member:id,uuid,name')->latest('updated_at')->paginate(20),
+            'log' => ChatModerationLog::query()->latest('created_at')->limit(50)->get(),
+        ]);
+    }
+
+    public function storeCosmetic(Request $request): JsonResponse
+    {
+        $type = CosmeticType::tryFrom((string) $request->input('type'));
+
+        if ($type === null) {
+            return response()->json(['message' => 'Unknown cosmetic type.'], 422);
+        }
+
+        $validated = $request->validate([
+            'type' => ['required', Rule::enum(CosmeticType::class)],
+            'name' => ['required', 'string', 'max:60'],
+            'slug' => ['required', 'string', 'max:60', 'unique:chat_cosmetics,slug'],
+            'payload' => ['required', 'array', new CosmeticPayload($type)],
+            'price' => ['required', 'integer', 'min:0', 'max:1000000'],
+            'sort' => ['nullable', 'integer'],
+        ]);
+
+        ChatCosmetic::create($validated + ['active' => true]);
+
+        return response()->json(['ok' => true]);
+    }
+
+    public function updateCosmetic(Request $request, ChatCosmetic $cosmetic): JsonResponse
+    {
+        $validated = $request->validate([
+            'name' => ['sometimes', 'string', 'max:60'],
+            'price' => ['sometimes', 'integer', 'min:0', 'max:1000000'],
+            'active' => ['sometimes', 'boolean'],
+            'sort' => ['sometimes', 'integer'],
+        ]);
+
+        $cosmetic->update($validated);
+
+        return response()->json(['ok' => true]);
+    }
+
+    /** Deactivate, never delete: inventory and ledger rows must keep meaning. */
+    public function destroyCosmetic(ChatCosmetic $cosmetic): JsonResponse
+    {
+        $cosmetic->update(['active' => false]);
+
+        return response()->json(['ok' => true]);
+    }
+
+    public function grant(Request $request, int $id): JsonResponse
+    {
+        $validated = $request->validate([
+            'amount' => ['required', 'integer', 'min:1', 'max:1000000'],
+            'note' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $this->store->grantCoins($id, $validated['amount'], (int) $request->user()->id, $validated['note'] ?? null);
+
+        return response()->json(['ok' => true]);
+    }
+
+    public function grantCosmetic(Request $request, int $id): JsonResponse
+    {
+        $validated = $request->validate([
+            'cosmetic_id' => ['required', 'integer', 'exists:chat_cosmetics,id'],
+        ]);
+
+        $this->store->grantCosmetic(
+            $id,
+            ChatCosmetic::query()->findOrFail($validated['cosmetic_id']),
+            (int) $request->user()->id,
+        );
+
+        return response()->json(['ok' => true]);
+    }
+
+    public function setRank(Request $request, int $id): JsonResponse
+    {
+        $validated = $request->validate([
+            'rank' => ['required', Rule::enum(ChatRank::class)],
+        ]);
+
+        $target = ChatMember::query()->firstOrCreate(['member_id' => $id]);
+
+        $this->moderation->setRank($target, ChatRank::from($validated['rank']), null, (int) $request->user()->id);
+
+        return response()->json(['ok' => true]);
+    }
+
+    public function ban(Request $request, int $id): JsonResponse
+    {
+        $validated = $request->validate([
+            'unban' => ['sometimes', 'boolean'],
+            'minutes' => ['nullable', 'integer', 'min:1', 'max:525600'],
+            'reason' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $target = ChatMember::query()->firstOrCreate(['member_id' => $id]);
+        $adminId = (int) $request->user()->id;
+
+        if ($validated['unban'] ?? false) {
+            $this->moderation->unban($target, null, $adminId);
+        } else {
+            $this->moderation->ban($target, $validated['minutes'] ?? null, $validated['reason'] ?? null, null, $adminId);
+        }
+
+        return response()->json(['ok' => true]);
+    }
+
+    public function destroyMessage(Request $request, int $id): JsonResponse
+    {
+        $message = ChatMessage::query()->findOrFail($id);
+        $message->deleted_by_admin_id = (int) $request->user()->id;
+        $message->save();
+        $message->delete();
+
+        app(\App\Services\Chat\ChatService::class)->forgetHistory();
+
+        return response()->json(['ok' => true]);
+    }
+}
+```
+
+- [ ] **Step 4: Add the routes**
+
+Inside the existing `Route::middleware(['auth', 'verified'])` group in `routes/web.php`:
+
+```php
+    Route::get('dashboard/chat', [ChatManagementController::class, 'index'])->name('admin.chat');
+    Route::post('dashboard/chat/cosmetics', [ChatManagementController::class, 'storeCosmetic'])->name('admin.chat.cosmetics.store');
+    Route::patch('dashboard/chat/cosmetics/{cosmetic}', [ChatManagementController::class, 'updateCosmetic'])->name('admin.chat.cosmetics.update');
+    Route::delete('dashboard/chat/cosmetics/{cosmetic}', [ChatManagementController::class, 'destroyCosmetic'])->name('admin.chat.cosmetics.destroy');
+    Route::post('dashboard/chat/members/{id}/grant', [ChatManagementController::class, 'grant'])->whereNumber('id')->name('admin.chat.grant');
+    Route::post('dashboard/chat/members/{id}/cosmetics', [ChatManagementController::class, 'grantCosmetic'])->whereNumber('id')->name('admin.chat.grantCosmetic');
+    Route::post('dashboard/chat/members/{id}/rank', [ChatManagementController::class, 'setRank'])->whereNumber('id')->name('admin.chat.rank');
+    Route::post('dashboard/chat/members/{id}/ban', [ChatManagementController::class, 'ban'])->whereNumber('id')->name('admin.chat.ban');
+    Route::delete('dashboard/chat/messages/{id}', [ChatManagementController::class, 'destroyMessage'])->whereNumber('id')->name('admin.chat.messages.destroy');
+```
+
+Add `use App\Http\Controllers\Admin\ChatManagementController;` at the top.
+
+- [ ] **Step 5: Write the Vue page**
+
+`resources/js/pages/admin/Chat.vue` — follow `resources/js/pages/admin/Members.vue` for the layout wrapper and table styling. Minimum viable console:
+
+```vue
+<script setup lang="ts">
+import { router } from '@inertiajs/vue3';
+import AppLayout from '@/layouts/AppLayout.vue';
+
+defineProps<{
+    cosmetics: Array<{ id: number; name: string; type: string; price: number; active: boolean }>;
+    participants: { data: Array<{ member_id: number; rank: string; balance: number; member: { name: string } }> };
+    log: Array<{ id: number; action: string; target_member_id: number; created_at: string }>;
+}>();
+
+function grant(memberId: number) {
+    const amount = Number(window.prompt('How many coins?') ?? 0);
+
+    if (amount > 0) {
+        router.post(`/dashboard/chat/members/${memberId}/grant`, { amount }, { preserveScroll: true });
+    }
+}
+
+function setRank(memberId: number, rank: string) {
+    router.post(`/dashboard/chat/members/${memberId}/rank`, { rank }, { preserveScroll: true });
+}
+</script>
+
+<template>
+    <AppLayout title="Chat">
+        <section class="space-y-8 p-6">
+            <div>
+                <h2 class="text-lg font-semibold">Participants</h2>
+                <table class="mt-2 w-full text-sm">
+                    <thead>
+                        <tr class="text-left opacity-60">
+                            <th>Member</th><th>Rank</th><th>Coins</th><th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="row in participants.data" :key="row.member_id">
+                            <td>{{ row.member.name }}</td>
+                            <td>
+                                <select :value="row.rank" @change="setRank(row.member_id, ($event.target as HTMLSelectElement).value)">
+                                    <option value="member">member</option>
+                                    <option value="mod">mod</option>
+                                    <option value="owner">owner</option>
+                                    <option value="main_owner">main owner</option>
+                                </select>
+                            </td>
+                            <td>{{ row.balance }}</td>
+                            <td><button type="button" @click="grant(row.member_id)">Grant coins</button></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div>
+                <h2 class="text-lg font-semibold">Cosmetics</h2>
+                <ul class="mt-2 space-y-1 text-sm">
+                    <li v-for="item in cosmetics" :key="item.id">
+                        {{ item.name }} — {{ item.type }} — {{ item.price }} coins
+                        <span v-if="!item.active" class="opacity-60">(inactive)</span>
+                    </li>
+                </ul>
+            </div>
+
+            <div>
+                <h2 class="text-lg font-semibold">Moderation log</h2>
+                <ul class="mt-2 space-y-1 text-sm">
+                    <li v-for="entry in log" :key="entry.id">
+                        {{ entry.created_at }} — {{ entry.action }} → member {{ entry.target_member_id }}
+                    </li>
+                </ul>
+            </div>
+        </section>
+    </AppLayout>
+</template>
+```
+
+- [ ] **Step 6: Run the test**
+
+Run: `vendor/bin/phpunit --filter=AdminChatTest`
+Expected: PASS, 8 tests.
+
+- [ ] **Step 7: Commit**
+
+```bash
+./vendor/bin/pint
+vendor/bin/phpstan analyse --memory-limit=1G
+pnpm build
+git add app/Http/Controllers/Admin/ChatManagementController.php resources/js/pages/admin/Chat.vue routes/web.php tests/Feature/Chat/AdminChatTest.php
+git commit -m "feat(chat): add the dashboard console for ranks, coins and cosmetics"
+```
+
+---
+
+## Task 11: Deployment wiring
+
+Everything in this task is **configuration an operator applies**, not something an agent runs against production. Write the files; hand over the commands.
+
+**Files:**
+- Modify: `ecosystem.config.cjs`
+- Create: `docs/chat-deploy.md`
+- Test: none (configuration; the test is the smoke check in Step 5)
+
+**Interfaces:**
+- Consumes: the env keys from Task 8.
+- Produces: the `ahd-reverb` PM2 process and a written hand-off.
+
+- [ ] **Step 1: Add the Reverb process**
+
+In `ecosystem.config.cjs`, after the queue block:
+
+```js
+const REVERB_ENABLED = process.env.REVERB_WORKER === '1';
+
+if (REVERB_ENABLED) {
+    apps.push({
+        name: 'ahd-reverb',
+        script: 'artisan',
+        interpreter: PHP_BIN,
+        args: 'reverb:start --host=127.0.0.1 --port=8080',
+        exec_mode: 'fork',
+        instances: 1,
+        autorestart: true,
+        watch: false,
+        // No max_memory_restart. The queue block uses 256M, which is fine for
+        // a worker that exits between jobs — but restarting Reverb drops every
+        // open socket in the room. Watch RSS instead of capping it.
+        env: { APP_ENV: 'production' },
+        error_file: 'storage/logs/reverb.error.log',
+        out_file: 'storage/logs/reverb.out.log',
+        merge_logs: true,
+        time: true,
+    });
+}
+```
+
+Update the file's header comment: it currently says PM2 "supervises ONLY the optional queue worker", which stops being true here.
+
+- [ ] **Step 2: Write the nginx snippet into the hand-off doc**
+
+`docs/chat-deploy.md`:
+
+````markdown
+# Deploying the chat lobby
+
+Run in this order. Step 1 is in a different repo and must be first.
+
+## 1. ahd-admin — create the tables
+
+```bash
+cd /www/wwwroot/admin.animehdzero.com
+php84 artisan migrate --force --path=database/migrations/2026_11_07_000001_create_chat_tables.php
+```
+
+If ahd-v2 deploys before this runs, `/chat` 500s on first load.
+
+## 2. ahd-v2 — env
+
+```dotenv
+BROADCAST_CONNECTION=reverb
+REVERB_APP_ID=<generate>
+REVERB_APP_KEY=<generate>
+REVERB_APP_SECRET=<generate>
+REVERB_HOST=127.0.0.1
+REVERB_PORT=8080
+REVERB_SCHEME=http
+
+VITE_REVERB_APP_KEY="${REVERB_APP_KEY}"
+VITE_REVERB_HOST=ahdzero.com
+VITE_REVERB_PORT=443
+VITE_REVERB_SCHEME=https
+```
+
+The two halves are **not** interchangeable. `REVERB_*` is how PHP reaches the
+daemon — loopback, plain http, port 8080. `VITE_REVERB_*` is baked into the
+JS bundle and is how a browser reaches it — the public hostname over wss on
+443, because Cloudflare terminates TLS and never exposes 8080.
+
+## 3. ahd-v2 — deploy
+
+```bash
+cd /www/wwwroot/ahd-v2
+pnpm install --prod=false
+pnpm build
+composer84 install --no-dev --optimize-autoloader
+php84 artisan optimize
+```
+
+## 4. nginx
+
+```nginx
+location /app {
+    proxy_pass http://127.0.0.1:8080;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_read_timeout 3600s;
+}
+```
+
+`proxy_read_timeout` must be long: the default 60s kills idle sockets every
+minute and the room reconnects in a loop.
+
+## 5. Start the daemon
+
+```bash
+REVERB_WORKER=1 PHP_BIN=php84 pm2 start ecosystem.config.cjs --env production
+pm2 save
+```
+
+`pm2 save` matters — without it the daemon does not come back after a reboot.
+This is PM2 and not cron on purpose: root's crontab currently has a
+syntax error on line 3, so Debian discards the whole file and nothing
+scheduled runs on this box. That still needs fixing, but the chat does not
+wait on it.
+
+## 6. Cloudflare
+
+Websockets must be ON for the zone (Network → WebSockets). `/chat` is excluded
+from the shared-cache headers in `SecurityHeaders`, but purge the zone once
+after deploy so no stale guest render survives.
+
+## Smoke check
+
+1. Open `/chat` in two browsers, one logged in, one not.
+2. Post from the logged-in one; it appears in both within a second.
+3. `pm2 logs ahd-reverb` shows the connection, no repeated reconnects.
+4. Guest response headers for `/chat` contain no `s-maxage`.
+````
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add ecosystem.config.cjs docs/chat-deploy.md
+git commit -m "chore(chat): supervise reverb with pm2 and write the deploy hand-off"
+```
+
+- [ ] **Step 4: Run the full suite one last time**
+
+Run: `vendor/bin/phpunit`
+Expected: every test green, including the ~50 added by this plan.
+
+- [ ] **Step 5: Hand over**
+
+Give the operator `docs/chat-deploy.md`. Do not run steps 1–6 of it yourself; they touch production, and the sandbox classifier blocks remote shell writes in this environment anyway.
+
+---
+
+## Appendix: deviations from the spec
+
+Recorded here so the spec and the plan do not silently disagree. Executors read both.
+
+1. **Presence channel is `chat.roster`**, not `presence-chat.lobby`. Laravel keys authorisation callbacks by bare channel name; reusing `chat.lobby` would give one name two meanings.
+2. **Events are `ShouldBroadcastNow`.** The spec did not say which, and the obvious choice would have been silently broken in production — the queue worker is off.
+3. **History lives behind `App\Contracts\ChatHistory`**, which the spec described only as "a Redis list". The seam exists so tests do not need a live Redis and so the failure path is testable.
+4. **`chat_messages` gains `deleted_by_admin_id`**, which the spec implied ("exactly one of actor/admin") but did not list as a column.
+5. **Admin grants of cosmetics got a route** (`POST dashboard/chat/members/{id}/cosmetics`). The spec defined `source = grant` with nothing able to produce it.
