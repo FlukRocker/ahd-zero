@@ -227,7 +227,16 @@ return new class extends Migration
 
 - [ ] **Step 2: Dry-run it**
 
-Run, in the ahd-admin repo:
+First confirm the local database actually has the table the foreign keys point at:
+
+```bash
+php artisan db:table members --json >/dev/null && echo "members: present"
+```
+
+If it is missing, the FKs fail with MySQL error 1824 — and `--pretend` will not
+catch that, because it never executes anything.
+
+Then, in the ahd-admin repo:
 `php artisan migrate --pretend --path=database/migrations/2026_11_07_000001_create_chat_tables.php`
 Expected: six `create table` statements printed, no error, nothing executed.
 
@@ -1256,11 +1265,13 @@ Create `public/chat/pawns/gold.svg`:
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16"><circle cx="8" cy="5" r="3" fill="#f5c518"/><path d="M3 14a5 5 0 0 1 10 0z" fill="#f5c518"/></svg>
 ```
 
-For `public/chat/backgrounds/night.webp`, copy any existing small webp in `public/` to that path as a placeholder — the test only asserts that `assetUrl` finds a file that exists:
+No background asset is needed yet — nothing in the tests or the lobby view
+references one, and `CosmeticStyle::assetUrl` already returns null for a
+slug with no file behind it. Add real backgrounds when there is a design
+for them.
 
 ```bash
-mkdir -p public/chat/backgrounds public/chat/pawns
-cp public/cwv-poster.jpg public/chat/backgrounds/night.webp
+mkdir -p public/chat/pawns
 ```
 
 - [ ] **Step 5: Run the test to verify it passes**
@@ -1426,9 +1437,32 @@ class ChatHistoryTest extends TestCase
         $this->assertSame(['still here'], array_column($lines, 'body'));
     }
 
+    /**
+     * The bug this pins: push() must not resurrect a cleared key. If it
+     * does, the message sent right after a moderator deletes something
+     * becomes the entire history and the room drops to one line.
+     */
+    public function test_a_send_after_a_delete_does_not_shrink_the_history(): void
+    {
+        foreach (['one', 'two', 'three'] as $body) {
+            ChatMessage::create(['member_id' => $this->member->id, 'body' => $body]);
+        }
+
+        $service = $this->app->make(ChatService::class);
+        $service->history();                 // warms the cache
+        $service->forgetHistory();           // a delete clears it
+
+        $fresh = ChatMessage::create(['member_id' => $this->member->id, 'body' => 'four']);
+        $service->remember($service->record($fresh->load('member')));
+
+        $this->assertSame(['one', 'two', 'three', 'four'], array_column($service->history(), 'body'));
+    }
+
+    /** Exercises the fake, not RedisChatHistory — LTRIM is not covered by any test. */
     public function test_pushing_past_the_cap_keeps_only_the_newest(): void
     {
         $history = new ArrayChatHistory;
+        $history->replace([['id' => 0, 'body' => 'seed', 'uuid' => $this->member->uuid]]);
 
         foreach (range(1, 205) as $i) {
             $history->push(['id' => $i, 'body' => "line {$i}", 'uuid' => $this->member->uuid]);
@@ -1479,6 +1513,17 @@ interface ChatHistory
      */
     public function recent(int $limit): ?array;
 
+    /**
+     * Overwrite the whole list with a rebuilt one.
+     *
+     * Needed because push() must not resurrect a key that was deliberately
+     * cleared — otherwise the next single message becomes the entire
+     * history and the room shows one line instead of fifty.
+     *
+     * @param  array<int, array<string, mixed>>  $messages  Oldest first.
+     */
+    public function replace(array $messages): void;
+
     /** Drop everything, so the next read rebuilds from the database. */
     public function forget(): void;
 }
@@ -1515,10 +1560,16 @@ class RedisChatHistory implements ChatHistory
         $json = json_encode($message);
 
         try {
+            // LPUSHX, not LPUSH: it does nothing when the key is absent.
+            // After a delete or a Redis restart the key is gone, and a
+            // plain LPUSH would recreate it holding exactly one message —
+            // which recent() would then serve as the whole history. A miss
+            // must stay a miss until replace() rebuilds it from MySQL.
+            //
             // One pipeline so the push and the trim cannot interleave with
             // another request's pair and leave the list over the cap.
             Redis::pipeline(function ($pipe) use ($json): void {
-                $pipe->lpush(self::KEY, $json);
+                $pipe->lpushx(self::KEY, $json);
                 $pipe->ltrim(self::KEY, 0, self::LIMIT - 1);
             });
         } catch (Throwable $e) {
@@ -1551,6 +1602,23 @@ class RedisChatHistory implements ChatHistory
         }
 
         return $decoded === [] ? null : $decoded;
+    }
+
+    public function replace(array $messages): void
+    {
+        try {
+            Redis::pipeline(function ($pipe) use ($messages): void {
+                $pipe->del(self::KEY);
+
+                // Oldest first, so the newest ends up at the head where
+                // recent() expects it.
+                foreach (array_slice($messages, -self::LIMIT) as $message) {
+                    $pipe->lpush(self::KEY, json_encode($message));
+                }
+            });
+        } catch (Throwable $e) {
+            Log::warning('Chat history rebuild failed', ['error' => $e->getMessage()]);
+        }
     }
 
     public function forget(): void
@@ -1588,12 +1656,22 @@ class ArrayChatHistory implements ChatHistory
 
     public function push(array $message): void
     {
-        if ($this->throws) {
+        // Mirrors LPUSHX: a cleared list stays cleared until replace().
+        if ($this->throws || $this->messages === []) {
             return;
         }
 
         $this->messages[] = $message;
         $this->messages = array_slice($this->messages, -self::LIMIT);
+    }
+
+    public function replace(array $messages): void
+    {
+        if ($this->throws) {
+            return;
+        }
+
+        $this->messages = array_slice($messages, -self::LIMIT);
     }
 
     public function recent(int $limit): ?array
@@ -1647,15 +1725,21 @@ class ChatService
             return $cached;
         }
 
-        return ChatMessage::query()
+        $rebuilt = ChatMessage::query()
             ->with('member:id,uuid,name')
             ->latest('created_at')
-            ->limit($limit)
+            ->limit(ChatHistory::LIMIT)
             ->get()
             ->reverse()
             ->values()
             ->map(fn (ChatMessage $message): array => $this->record($message))
             ->all();
+
+        // Warm the cache back up, or push() (LPUSHX) stays a no-op forever
+        // and every request pays for the rebuild.
+        $this->history->replace($rebuilt);
+
+        return array_slice($rebuilt, -$limit);
     }
 
     /**
@@ -1743,8 +1827,10 @@ use App\Models\ChatMember;
 use App\Models\ChatMessage;
 use App\Models\Member;
 use App\Support\ArrayChatHistory;
+use Illuminate\Contracts\Broadcasting\Factory;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
+use RuntimeException;
 use Tests\TestCase;
 
 class SendMessageTest extends TestCase
@@ -1869,6 +1955,30 @@ class SendMessageTest extends TestCase
             ->assertStatus(422);
     }
 
+    public function test_a_dead_broadcaster_does_not_fail_the_send(): void
+    {
+        // ShouldRescue is what makes this pass. Without it the message is
+        // saved and the caller still sees a 500, so they send it again.
+        $this->app->bind(Factory::class, fn () => new class implements Factory
+        {
+            public function connection($name = null)
+            {
+                return $this;
+            }
+
+            public function broadcast(array $channels, $event, array $payload = [])
+            {
+                throw new RuntimeException('reverb is down');
+            }
+        });
+
+        $this->actingAs($this->member, 'member')
+            ->postJson('/chat/messages', ['body' => 'still saved'])
+            ->assertCreated();
+
+        $this->assertDatabaseHas('chat_messages', ['body' => 'still saved']);
+    }
+
     public function test_a_member_may_delete_their_own_message_and_the_cache_is_dropped(): void
     {
         $message = ChatMessage::create(['member_id' => $this->member->id, 'body' => 'oops']);
@@ -1941,6 +2051,7 @@ namespace App\Events\Chat;
 use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
+use Illuminate\Contracts\Broadcasting\ShouldRescue;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
@@ -1949,10 +2060,15 @@ use Illuminate\Queue\SerializesModels;
  * QUEUE_CONNECTION=redis and runs no queue worker by default, so a queued
  * broadcast would sit in Redis forever while every Event::fake test passed.
  *
+ * ShouldRescue because broadcasting now happens INSIDE the request. Without
+ * it, a Reverb daemon that is down throws after the message is already
+ * saved: the sender sees "not sent", retries, and posts it twice. The spec
+ * says a broadcast failure is logged, never fatal.
+ *
  * The payload is structured data, never HTML — the client builds text nodes
  * from it and never touches innerHTML.
  */
-class MessageSent implements ShouldBroadcastNow
+class MessageSent implements ShouldBroadcastNow, ShouldRescue
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
@@ -1991,10 +2107,11 @@ namespace App\Events\Chat;
 use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
+use Illuminate\Contracts\Broadcasting\ShouldRescue;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
-class MessageDeleted implements ShouldBroadcastNow
+class MessageDeleted implements ShouldBroadcastNow, ShouldRescue
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
@@ -2356,6 +2473,7 @@ namespace App\Events\Chat;
 use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
+use Illuminate\Contracts\Broadcasting\ShouldRescue;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
@@ -2368,7 +2486,7 @@ use Illuminate\Queue\SerializesModels;
  * keeps reading until it reconnects, which is acceptable only because /chat is
  * world-readable anyway.
  */
-class MemberSanctioned implements ShouldBroadcastNow
+class MemberSanctioned implements ShouldBroadcastNow, ShouldRescue
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
@@ -3119,17 +3237,20 @@ git commit -m "feat(chat): buy, equip and grant cosmetics without double chargin
 
 - [ ] **Step 1: Write the failing test**
 
+The channel rule goes in a class of its own, because it cannot be tested through the HTTP route: `phpunit.xml` sets `BROADCAST_CONNECTION=null`, and `NullBroadcaster::auth()` never invokes channel callbacks. A test that posts to `/broadcasting/auth` would pass whatever the rule said.
+
 ```php
 <?php
 
-namespace Tests\Feature\Chat;
+namespace Tests\Unit\Chat;
 
+use App\Broadcasting\RosterChannel;
 use App\Models\ChatMember;
 use App\Models\Member;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
-class BroadcastAuthTest extends TestCase
+class RosterChannelTest extends TestCase
 {
     use RefreshDatabase;
 
@@ -3147,51 +3268,82 @@ class BroadcastAuthTest extends TestCase
         ]);
     }
 
-    public function test_the_broadcasting_auth_route_exists(): void
+    public function test_a_member_joins_as_a_uuid_and_never_a_numeric_id(): void
     {
-        $this->assertTrue(
-            app('router')->getRoutes()->hasNamedRoute('broadcasting.auth')
-            || collect(app('router')->getRoutes())->contains(
-                fn ($route) => $route->uri() === 'broadcasting/auth'
-            )
-        );
+        $payload = (new RosterChannel)->join($this->member);
+
+        $this->assertSame($this->member->uuid, $payload['uuid']);
+        $this->assertArrayNotHasKey('id', $payload);
+        $this->assertSame('member', $payload['rank']);
     }
 
-    public function test_a_guest_cannot_authorize_the_roster(): void
-    {
-        $this->postJson('/broadcasting/auth', [
-            'socket_id' => '1234.5678',
-            'channel_name' => 'presence-chat.roster',
-        ])->assertForbidden();
-    }
-
-    public function test_a_banned_member_cannot_authorize_the_roster(): void
+    public function test_a_banned_member_is_refused(): void
     {
         ChatMember::create(['member_id' => $this->member->id, 'banned_at' => now()]);
 
-        $this->actingAs($this->member, 'member')->postJson('/broadcasting/auth', [
-            'socket_id' => '1234.5678',
-            'channel_name' => 'presence-chat.roster',
-        ])->assertForbidden();
+        $this->assertFalse((new RosterChannel)->join($this->member));
     }
 
-    public function test_a_member_joins_the_roster_as_a_uuid_never_a_numeric_id(): void
+    public function test_a_kicked_member_is_refused_until_the_cooldown_passes(): void
     {
-        $this->actingAs($this->member, 'member')->postJson('/broadcasting/auth', [
-            'socket_id' => '1234.5678',
-            'channel_name' => 'presence-chat.roster',
-        ])
-            ->assertOk()
-            ->assertSee($this->member->uuid)
-            ->assertDontSee('"id":'.$this->member->id, false);
+        $row = ChatMember::create([
+            'member_id' => $this->member->id,
+            'kicked_until' => now()->addSeconds(60),
+        ]);
+
+        $this->assertFalse((new RosterChannel)->join($this->member));
+
+        $row->update(['kicked_until' => now()->subSecond()]);
+
+        $this->assertIsArray((new RosterChannel)->join($this->member->fresh()));
+    }
+
+    public function test_the_broadcast_identifier_is_the_uuid(): void
+    {
+        // Presence channels put getAuthIdentifierForBroadcasting() in
+        // channel_data.user_id, which every other subscriber receives. The
+        // default is members.id, so without the override the roster leaks the
+        // internal bigint to everyone in the room.
+        $this->assertSame($this->member->uuid, $this->member->getAuthIdentifierForBroadcasting());
     }
 }
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+Plus one HTTP test, which is all the route can honestly assert under the null broadcaster:
 
-Run: `vendor/bin/phpunit --filter=BroadcastAuthTest`
-Expected: FAIL — 404; `bootstrap/app.php` registers no broadcasting routes, so `/broadcasting/auth` does not exist.
+```php
+<?php
+
+namespace Tests\Feature\Chat;
+
+use Tests\TestCase;
+
+class BroadcastAuthTest extends TestCase
+{
+    public function test_the_broadcasting_auth_route_is_registered(): void
+    {
+        $uris = collect(app('router')->getRoutes()->getRoutes())
+            ->map(fn ($route): string => $route->uri());
+
+        $this->assertTrue($uris->contains('broadcasting/auth'));
+    }
+
+    public function test_a_guest_is_turned_away(): void
+    {
+        // 401, not 403: the route carries auth:member, so the guard rejects
+        // before any channel callback runs.
+        $this->postJson('/broadcasting/auth', [
+            'socket_id' => '1234.5678',
+            'channel_name' => 'presence-chat.roster',
+        ])->assertUnauthorized();
+    }
+}
+```
+
+- [ ] **Step 2: Run them to verify they fail**
+
+Run: `vendor/bin/phpunit --filter=RosterChannelTest` → FAIL, `Class "App\Broadcasting\RosterChannel" not found`.
+Run: `vendor/bin/phpunit --filter=BroadcastAuthTest` → FAIL, no `broadcasting/auth` route.
 
 - [ ] **Step 3: Install Reverb**
 
@@ -3221,13 +3373,70 @@ Add the `withBroadcasting` call to the `Application::configure(...)` chain, dire
     )
 ```
 
-- [ ] **Step 5: Write `routes/channels.php`**
+- [ ] **Step 5a: Write the channel rule and the broadcast identifier**
+
+`app/Broadcasting/RosterChannel.php`:
 
 ```php
 <?php
 
+namespace App\Broadcasting;
+
 use App\Models\ChatMember;
 use App\Models\Member;
+
+/**
+ * Who may appear in the online roster.
+ *
+ * A class rather than a closure in routes/channels.php so it can be tested
+ * directly: the test suite runs with BROADCAST_CONNECTION=null, and the
+ * null broadcaster never invokes channel callbacks — an HTTP test of this
+ * rule would pass no matter what the rule said.
+ */
+class RosterChannel
+{
+    /**
+     * @return array<string, string>|false
+     */
+    public function join(Member $member): array|false
+    {
+        $chatMember = ChatMember::query()->find($member->id);
+
+        if ($chatMember !== null && ($chatMember->isBanned() || $chatMember->isKicked())) {
+            return false;
+        }
+
+        return [
+            'uuid' => $member->uuid,
+            'name' => $member->name,
+            'rank' => $chatMember?->rank->value ?? 'member',
+        ];
+    }
+}
+```
+
+In `app/Models/Member.php`, add the override:
+
+```php
+    /**
+     * Presence channels broadcast this as `channel_data.user_id`, which
+     * every other subscriber in the room receives. The default is the
+     * bigint primary key; the uuid is the only member identifier that is
+     * safe to hand out.
+     */
+    #[Override]
+    public function getAuthIdentifierForBroadcasting(): string
+    {
+        return $this->uuid;
+    }
+```
+
+- [ ] **Step 5b: Write `routes/channels.php`**
+
+```php
+<?php
+
+use App\Broadcasting\RosterChannel;
 use Illuminate\Support\Facades\Broadcast;
 
 /**
@@ -3244,19 +3453,7 @@ use Illuminate\Support\Facades\Broadcast;
  * until they reconnect. That is acceptable only because the room is public;
  * the controls that matter are here and on the POST.
  */
-Broadcast::channel('chat.roster', function (Member $member): array|bool {
-    $chatMember = ChatMember::query()->find($member->id);
-
-    if ($chatMember?->isBanned() === true) {
-        return false;
-    }
-
-    return [
-        'uuid' => $member->uuid,
-        'name' => $member->name,
-        'rank' => $chatMember?->rank->value ?? 'member',
-    ];
-}, ['guards' => ['member']]);
+Broadcast::channel('chat.roster', [RosterChannel::class, 'join'], ['guards' => ['member']]);
 ```
 
 - [ ] **Step 6: Exclude /chat from the guest cache header**
@@ -3432,12 +3629,11 @@ Expected: FAIL — the placeholder view from Task 5 has no bootstrap block.
         'history' => $history,
         'me' => auth('member')->user()?->uuid,
         'canPost' => auth('member')->check(),
-        'reverb' => [
-            'key' => config('broadcasting.connections.reverb.key'),
-            'host' => env('VITE_REVERB_HOST'),
-            'port' => (int) env('VITE_REVERB_PORT', 443),
-            'scheme' => env('VITE_REVERB_SCHEME', 'https'),
-        ],
+        // No socket config here on purpose: the deploy runs
+        // `php84 artisan optimize`, after which env() returns null outside
+        // config files — the page would hand the client a null host and
+        // pusher-js would quietly dial its own default. The browser values
+        // are compiled into the bundle by Vite instead; see lobby.js.
     ], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
 @endphp
 
@@ -3516,9 +3712,18 @@ export default function chatLobby() {
         },
 
         async connect() {
-            const { reverb } = this.config;
+            // Vite inlines these at build time. They must NOT come from the
+            // server-rendered bootstrap: `artisan optimize` caches config,
+            // and env() is null after that, so the host would silently
+            // disappear in production while every test stayed green.
+            const reverb = {
+                key: import.meta.env.VITE_REVERB_APP_KEY,
+                host: import.meta.env.VITE_REVERB_HOST,
+                port: Number(import.meta.env.VITE_REVERB_PORT ?? 443),
+                scheme: import.meta.env.VITE_REVERB_SCHEME ?? 'https',
+            };
 
-            if (!reverb?.key) {
+            if (!reverb.key || !reverb.host) {
                 return; // No socket configured: the page still works over HTTP.
             }
 
@@ -3543,6 +3748,16 @@ export default function chatLobby() {
                 .listen('.message.sent', (line) => this.append(line))
                 .listen('.message.deleted', ({ id }) => {
                     this.messages = this.messages.filter((line) => line.id !== id);
+                })
+                .listen('.member.sanctioned', ({ uuid, action }) => {
+                    // Cosmetic only — the server already refuses their
+                    // posts and their next subscribe. Leaving the roster on
+                    // our own say-so just stops a banned name sitting in
+                    // the online list until the socket drops.
+                    if (uuid === this.config.me && (action === 'ban' || action === 'kick')) {
+                        echo.leave('chat.roster');
+                        this.roster = this.roster.filter((p) => p.uuid !== uuid);
+                    }
                 });
 
             if (this.config.canPost) {
@@ -3803,12 +4018,14 @@ namespace App\Http\Controllers\Admin;
 
 use App\Enums\ChatRank;
 use App\Enums\CosmeticType;
+use App\Events\Chat\MessageDeleted;
 use App\Http\Controllers\Controller;
 use App\Models\ChatCosmetic;
 use App\Models\ChatMember;
 use App\Models\ChatMessage;
 use App\Models\ChatModerationLog;
 use App\Rules\CosmeticPayload;
+use App\Services\Chat\ChatService;
 use App\Services\Chat\ModerationService;
 use App\Services\Chat\StoreService;
 use Illuminate\Http\JsonResponse;
@@ -3952,7 +4169,12 @@ class ChatManagementController extends Controller
         $message->save();
         $message->delete();
 
-        app(\App\Services\Chat\ChatService::class)->forgetHistory();
+        app(ChatService::class)->forgetHistory();
+
+        // The room has to hear about it too. Without this an admin delete
+        // vanishes from the database but stays on every open screen until
+        // the next reload.
+        MessageDeleted::dispatch($message->id);
 
         return response()->json(['ok' => true]);
     }
