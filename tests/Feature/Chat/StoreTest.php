@@ -255,6 +255,29 @@ class StoreTest extends TestCase
             ->assertSee('Sunset');
     }
 
+    public function test_store_page_embeds_bootstrap_with_hex_flags_and_no_x_html(): void
+    {
+        $this->cosmetic->forceFill(['name' => '"><script>alert(1)</script>'])->save();
+
+        $response = $this->actingAs($this->member, 'member')->get('/chat/store')->assertOk();
+
+        $response->assertSee('id="store-bootstrap"', false);
+        $response->assertDontSee('"><script>alert(1)</script>', false);
+        $response->assertDontSee('<script>alert(1)</script>', false);
+        $response->assertSee('\u003Cscript\u003Ealert(1)', false);
+        $response->assertDontSee('x-html', false);
+        $response->assertDontSee('innerHTML', false);
+    }
+
+    public function test_store_and_lobby_share_the_name_style_rules(): void
+    {
+        $this->actingAs($this->member, 'member')->get('/chat/store')->assertOk()
+            ->assertSee('.chat-name.chat-name-gradient', false);
+        $this->actingAs($this->member, 'member')->get('/chat')->assertOk()
+            ->assertSee('.chat-name.chat-name-gradient', false)
+            ->assertSee('id="chat-bootstrap"', false);
+    }
+
     public function test_a_stale_model_is_refused_when_deactivated_after_loading(): void
     {
         $this->fund(500);

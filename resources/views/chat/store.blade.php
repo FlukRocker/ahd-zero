@@ -1,20 +1,62 @@
 @extends('layouts.app')
 
+@section('title', 'Chat store')
+@section('robots', 'noindex,follow')
+
+@php
+    // Same embed pattern as #chat-bootstrap: a script block, never an
+    // attribute, with the HEX flags so a hostile item name cannot close it.
+    $bootstrap = json_encode(
+        ['items' => $items, 'balance' => $balance],
+        JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_THROW_ON_ERROR,
+    );
+@endphp
+
 @section('content')
-    <main class="mx-auto w-full max-w-3xl px-4 py-6">
+    <x-chat.name-styles />
+    <main class="mx-auto w-full max-w-3xl px-4 py-6" x-data="chatStore">
         <h1 class="text-xl font-semibold">Chat store</h1>
-        <p class="text-sm opacity-70">Balance: {{ $balance }} coins</p>
+        <p class="text-sm opacity-70">Balance: <span x-text="balance"></span> coins</p>
+        <p class="mt-2 text-sm text-red-400" x-show="error" x-text="error"></p>
 
         <ul class="mt-4 grid gap-3 sm:grid-cols-2">
-            @foreach ($items as $item)
+            <template x-for="item in items" :key="item.id">
                 <li class="rounded-lg border border-white/10 p-3">
-                    <span class="font-medium">{{ $item['name'] }}</span>
-                    <span class="text-sm opacity-70">{{ $item['price'] }} coins</span>
-                    @if ($item['owned'])
-                        <span class="text-xs uppercase opacity-60">Owned</span>
-                    @endif
+                    <span
+                        class="chat-name font-medium"
+                        :class="{ 'chat-name-gradient': hasGradient(item) }"
+                        :style="previewStyle(item)"
+                        x-text="item.name"
+                    ></span>
+                    <span class="block text-xs opacity-60" x-text="typeLabel(item)"></span>
+                    <span class="text-sm opacity-70"><span x-text="item.price"></span> coins</span>
+
+                    <template x-if="!item.owned">
+                        <button
+                            type="button"
+                            class="mt-2 block rounded-md px-3 py-1 text-sm font-medium disabled:opacity-50"
+                            :disabled="!canBuy(item)"
+                            @click="buy(item)"
+                        >Buy</button>
+                    </template>
+                    <template x-if="item.owned && item.slot !== null && !item.equipped">
+                        <button
+                            type="button"
+                            class="mt-2 block rounded-md px-3 py-1 text-sm font-medium disabled:opacity-50"
+                            :disabled="busy !== null"
+                            @click="equip(item)"
+                        >Equip</button>
+                    </template>
+                    <template x-if="item.owned && item.slot !== null && item.equipped">
+                        <span class="mt-2 block text-xs uppercase opacity-60">Equipped</span>
+                    </template>
+                    <template x-if="item.owned && item.slot === null">
+                        <span class="mt-2 block text-xs uppercase opacity-60">Owned</span>
+                    </template>
                 </li>
-            @endforeach
+            </template>
         </ul>
     </main>
+
+    <script type="application/json" id="store-bootstrap">{!! $bootstrap !!}</script>
 @endsection
