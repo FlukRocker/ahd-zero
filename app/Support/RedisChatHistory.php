@@ -33,8 +33,9 @@ class RedisChatHistory implements ChatHistory
             // which recent() would then serve as the whole history. A miss
             // must stay a miss until replace() rebuilds it from MySQL.
             //
-            // One pipeline so the push and the trim cannot interleave with
-            // another request's pair and leave the list over the cap.
+            // A pipeline batches the round trips; it is not MULTI/EXEC, so a
+            // concurrent push can leave the list briefly over the cap. The
+            // next push trims it back.
             $this->connection()->pipeline(function ($pipe) use ($json): void {
                 $pipe->lpushx(self::KEY, $json);
                 $pipe->ltrim(self::KEY, 0, self::LIMIT - 1);
@@ -74,6 +75,9 @@ class RedisChatHistory implements ChatHistory
     public function replace(array $messages): void
     {
         try {
+            // Pipelined for round trips only, not atomic: a concurrent push
+            // may land between the del and the lpushes; the TTL below bounds
+            // any resulting drift.
             $this->connection()->pipeline(function ($pipe) use ($messages): void {
                 $pipe->del(self::KEY);
 
@@ -93,10 +97,14 @@ class RedisChatHistory implements ChatHistory
         }
     }
 
-    private function connection(): PhpRedisConnection
+    // No native return type: under predis this is a PredisConnection. The
+    // @var is a static-analysis hint only.
+    private function connection()
     {
-        /** @var PhpRedisConnection */
-        return Redis::connection();
+        /** @var PhpRedisConnection $connection */
+        $connection = Redis::connection();
+
+        return $connection;
     }
 
     public function forget(): void
