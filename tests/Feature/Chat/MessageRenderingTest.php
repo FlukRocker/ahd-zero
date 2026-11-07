@@ -70,6 +70,17 @@ class MessageRenderingTest extends TestCase
         );
     }
 
+    public function test_an_owned_smiley_still_renders_after_an_admin_deactivates_it(): void
+    {
+        $this->own($this->smiley);
+        $this->smiley->update(['active' => false]);
+
+        $message = ChatMessage::create(['member_id' => $this->member->id, 'body' => 'hi (akuma)']);
+        $record = $this->app->make(ChatService::class)->record($message->fresh()->load('member'));
+
+        $this->assertSame(['t' => 'img', 'v' => '/chat/pawns/default.svg'], $record['parts'][1]);
+    }
+
     public function test_a_smiley_the_sender_does_not_own_stays_literal_text(): void
     {
         $message = ChatMessage::create(['member_id' => $this->member->id, 'body' => 'hi (akuma) there']);

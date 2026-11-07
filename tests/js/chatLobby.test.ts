@@ -39,4 +39,13 @@ describe('chat lobby rendering helpers', () => {
         lobby.append({ id: 2, body: 'b' });
         expect(lobby.messages.map((m: { id: number }) => m.id)).toEqual([1, 2]);
     });
+
+    it('append dedupes a numeric id against the same id as a string', () => {
+        const lobby = chatLobby() as any;
+        lobby.$nextTick = () => {};
+        lobby.$refs = { list: {} };
+        lobby.append({ id: 7, body: 'a' });
+        lobby.append({ id: '7', body: 'a' });
+        expect(lobby.messages).toHaveLength(1);
+    });
 });

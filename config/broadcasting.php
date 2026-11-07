@@ -43,6 +43,9 @@ return [
             ],
             'client_options' => [
                 // Guzzle client options: https://docs.guzzlephp.org/en/stable/request-options.html
+                // BroadcastManager::pusher() defaults to a 30 s timeout; a hung daemon would pin a shared php-fpm worker per send.
+                'timeout' => 3,
+                'connect_timeout' => 2,
             ],
         ],
 

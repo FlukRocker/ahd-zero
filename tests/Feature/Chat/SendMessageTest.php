@@ -69,7 +69,13 @@ class SendMessageTest extends TestCase
             'member_id' => $this->member->id,
             'body' => 'hello room',
         ]);
-        Event::assertDispatched(MessageSent::class);
+        Event::assertDispatched(MessageSent::class, function (MessageSent $event): bool {
+            $keys = array_keys($event->broadcastWith());
+            sort($keys);
+
+            return $event->broadcastOn()->name === 'chat.lobby'
+                && $keys === ['at', 'body', 'id', 'name', 'parts', 'style', 'uuid'];
+        });
     }
 
     public function test_a_gagged_member_is_refused(): void

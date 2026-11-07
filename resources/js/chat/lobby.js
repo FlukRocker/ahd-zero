@@ -139,7 +139,7 @@ export default function chatLobby() {
         append(line) {
             // History and the live socket overlap on reconnect; a duplicate id
             // would also be a duplicate x-for :key.
-            if (this.messages.some((existing) => existing.id === line.id)) {
+            if (this.messages.some((existing) => String(existing.id) === String(line.id))) {
                 return;
             }
 
@@ -184,6 +184,14 @@ export default function chatLobby() {
                 }
 
                 this.draft = '';
+
+                // Show the sender's own line now; if the socket is down it is the only copy they get,
+                // and when the socket echo arrives append() skips it by id.
+                const record = await response.json().catch(() => null);
+
+                if (record !== null && typeof record === 'object' && 'id' in record) {
+                    this.append(record);
+                }
             } catch {
                 this.error = 'You appear to be offline.';
             } finally {

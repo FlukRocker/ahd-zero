@@ -133,6 +133,48 @@ class AdminChatTest extends TestCase
         $this->assertDatabaseCount('chat_cosmetics', 0);
     }
 
+    public function test_a_non_string_cosmetic_type_is_a_422_not_a_500(): void
+    {
+        $this->actingAs($this->admin)
+            ->postJson('/dashboard/chat/cosmetics', [
+                'type' => ['name_color'],
+                'name' => 'Broken',
+                'slug' => 'broken',
+                'payload' => ['color' => '#ff0000'],
+                'price' => 10,
+            ])
+            ->assertStatus(422);
+
+        $this->assertDatabaseCount('chat_cosmetics', 0);
+    }
+
+    public function test_a_huge_sort_value_is_a_422_on_create_and_update(): void
+    {
+        $this->actingAs($this->admin)
+            ->postJson('/dashboard/chat/cosmetics', [
+                'type' => 'name_color',
+                'name' => 'Red',
+                'slug' => 'red',
+                'payload' => ['color' => '#ff0000'],
+                'price' => 10,
+                'sort' => 40000,
+            ])
+            ->assertStatus(422);
+
+        $cosmetic = ChatCosmetic::create([
+            'type' => CosmeticType::NameColor,
+            'name' => 'Red',
+            'slug' => 'red',
+            'payload' => ['color' => '#ff0000'],
+            'price' => 10,
+            'active' => true,
+        ]);
+
+        $this->actingAs($this->admin)
+            ->patchJson("/dashboard/chat/cosmetics/{$cosmetic->id}", ['sort' => 40000])
+            ->assertStatus(422);
+    }
+
     public function test_deleting_a_cosmetic_only_deactivates_it(): void
     {
         $cosmetic = ChatCosmetic::create([

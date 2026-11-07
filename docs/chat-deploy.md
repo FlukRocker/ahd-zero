@@ -2,7 +2,9 @@
 
 Run in this order. Step 1 is in a different repo (`ahd-admin`) and must come
 first. Every production command uses `php84` / `composer84`, never `php` or
-`composer`, because that is what the shared host provides.
+`composer`, because that is what the shared host provides. `ahd-admin` is
+Laravel 8 and every path below is from notes, not a checked inventory: **verify
+every path and the `php84` binary on the box** before running anything.
 
 ## 1. ahd-admin — create the tables
 
@@ -16,12 +18,14 @@ not create them.
 anything, check that the connection is the production database:
 
 ```bash
-cd /www/wwwroot/admin.animehdzero.com
-php84 artisan db:show
+cd /www/wwwroot/admin.animehdzero.com   # verify on the box
+grep -E '^DB_(CONNECTION|HOST|PORT|DATABASE)=' .env
 ```
 
-Check the host and database name in the output. If they are not the
-production database, stop.
+`ahd-admin` is Laravel 8.83 and has no `db:show`. Check the host and database
+name in the output. If they are not the production database, stop. To confirm
+what the connection really reaches, open `php84 artisan db` (verify on the box)
+and run `SELECT @@hostname, DATABASE();`.
 
 ### 1b. Check the `members` primary key type
 
@@ -34,9 +38,14 @@ the real table:
 SHOW CREATE TABLE members;
 ```
 
-The `id` column must read `bigint(20) unsigned NOT NULL AUTO_INCREMENT`. If it
-is anything else (for example signed `bigint` or `int`), do not run the
-migration. Fix the schema first.
+The `id` column must read `bigint(20) unsigned NOT NULL AUTO_INCREMENT`
+(MariaDB) or `bigint unsigned NOT NULL AUTO_INCREMENT` (MySQL 8); both satisfy
+the check. If it is anything else (for example signed `bigint` or `int`), do
+not run the migration. Fix the schema first.
+
+The table must also say `ENGINE=InnoDB`. The coin store's `lockForUpdate`, its
+transactions and the no-double-charge argument all depend on InnoDB row
+locking. If `members` is MyISAM, stop.
 
 ### 1c. Run the migration by explicit path
 
@@ -44,14 +53,34 @@ migration. Fix the schema first.
 php84 artisan migrate --force --path=database/migrations/2026_11_07_000001_create_chat_tables.php
 ```
 
-Never run a bare `php84 artisan migrate` on this box. It fails on
-`0001_01_01_000000_create_users_table` with "table already exists", because the
-`migrations` table is out of sync.
+Do not run a bare `php84 artisan migrate` against this remote database: be
+explicit about exactly what runs there. (In `ahd-v2` a bare `migrate` also dies
+on `0001_01_01_000000_create_users_table` because that app's `migrations` table
+is out of sync; that failure mode belongs to `ahd-v2`, not `ahd-admin`.)
 
 **Untested on MySQL:** this migration has only been run against in-memory
 sqlite in the test suite. Its `enum` columns and foreign-key creation have
 not been run against MySQL/MariaDB. Watch the output of the command above
-and check the tables afterwards (`SHOW TABLES LIKE 'chat_%';`).
+and check the tables afterwards (`SHOW TABLES LIKE 'chat_%';`), including
+that every one of them is InnoDB:
+
+```sql
+SELECT table_name, engine FROM information_schema.tables WHERE table_name LIKE 'chat\_%';
+```
+
+**Recovery after a failed run.** MySQL DDL is not transactional, so a run that
+fails part-way can leave some `chat_*` tables behind, and a re-run then dies
+with "table already exists". Inspect first:
+
+```sql
+SHOW TABLES LIKE 'chat\_%';
+SELECT table_name, table_rows FROM information_schema.tables WHERE table_name LIKE 'chat\_%';
+```
+
+DESTRUCTIVE, operator decision: dropping the partial `chat_*` tables (and only
+those, children before parents because of the foreign keys) lets the migration
+run again. Confirm with the owner before running any `DROP TABLE`, and only do
+it if the tables are empty. Never drop anything that is not named `chat_*`.
 
 If ahd-v2 deploys before this runs, `/chat` 500s on first load.
 
@@ -67,6 +96,7 @@ REVERB_APP_SECRET=<generate>
 REVERB_HOST=127.0.0.1
 REVERB_PORT=8080
 REVERB_SCHEME=http
+REVERB_APP_ALLOWED_ORIGINS=animehdzero.net
 
 VITE_REVERB_APP_KEY="${REVERB_APP_KEY}"
 VITE_REVERB_HOST=animehdzero.net
@@ -78,6 +108,12 @@ The two halves are **not** interchangeable. `REVERB_*` is how PHP reaches the
 daemon: loopback, plain http, port 8080. `VITE_REVERB_*` is baked into the
 JS bundle and is how a browser reaches it: the public hostname over wss on
 443, because Cloudflare terminates TLS and never exposes 8080.
+
+`REVERB_APP_ALLOWED_ORIGINS` is a comma-separated list of browser Origin
+**host names** (no scheme, no port) that Reverb accepts for websocket
+connections. It defaults to `animehdzero.net`; it must never be `*`. Client
+events (whispers) are hard-switched off in `config/reverb.php` and per-app rate
+limiting is on, so there is nothing to set for those.
 
 Generate the three `<generate>` values once and keep them. Do not regenerate
 `REVERB_APP_KEY` later without rebuilding the assets (see step 3), because the
@@ -116,7 +152,7 @@ A running Reverb process keeps the code and config it started with.
 ## 4. nginx
 
 ```nginx
-location /app {
+location /app/ {
     proxy_pass http://127.0.0.1:8080;
     proxy_http_version 1.1;
     proxy_set_header Upgrade $http_upgrade;
@@ -127,10 +163,21 @@ location /app {
 }
 ```
 
+Use `/app/` with the trailing slash: a bare `/app` prefix would also catch
+`/apple-touch-icon.png` and `/apps/*`. (Verify the nginx file location on the
+box.)
+
 `proxy_read_timeout` must be long: the default 60s kills idle sockets every
 minute and the room reconnects in a loop.
 
 ## 5. Start the daemon
+
+Check that port 8080 is free first. Reverb refuses to start (or worse, a stale
+process answers) if something already holds it:
+
+```bash
+ss -ltnp | grep ':8080' || echo "8080 is free"
+```
 
 ```bash
 REVERB_WORKER=1 PHP_BIN=php84 pm2 start ecosystem.config.cjs --env production
@@ -146,16 +193,22 @@ pm2 restart ahd-reverb
 pm2 save
 ```
 
-This is PM2 and not cron on purpose: root's crontab currently has a
-syntax error on line 3, so Debian discards the whole file and nothing
-scheduled runs on this box. That still needs fixing, but the chat does not
-wait on it.
+PM2, because Reverb is a long-running process.
+
+`pm2 logs ahd-reverb` only shows connections if Reverb was started with
+`--debug`; without it the log is nearly silent even when the room works.
+
+**Capacity.** Without the `ext-uv` PHP extension and a raised `ulimit -n`,
+Reverb tops out around 1,000 connections, not the ~2,000 the spec assumes.
+Install `ext-uv` and raise the file-descriptor limit for the PM2 process before
+launching to a large audience.
 
 ## 6. Cloudflare
 
 Websockets must be ON for the zone (Network → WebSockets). `/chat` is excluded
-from the shared-cache headers in `SecurityHeaders`, but purge the zone once
-after deploy so no stale guest render survives.
+from the shared-cache headers in `SecurityHeaders`. Do **not** purge the whole
+zone: on this shared host that empties the SEO cache for the entire site.
+`/chat` never existed before this release, so at most purge that single URL.
 
 ## Smoke check
 
@@ -164,7 +217,8 @@ after deploy so no stale guest render survives.
    within a second, without a refresh.
    If it only appears after a refresh, the build did not have the
    `VITE_REVERB_*` values (see 3a). Rebuild and check again.
-3. `pm2 logs ahd-reverb` shows the connection, with no repeated reconnects.
+3. `pm2 logs ahd-reverb` shows the connection, with no repeated reconnects
+   (only if Reverb runs with `--debug`).
 4. Guest response headers for `/chat` contain no `s-maxage`.
 
 ## Known limitations
@@ -189,3 +243,20 @@ assume the opposite.
   The recent-history list is cached in Redis for 300 seconds. A message served
   from that cache can show the sender's style from before a cosmetic change
   until the cache entry expires or is rebuilt.
+- **The member-facing store and in-room moderation have no UI.** Only JSON
+  endpoints exist. The store page is a read-only list, and the lobby has no
+  delete or moderate controls. The admin page has no create-cosmetic form, no
+  grant-cosmetic form, no message list, and no pagination beyond 20 members.
+  There are no nav links to `/chat` or `/dashboard/chat`. This must be built
+  before a public launch.
+- **Pawn and background cosmetics have no visible effect yet.** The server emits
+  `--chat-pawn` and `--chat-background`, but the client and CSS do not use them,
+  and no `public/chat/backgrounds/` assets exist, so backgrounds cannot be
+  saved. Keep pawn and background out of the v1 catalogue until they are built.
+- **Admin dashboard powers are not constrained by `ChatPolicy`, by design.**
+- **No reconnect UI and no refetch after a socket gap.** A client that loses
+  the socket misses messages sent meanwhile until it reloads.
+- **A delete racing a history rebuild can resurrect a deleted line** in the
+  cached history for up to 300 seconds.
+- **Unverified spec note:** the spec mentions a concern about root's crontab.
+  That is unverified and not part of this deploy; do not edit it as a step here.

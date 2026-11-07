@@ -47,7 +47,7 @@ class ChatManagementController extends Controller
 
     public function storeCosmetic(Request $request): JsonResponse
     {
-        $type = CosmeticType::tryFrom((string) $request->input('type'));
+        $type = is_string($request->input('type')) ? CosmeticType::tryFrom($request->input('type')) : null;
 
         if ($type === null) {
             return response()->json(['message' => 'Unknown cosmetic type.'], 422);
@@ -59,7 +59,7 @@ class ChatManagementController extends Controller
             'slug' => ['required', 'string', 'max:60', 'unique:chat_cosmetics,slug'],
             'payload' => ['required', 'array', new CosmeticPayload($type)],
             'price' => ['required', 'integer', 'min:0', 'max:1000000'],
-            'sort' => ['nullable', 'integer'],
+            'sort' => ['nullable', 'integer', 'min:-32768', 'max:32767'],
         ]);
 
         ChatCosmetic::create($validated + ['active' => true]);
@@ -73,7 +73,7 @@ class ChatManagementController extends Controller
             'name' => ['sometimes', 'string', 'max:60'],
             'price' => ['sometimes', 'integer', 'min:0', 'max:1000000'],
             'active' => ['sometimes', 'boolean'],
-            'sort' => ['sometimes', 'integer'],
+            'sort' => ['sometimes', 'integer', 'min:-32768', 'max:32767'],
             'payload' => ['sometimes', 'array', new CosmeticPayload($cosmetic->type)],
         ]);
 

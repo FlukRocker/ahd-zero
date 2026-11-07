@@ -138,7 +138,8 @@ class MessageRenderer
                 $style += CosmeticStyle::for($cosmetic);
             }
 
-            if ($cosmetic->type === CosmeticType::Smiley && $cosmetic->active) {
+            // Owned smilies keep rendering after an admin deactivates them: inventory stays intact in v1.
+            if ($cosmetic->type === CosmeticType::Smiley) {
                 $entry = $this->smiley($cosmetic);
 
                 if ($entry !== null) {

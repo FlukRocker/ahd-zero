@@ -47,6 +47,11 @@ class StoreService
         return $wallet;
     }
 
+    /**
+     * Must not be called inside an open transaction: it opens its own transaction
+     * and relies on that being the outermost one, so the wallet row lock is released at its
+     * commit; nested, the lock would be held until the caller finishes.
+     */
     public function buy(int $memberId, ChatCosmetic $cosmetic): void
     {
         $this->ensureWallet($memberId);
@@ -141,6 +146,11 @@ class StoreService
         });
     }
 
+    /**
+     * Must not be called inside an open transaction: it opens its own transaction
+     * and relies on that being the outermost one, so the wallet row lock is released at its
+     * commit; nested, the lock would be held until the caller finishes.
+     */
     public function grantCoins(int $memberId, int $amount, int $adminId, ?string $note = null): void
     {
         if ($amount < 1) {

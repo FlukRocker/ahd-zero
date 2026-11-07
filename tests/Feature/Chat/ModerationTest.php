@@ -5,7 +5,9 @@ namespace Tests\Feature\Chat;
 use App\Enums\ChatRank;
 use App\Events\Chat\MemberSanctioned;
 use App\Models\ChatMember;
+use App\Models\ChatModerationLog;
 use App\Models\Member;
+use App\Services\Chat\ModerationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
 use Tests\TestCase;
@@ -157,6 +159,24 @@ class ModerationTest extends TestCase
         $this->assertDatabaseHas('chat_moderation_log', ['action' => 'rank_change', 'target_member_id' => $target->id]);
         Event::assertDispatchedTimes(MemberSanctioned::class, 6);
         Event::assertDispatched(MemberSanctioned::class, fn ($e) => $e->uuid === $target->uuid && $e->action === 'kick');
+    }
+
+    public function test_a_failed_log_insert_rolls_the_sanction_back(): void
+    {
+        Event::fake([MemberSanctioned::class]);
+        $target = $this->member('Rin');
+
+        ChatModerationLog::creating(fn () => throw new \RuntimeException('log insert failed'));
+
+        try {
+            $this->app->make(ModerationService::class)->ban(ChatMember::query()->findOrFail($target->id), null, 'spam', null, null);
+            $this->fail('The log failure should have propagated.');
+        } catch (\RuntimeException) {
+            // expected
+        }
+
+        $this->assertNull(ChatMember::query()->findOrFail($target->id)->banned_at);
+        Event::assertNotDispatched(MemberSanctioned::class);
     }
 
     public function test_a_refused_action_writes_no_log_row(): void
