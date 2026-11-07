@@ -91,6 +91,7 @@ class StoreTest extends TestCase
 
         $this->assertSame(99, ChatMember::query()->find($this->member->id)->balance);
         $this->assertDatabaseCount('chat_cosmetic_member', 0);
+        $this->assertDatabaseCount('chat_transactions', 0);
     }
 
     public function test_an_inactive_cosmetic_cannot_be_bought(): void
@@ -102,7 +103,9 @@ class StoreTest extends TestCase
             ->postJson("/chat/store/{$this->cosmetic->id}/buy")
             ->assertStatus(422);
 
+        $this->assertSame(500, ChatMember::query()->find($this->member->id)->balance);
         $this->assertDatabaseCount('chat_cosmetic_member', 0);
+        $this->assertDatabaseCount('chat_transactions', 0);
     }
 
     public function test_buying_twice_charges_once(): void
@@ -205,5 +208,75 @@ class StoreTest extends TestCase
             ->get('/chat/store')
             ->assertOk()
             ->assertSee('Sunset');
+    }
+
+    public function test_a_stale_model_is_refused_when_deactivated_after_loading(): void
+    {
+        $this->fund(500);
+        $stale = ChatCosmetic::query()->findOrFail($this->cosmetic->id);
+        $this->cosmetic->update(['active' => false]);
+
+        try {
+            $this->app->make(\App\Services\Chat\StoreService::class)->buy($this->member->id, $stale);
+            $this->fail('Expected StoreException');
+        } catch (\App\Exceptions\StoreException) {
+        }
+
+        $this->assertSame(500, ChatMember::query()->find($this->member->id)->balance);
+        $this->assertDatabaseCount('chat_cosmetic_member', 0);
+        $this->assertDatabaseCount('chat_transactions', 0);
+    }
+
+    public function test_a_stale_model_is_charged_the_fresh_price(): void
+    {
+        $this->fund(500);
+        $stale = ChatCosmetic::query()->findOrFail($this->cosmetic->id);
+        $this->cosmetic->update(['price' => 300]);
+
+        $this->app->make(\App\Services\Chat\StoreService::class)->buy($this->member->id, $stale);
+
+        $this->assertSame(200, ChatMember::query()->find($this->member->id)->balance);
+        $this->assertDatabaseHas('chat_transactions', ['member_id' => $this->member->id, 'delta' => -300]);
+    }
+
+    public function test_a_stale_cheap_model_cannot_buy_a_repriced_item_without_funds(): void
+    {
+        $this->fund(100);
+        $stale = ChatCosmetic::query()->findOrFail($this->cosmetic->id);
+        $this->cosmetic->update(['price' => 300]);
+
+        try {
+            $this->app->make(\App\Services\Chat\StoreService::class)->buy($this->member->id, $stale);
+            $this->fail('Expected StoreException');
+        } catch (\App\Exceptions\StoreException) {
+        }
+
+        $this->assertSame(100, ChatMember::query()->find($this->member->id)->balance);
+        $this->assertDatabaseCount('chat_transactions', 0);
+    }
+
+    public function test_equipping_does_not_touch_another_members_item_in_the_same_slot(): void
+    {
+        $other = Member::create([
+            'name' => 'Sora',
+            'email' => 'sora@example.test',
+            'password' => 'password123!',
+            'email_verified_at' => now(),
+        ]);
+        \App\Models\ChatCosmeticMember::create([
+            'member_id' => $other->id,
+            'cosmetic_id' => $this->cosmetic->id,
+            'acquired_at' => now(),
+            'source' => 'grant',
+            'equipped' => true,
+        ]);
+        $this->fund(100);
+
+        $this->actingAs($this->member, 'member')->postJson("/chat/store/{$this->cosmetic->id}/buy")->assertOk();
+        $this->actingAs($this->member, 'member')->postJson("/chat/cosmetics/{$this->cosmetic->id}/equip")->assertOk();
+
+        $this->assertDatabaseHas('chat_cosmetic_member', [
+            'member_id' => $other->id, 'cosmetic_id' => $this->cosmetic->id, 'equipped' => true,
+        ]);
     }
 }

@@ -16,24 +16,31 @@ use Illuminate\Support\Facades\DB;
 /**
  * Coins and inventory.
  *
- * Every balance path starts with insertOrIgnore: a member who has never spoken
- * has no chat_members row, and `SELECT ... FOR UPDATE` on a row that does not
- * exist locks nothing — two concurrent first-time writes would both insert and
- * collide on the primary key.
+ * Every balance path first ensures the chat_members row exists, as its own
+ * autocommit write OUTSIDE the money transaction, then locks it inside.
+ * A member who has never spoken has no row, and `SELECT ... FOR UPDATE` on a
+ * missing row locks nothing useful (gap lock, deadlock-prone); inserting inside
+ * the transaction is no better, because INSERT IGNORE on an existing row takes
+ * a shared lock on the duplicate key, so two concurrent buys both hold S and
+ * then deadlock upgrading to X. Committing the insert first leaves nothing held.
  */
 class StoreService
 {
-    /** Ensure the row exists, then take a write lock on it. */
-    public function wallet(int $memberId): ChatMember
+    /** Ensure the row exists (autocommit, no lock held afterwards). */
+    private function ensureWallet(int $memberId): void
     {
-        DB::table('chat_members')->insertOrIgnore([
+        ChatMember::query()->insertOrIgnore([
             'member_id' => $memberId,
             'rank' => 'member',
             'balance' => 0,
             'created_at' => now(),
             'updated_at' => now(),
         ]);
+    }
 
+    /** Lock the (now existing) row. Must be called inside the transaction. */
+    private function lockWallet(int $memberId): ChatMember
+    {
         /** @var ChatMember $wallet */
         $wallet = ChatMember::query()->whereKey($memberId)->lockForUpdate()->firstOrFail();
 
@@ -42,12 +49,18 @@ class StoreService
 
     public function buy(int $memberId, ChatCosmetic $cosmetic): void
     {
-        if (! $cosmetic->active) {
-            throw new StoreException('That item is not available.');
-        }
+        $this->ensureWallet($memberId);
 
         DB::transaction(function () use ($memberId, $cosmetic): void {
-            $wallet = $this->wallet($memberId);
+            $wallet = $this->lockWallet($memberId);
+
+            // Re-read under the lock: the route-bound model may be stale, so
+            // active/price/type must come from the row as it is now.
+            $cosmetic = ChatCosmetic::query()->whereKey($cosmetic->id)->firstOrFail();
+
+            if (! $cosmetic->active) {
+                throw new StoreException('That item is not available.');
+            }
 
             $owned = ChatCosmeticMember::query()
                 ->where('member_id', $memberId)
@@ -90,7 +103,7 @@ class StoreService
                 'reason' => 'purchase',
                 'cosmetic_id' => $cosmetic->id,
             ]);
-        });
+        }, 3);
     }
 
     public function equip(int $memberId, ChatCosmetic $cosmetic): void
@@ -134,8 +147,10 @@ class StoreService
             throw new StoreException('A grant must be a positive number of coins.');
         }
 
+        $this->ensureWallet($memberId);
+
         DB::transaction(function () use ($memberId, $amount, $adminId, $note): void {
-            $wallet = $this->wallet($memberId);
+            $wallet = $this->lockWallet($memberId);
             $balance = $wallet->balance + $amount;
 
             $wallet->update(['balance' => $balance]);
@@ -155,7 +170,7 @@ class StoreService
                 'action' => 'grant_coins',
                 'meta' => ['amount' => $amount, 'note' => $note],
             ]);
-        });
+        }, 3);
     }
 
     public function grantCosmetic(int $memberId, ChatCosmetic $cosmetic, int $adminId): void

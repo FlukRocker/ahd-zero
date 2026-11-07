@@ -24,7 +24,7 @@ class ChatStoreController extends Controller
         return view('chat.store', [
             'cosmetics' => ChatCosmetic::query()->where('active', true)->orderBy('sort')->get(),
             'owned' => ChatCosmeticMember::query()->where('member_id', $member->id)->pluck('cosmetic_id'),
-            'balance' => (int) ChatMember::query()->whereKey($member->id)->value('balance'),
+            'balance' => ChatMember::query()->whereKey($member->id)->value('balance') ?? 0,
         ]);
     }
 
