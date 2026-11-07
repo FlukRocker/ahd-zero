@@ -95,6 +95,7 @@ Input classes the spec implies, that a naive implementation breaks, and which ta
 | `app/Http/Middleware/SecurityHeaders.php:50-55` | Add `chat` to the cache-skip list |
 | `routes/web.php` | Public chat routes + the dashboard chat routes |
 | `resources/js/blade.js` | Register the `chatLobby` Alpine component |
+| `tests/TestCase.php` | Bind `ArrayChatHistory` for every test (Task 4, Step 5) |
 | `config/broadcasting.php` | New file from the Reverb install, committed |
 | `ecosystem.config.cjs` | The `ahd-reverb` process + header comment |
 | `.env.example` | `BROADCAST_CONNECTION`, `REVERB_*`, `VITE_REVERB_*` |
@@ -1409,8 +1410,10 @@ class ChatHistoryTest extends TestCase
 
     public function test_history_comes_from_the_cache_when_it_is_warm(): void
     {
+        // replace(), not push(): push() mirrors LPUSHX and is a no-op on an
+        // empty list, exactly as it is against a missing Redis key.
         $history = $this->app->make(ChatHistory::class);
-        $history->push(['id' => 1, 'body' => 'cached line', 'uuid' => $this->member->uuid]);
+        $history->replace([['id' => 1, 'body' => 'cached line', 'uuid' => $this->member->uuid]]);
 
         $lines = $this->app->make(ChatService::class)->history();
 
@@ -1619,6 +1622,11 @@ class RedisChatHistory implements ChatHistory
                 foreach (array_slice($messages, -self::LIMIT) as $message) {
                     $pipe->lpush(self::KEY, json_encode($message));
                 }
+
+                // A rebuild can race a concurrent delete and write the
+                // deleted row back. A TTL bounds how long a bad rebuild can
+                // survive; chat_messages stays the only authority.
+                $pipe->expire(self::KEY, 300);
             });
         } catch (Throwable $e) {
             Log::warning('Chat history rebuild failed', ['error' => $e->getMessage()]);
@@ -1778,7 +1786,39 @@ class ChatService
 }
 ```
 
-- [ ] **Step 5: Bind the interface**
+- [ ] **Step 5: Bind the fake for every test**
+
+This step belongs to **this** task and no earlier one: `ArrayChatHistory` does
+not exist before Step 3, and adding the binding first would fatal the whole
+suite. Under subagent-driven execution the implementer of Task 8 never sees
+this file, so it cannot be left to a Global Constraints bullet.
+
+In `tests/TestCase.php`:
+
+```php
+<?php
+
+namespace Tests;
+
+use App\Contracts\ChatHistory;
+use App\Support\ArrayChatHistory;
+use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
+
+abstract class TestCase extends BaseTestCase
+{
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // Any test that touches /chat would otherwise open a real Redis
+        // connection — including the SecurityHeaders cache-header test,
+        // which does not look chat-related at all.
+        $this->app->instance(ChatHistory::class, new ArrayChatHistory);
+    }
+}
+```
+
+- [ ] **Step 6: Bind the interface**
 
 In `app/Providers/AppServiceProvider.php`, inside `register()`:
 
@@ -1789,17 +1829,17 @@ In `app/Providers/AppServiceProvider.php`, inside `register()`:
         );
 ```
 
-- [ ] **Step 6: Run the test**
+- [ ] **Step 7: Run the test**
 
 Run: `vendor/bin/phpunit --filter=ChatHistoryTest`
-Expected: PASS, 4 tests.
+Expected: PASS, 5 tests.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
 ./vendor/bin/pint
 vendor/bin/phpstan analyse --memory-limit=1G
-git add app/Contracts app/Support/RedisChatHistory.php app/Support/ArrayChatHistory.php app/Services/Chat/ChatService.php app/Providers/AppServiceProvider.php tests/Feature/Chat/ChatHistoryTest.php
+git add app/Contracts app/Support/RedisChatHistory.php app/Support/ArrayChatHistory.php app/Services/Chat/ChatService.php app/Providers/AppServiceProvider.php tests/TestCase.php tests/Feature/Chat/ChatHistoryTest.php
 git commit -m "feat(chat): cache recent messages behind a seam that can fail"
 ```
 
@@ -1831,8 +1871,9 @@ use App\Models\ChatMember;
 use App\Models\ChatMessage;
 use App\Models\Member;
 use App\Support\ArrayChatHistory;
-use Illuminate\Contracts\Broadcasting\Factory;
+use Illuminate\Broadcasting\Broadcasters\Broadcaster;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Broadcast;
 use Illuminate\Support\Facades\Event;
 use RuntimeException;
 use Tests\TestCase;
@@ -1961,20 +2002,27 @@ class SendMessageTest extends TestCase
 
     public function test_a_dead_broadcaster_does_not_fail_the_send(): void
     {
-        // ShouldRescue is what makes this pass. Without it the message is
-        // saved and the caller still sees a 500, so they send it again.
-        $this->app->bind(Factory::class, fn () => new class implements Factory
+        // The failure has to happen BELOW the rescue point. ShouldRescue is
+        // honoured in BroadcastManager::queue(), so a fake bound at the
+        // Broadcasting\Factory contract replaces the very code being tested
+        // (and would fatal anyway — the dispatcher calls queue(), which that
+        // contract does not declare). Register a driver instead.
+        Broadcast::extend('boom', fn (): Broadcaster => new class extends Broadcaster
         {
-            public function connection($name = null)
-            {
-                return $this;
-            }
+            public function auth($request) {}
 
-            public function broadcast(array $channels, $event, array $payload = [])
+            public function validAuthenticationResponse($request, $result) {}
+
+            public function broadcast(array $channels, $event, array $payload = []): void
             {
                 throw new RuntimeException('reverb is down');
             }
         });
+
+        config([
+            'broadcasting.default' => 'boom',
+            'broadcasting.connections.boom' => ['driver' => 'boom'],
+        ]);
 
         $this->actingAs($this->member, 'member')
             ->postJson('/chat/messages', ['body' => 'still saved'])
@@ -2301,7 +2349,10 @@ Add `use App\Http\Controllers\ChatController;` to the imports at the top.
 - [ ] **Step 8: Run the test**
 
 Run: `vendor/bin/phpunit --filter=SendMessageTest`
-Expected: PASS, 12 tests.
+Expected: PASS, 13 tests.
+
+Prove the broadcast test is not vacuous: remove `ShouldRescue` from `MessageSent`,
+re-run it, and confirm it goes red. Put it back.
 
 If `test_an_unverified_member_may_not_post` returns 302 instead of 403, the `verified` middleware is redirecting rather than aborting — confirm the request is `postJson` (Laravel aborts 403 for JSON) and that the middleware is `verified:member.verification.notice`.
 
@@ -3212,6 +3263,13 @@ Inside the member group in `routes/web.php`:
 Run: `vendor/bin/phpunit --filter=StoreTest`
 Expected: PASS, 8 tests.
 
+**Known limit, shared with Task 4:** `history()` reads MySQL and then calls
+`replace()`. A delete landing between those two steps writes the deleted row
+back into the cache, so "a deleted message cannot reappear" holds for the
+common case but not for that interleaving. Bound it by giving the key a short
+TTL inside `replace()` (`$pipe->expire(self::KEY, 300)`) so a bad rebuild ages
+out, and treat the table as the only authority.
+
 **Known coverage limit:** sqlite ignores `FOR UPDATE`, so no test here proves the lock. What the tests do prove is the outcome — one charge, one inventory row — which the unique index guarantees regardless. Do not add a test that claims to prove the locking.
 
 - [ ] **Step 8: Commit**
@@ -3457,7 +3515,13 @@ use Illuminate\Support\Facades\Broadcast;
  * until they reconnect. That is acceptable only because the room is public;
  * the controls that matter are here and on the POST.
  */
-Broadcast::channel('chat.roster', [RosterChannel::class, 'join'], ['guards' => ['member']]);
+// The class string, NOT [RosterChannel::class, 'join']. Laravel's
+// normalizeChannelHandlerToCallable() treats an array as an ordinary
+// callable — which would be a static call of an instance method — and
+// only resolves a bare class string out of the container to call join().
+// No test covers this line, because the null broadcaster never invokes
+// channel callbacks; it would break in production only.
+Broadcast::channel('chat.roster', RosterChannel::class, ['guards' => ['member']]);
 ```
 
 - [ ] **Step 6: Exclude /chat from the guest cache header**
@@ -3486,9 +3550,15 @@ Append to `tests/Feature/SecurityHeadersTest.php`:
     {
         $this->withoutVite();
 
-        $cacheControl = (string) $this->get('/chat')->headers->get('Cache-Control');
+        // assertOk first: /chat now queries chat_messages on a cache miss,
+        // and a 500 would also carry no s-maxage — the assertion below
+        // would pass while the page was broken.
+        $response = $this->get('/chat')->assertOk();
 
-        $this->assertStringNotContainsString('s-maxage', $cacheControl);
+        $this->assertStringNotContainsString(
+            's-maxage',
+            (string) $response->headers->get('Cache-Control'),
+        );
     }
 ```
 
@@ -3517,8 +3587,21 @@ VITE_REVERB_SCHEME=https
 
 - [ ] **Step 9: Run the tests**
 
-Run: `vendor/bin/phpunit --filter=BroadcastAuthTest` then `vendor/bin/phpunit --filter=SecurityHeadersTest`
-Expected: PASS, 4 and 3 tests.
+Run: `vendor/bin/phpunit --filter=RosterChannelTest`
+Expected: PASS, 4 tests.
+Run: `vendor/bin/phpunit --filter=BroadcastAuthTest`
+Expected: PASS, 2 tests.
+Run: `vendor/bin/phpunit --filter=SecurityHeadersTest`
+Expected: PASS, 3 tests.
+
+Then check the wiring the test suite cannot reach:
+
+```bash
+php artisan channel:list
+```
+
+Expected: `chat.roster` listed against `App\Broadcasting\RosterChannel`. If the
+channel is missing, `withBroadcasting()` is not loading `routes/channels.php`.
 
 - [ ] **Step 10: Commit**
 
@@ -3935,6 +4018,12 @@ class AdminChatTest extends TestCase
             'email' => 'rin@example.test',
             'password' => 'password123!',
         ]);
+
+        // Without this the test is worthless: a login that fails for any
+        // reason (throttle, Turnstile, a verification redirect) leaves a
+        // guest request, which redirects too and passes for the wrong
+        // reason.
+        $this->assertAuthenticatedAs($this->member, 'member');
 
         $this->get('/dashboard/chat')->assertRedirect();
     }
@@ -4610,7 +4699,27 @@ Inject the renderer and add the two keys. Replace the constructor and `record()`
     }
 ```
 
-Note the cost: `record()` now runs two queries per message, so `history()` building 50 records runs 100. Acceptable for a 50-row page; if it shows up in profiling, batch the lookups by member before mapping. Do not pre-optimise it now.
+**Memoise the two lookups — this one is not premature.** `record()` runs two
+queries per message, and since Task 4 a cache miss rebuilds **200** rows, not
+50. Every moderator delete forces a miss. That is ~400 queries on the first
+page load after each delete, on a page that is already the busiest on the
+site. A per-instance memo keyed by member id costs a few lines and makes it
+two queries per distinct speaker:
+
+```php
+    /** @var array<int, array<string, string>> */
+    private array $smileyCache = [];
+
+    /** @var array<int, array<string, string>> */
+    private array $styleCache = [];
+```
+
+Wrap each public lookup in it — `smiliesFor()` becomes
+`$this->smileyCache[$memberId] ??= $this->loadSmilies($memberId);` with the
+existing body moved to the private loader, and `styleFor()` the same. A
+rebuild of 200 messages from twenty speakers then costs forty queries, not
+four hundred. MessageRenderer must be resolved fresh per request for this to
+stay correct — it is, because nothing binds it as a singleton.
 
 - [ ] **Step 5: Render the segments in Blade**
 
