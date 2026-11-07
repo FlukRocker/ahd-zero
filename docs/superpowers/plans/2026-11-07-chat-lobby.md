@@ -1341,3 +1341,1261 @@ git commit -m "feat(chat): validate cosmetic payloads on the way out, not just i
 ```
 
 ---
+
+## Task 4: History, behind a seam
+
+**Files:**
+- Create: `app/Contracts/ChatHistory.php`, `app/Support/RedisChatHistory.php`, `app/Support/ArrayChatHistory.php`
+- Create: `app/Services/Chat/ChatService.php`
+- Modify: `app/Providers/AppServiceProvider.php` (bind the interface)
+- Test: `tests/Feature/Chat/ChatHistoryTest.php`
+
+**Why a seam:** `phpunit.xml` sets `CACHE_STORE=array` and says nothing about Redis, and no existing test touches the Redis facade. A `ChatService` that calls `Redis::lpush` directly would open a real connection during tests — green on a machine with redis running, red in CI. The interface also makes "Redis is down" a testable path instead of a hope.
+
+**Interfaces:**
+- Consumes: `ChatMessage` from Task 1b.
+- Produces:
+  - `ChatHistory::push(array $message): void`, `ChatHistory::recent(int $limit): ?array`, `ChatHistory::forget(): void` — `recent()` returns `null` to mean "I have nothing, go to the database", never an empty array.
+  - `ChatService::history(int $limit = 50): array` — the list of message arrays, newest last.
+  - `ChatService::record(ChatMessage $message): array` — the broadcast-shaped array for one message.
+
+- [ ] **Step 1: Write the failing test**
+
+```php
+<?php
+
+namespace Tests\Feature\Chat;
+
+use App\Contracts\ChatHistory;
+use App\Models\ChatMessage;
+use App\Models\Member;
+use App\Services\Chat\ChatService;
+use App\Support\ArrayChatHistory;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\TestCase;
+
+class ChatHistoryTest extends TestCase
+{
+    use RefreshDatabase;
+
+    private Member $member;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->app->instance(ChatHistory::class, new ArrayChatHistory);
+
+        $this->member = Member::create([
+            'name' => 'Rin',
+            'email' => 'rin@example.test',
+            'password' => 'password123!',
+        ]);
+    }
+
+    public function test_history_comes_from_the_cache_when_it_is_warm(): void
+    {
+        $history = $this->app->make(ChatHistory::class);
+        $history->push(['id' => 1, 'body' => 'cached line', 'uuid' => $this->member->uuid]);
+
+        $lines = $this->app->make(ChatService::class)->history();
+
+        $this->assertCount(1, $lines);
+        $this->assertSame('cached line', $lines[0]['body']);
+    }
+
+    public function test_an_empty_cache_rebuilds_from_the_database_without_deleted_rows(): void
+    {
+        ChatMessage::create(['member_id' => $this->member->id, 'body' => 'kept']);
+        ChatMessage::create(['member_id' => $this->member->id, 'body' => 'removed'])->delete();
+
+        $lines = $this->app->make(ChatService::class)->history();
+
+        $this->assertSame(['kept'], array_column($lines, 'body'));
+    }
+
+    /**
+     * Review Focus #5. Redis being down must not take the page down with it.
+     */
+    public function test_a_throwing_cache_falls_back_to_the_database(): void
+    {
+        ChatMessage::create(['member_id' => $this->member->id, 'body' => 'still here']);
+        $this->app->instance(ChatHistory::class, new ArrayChatHistory(throws: true));
+
+        $lines = $this->app->make(ChatService::class)->history();
+
+        $this->assertSame(['still here'], array_column($lines, 'body'));
+    }
+
+    public function test_pushing_past_the_cap_keeps_only_the_newest(): void
+    {
+        $history = new ArrayChatHistory;
+
+        foreach (range(1, 205) as $i) {
+            $history->push(['id' => $i, 'body' => "line {$i}", 'uuid' => $this->member->uuid]);
+        }
+
+        $recent = $history->recent(500);
+
+        $this->assertCount(200, $recent);
+        $this->assertSame('line 205', end($recent)['body']);
+    }
+}
+```
+
+- [ ] **Step 2: Run it to verify it fails**
+
+Run: `vendor/bin/phpunit --filter=ChatHistoryTest`
+Expected: FAIL — `Interface "App\Contracts\ChatHistory" not found`.
+
+- [ ] **Step 3: Write the contract and both implementations**
+
+`app/Contracts/ChatHistory.php`:
+
+```php
+<?php
+
+namespace App\Contracts;
+
+/**
+ * The recent-messages cache.
+ *
+ * An interface rather than a Redis call because tests must not need a live
+ * Redis, and because "the cache is unavailable" has to be a path we can
+ * exercise rather than assume. recent() returns null — not [] — when it has
+ * nothing to offer, so the caller can tell "empty room" from "ask the database".
+ */
+interface ChatHistory
+{
+    /** Newest-last cap. */
+    public const LIMIT = 200;
+
+    /**
+     * @param  array<string, mixed>  $message
+     */
+    public function push(array $message): void;
+
+    /**
+     * @return array<int, array<string, mixed>>|null  Newest last, or null if unavailable.
+     */
+    public function recent(int $limit): ?array;
+
+    /** Drop everything, so the next read rebuilds from the database. */
+    public function forget(): void;
+}
+```
+
+`app/Support/RedisChatHistory.php`:
+
+```php
+<?php
+
+namespace App\Support;
+
+use App\Contracts\ChatHistory;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Redis;
+use Throwable;
+
+/**
+ * The Redis-list implementation.
+ *
+ * One key, written through the facade so it carries the app prefix — the
+ * instance is shared with kurokami, lnw-anime and neko_miku, and this class
+ * must never touch anything outside its own key.
+ *
+ * Every method swallows Throwable and degrades: a chat that is slow because
+ * Redis is down beats a chat that 500s because Redis is down.
+ */
+class RedisChatHistory implements ChatHistory
+{
+    private const KEY = 'chat:lobby:history';
+
+    public function push(array $message): void
+    {
+        try {
+            Redis::pipeline(function ($pipe): void {
+                $pipe->lpush(self::KEY, json_encode(func_get_arg(0)));
+            });
+        } catch (Throwable $e) {
+            Log::warning('Chat history push failed', ['error' => $e->getMessage()]);
+        }
+    }
+
+    public function recent(int $limit): ?array
+    {
+        try {
+            $raw = Redis::lrange(self::KEY, 0, $limit - 1);
+        } catch (Throwable $e) {
+            Log::warning('Chat history read failed', ['error' => $e->getMessage()]);
+
+            return null;
+        }
+
+        if ($raw === [] || $raw === null) {
+            return null;
+        }
+
+        $decoded = [];
+
+        foreach (array_reverse($raw) as $json) {
+            $row = json_decode((string) $json, true);
+
+            if (is_array($row)) {
+                $decoded[] = $row;
+            }
+        }
+
+        return $decoded === [] ? null : $decoded;
+    }
+
+    public function forget(): void
+    {
+        try {
+            Redis::del(self::KEY);
+        } catch (Throwable $e) {
+            Log::warning('Chat history clear failed', ['error' => $e->getMessage()]);
+        }
+    }
+}
+```
+
+**Note on `push`:** write it as a single pipelined `lpush` + `ltrim`, which `func_get_arg` above does not express. Use this body instead — the pipeline keeps the push and the trim from interleaving with another request's:
+
+```php
+    public function push(array $message): void
+    {
+        $json = json_encode($message);
+
+        try {
+            Redis::pipeline(function ($pipe) use ($json): void {
+                $pipe->lpush(self::KEY, $json);
+                $pipe->ltrim(self::KEY, 0, self::LIMIT - 1);
+            });
+        } catch (Throwable $e) {
+            Log::warning('Chat history push failed', ['error' => $e->getMessage()]);
+        }
+    }
+```
+
+`app/Support/ArrayChatHistory.php`:
+
+```php
+<?php
+
+namespace App\Support;
+
+use App\Contracts\ChatHistory;
+use RuntimeException;
+
+/**
+ * In-memory history for tests. `throws: true` simulates Redis being down so
+ * the database-fallback path is exercised rather than assumed.
+ */
+class ArrayChatHistory implements ChatHistory
+{
+    /** @var array<int, array<string, mixed>> */
+    private array $messages = [];
+
+    public function __construct(private readonly bool $throws = false) {}
+
+    public function push(array $message): void
+    {
+        if ($this->throws) {
+            return;
+        }
+
+        $this->messages[] = $message;
+        $this->messages = array_slice($this->messages, -self::LIMIT);
+    }
+
+    public function recent(int $limit): ?array
+    {
+        if ($this->throws || $this->messages === []) {
+            return null;
+        }
+
+        return array_slice($this->messages, -$limit);
+    }
+
+    public function forget(): void
+    {
+        $this->messages = [];
+    }
+}
+```
+
+Wait — `push()` under `throws: true` must behave like a failed write, and the test for the cap calls `recent(500)` expecting 200 rows, so `recent` must not be capped by `$limit` below the stored count. Both hold above: `array_slice($this->messages, -500)` on 200 rows returns 200.
+
+- [ ] **Step 4: Write ChatService**
+
+```php
+<?php
+
+namespace App\Services\Chat;
+
+use App\Contracts\ChatHistory;
+use App\Models\ChatMessage;
+use App\Support\CosmeticStyle;
+
+/**
+ * Reading and writing the room's message list.
+ *
+ * The cache is an optimisation, never the truth: every read that misses falls
+ * through to chat_messages, and a delete drops the whole key rather than
+ * trying to surgically remove one JSON blob from a Redis list — rebuilding 200
+ * rows is cheap and leaves no way for a deleted message to come back.
+ */
+class ChatService
+{
+    public function __construct(private readonly ChatHistory $history) {}
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    public function history(int $limit = 50): array
+    {
+        $cached = $this->history->recent($limit);
+
+        if ($cached !== null) {
+            return $cached;
+        }
+
+        return ChatMessage::query()
+            ->with('member:id,uuid,name')
+            ->latest('created_at')
+            ->limit($limit)
+            ->get()
+            ->reverse()
+            ->values()
+            ->map(fn (ChatMessage $message): array => $this->record($message))
+            ->all();
+    }
+
+    /**
+     * The broadcast/render shape for one message. Built in one place so the
+     * socket payload and the server-rendered page can never drift apart.
+     *
+     * @return array<string, mixed>
+     */
+    public function record(ChatMessage $message): array
+    {
+        return [
+            'id' => $message->id,
+            'uuid' => $message->member?->uuid,
+            'name' => $message->member?->name,
+            'body' => $message->body,
+            'at' => $message->created_at?->toIso8601String(),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $record
+     */
+    public function remember(array $record): void
+    {
+        $this->history->push($record);
+    }
+
+    public function forgetHistory(): void
+    {
+        $this->history->forget();
+    }
+}
+```
+
+- [ ] **Step 5: Bind the interface**
+
+In `app/Providers/AppServiceProvider.php`, inside `register()`:
+
+```php
+        $this->app->bind(
+            \App\Contracts\ChatHistory::class,
+            \App\Support\RedisChatHistory::class,
+        );
+```
+
+- [ ] **Step 6: Run the test**
+
+Run: `vendor/bin/phpunit --filter=ChatHistoryTest`
+Expected: PASS, 4 tests.
+
+- [ ] **Step 7: Commit**
+
+```bash
+./vendor/bin/pint
+vendor/bin/phpstan analyse --memory-limit=1G
+git add app/Contracts app/Support/RedisChatHistory.php app/Support/ArrayChatHistory.php app/Services/Chat/ChatService.php app/Providers/AppServiceProvider.php tests/Feature/Chat/ChatHistoryTest.php
+git commit -m "feat(chat): cache recent messages behind a seam that can fail"
+```
+
+---
+
+## Task 5: Sending and deleting a message
+
+**Files:**
+- Create: `app/Support/ChatText.php`
+- Create: `app/Events/Chat/MessageSent.php`, `app/Events/Chat/MessageDeleted.php`
+- Create: `app/Http/Controllers/ChatController.php`
+- Modify: `routes/web.php`
+- Test: `tests/Feature/Chat/SendMessageTest.php`
+
+**Interfaces:**
+- Consumes: `ChatService`, `ChatMember`, `ChatPolicy`.
+- Produces: `ChatText::clean(string $body): string`; the routes `chat.show`, `chat.messages.store`, `chat.messages.destroy`; `MessageSent` and `MessageDeleted`, both `ShouldBroadcastNow` on the public channel `chat.lobby`.
+
+- [ ] **Step 1: Write the failing test**
+
+```php
+<?php
+
+namespace Tests\Feature\Chat;
+
+use App\Contracts\ChatHistory;
+use App\Events\Chat\MessageSent;
+use App\Models\ChatMember;
+use App\Models\ChatMessage;
+use App\Models\Member;
+use App\Support\ArrayChatHistory;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Event;
+use Tests\TestCase;
+
+class SendMessageTest extends TestCase
+{
+    use RefreshDatabase;
+
+    private Member $member;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->withoutVite();
+        $this->app->instance(ChatHistory::class, new ArrayChatHistory);
+
+        $this->member = Member::create([
+            'name' => 'Rin',
+            'email' => 'rin@example.test',
+            'password' => 'password123!',
+            'email_verified_at' => now(),
+        ]);
+    }
+
+    public function test_a_guest_may_read_the_lobby(): void
+    {
+        $this->get('/chat')->assertOk();
+    }
+
+    public function test_a_guest_may_not_post(): void
+    {
+        $this->postJson('/chat/messages', ['body' => 'hello'])->assertUnauthorized();
+    }
+
+    public function test_an_unverified_member_may_not_post(): void
+    {
+        $unverified = Member::create([
+            'name' => 'Nobu',
+            'email' => 'nobu@example.test',
+            'password' => 'password123!',
+        ]);
+
+        $this->actingAs($unverified, 'member')
+            ->postJson('/chat/messages', ['body' => 'hello'])
+            ->assertForbidden();
+    }
+
+    public function test_a_verified_member_can_post_and_it_broadcasts(): void
+    {
+        Event::fake([MessageSent::class]);
+
+        $this->actingAs($this->member, 'member')
+            ->postJson('/chat/messages', ['body' => 'hello room'])
+            ->assertCreated();
+
+        $this->assertDatabaseHas('chat_messages', [
+            'member_id' => $this->member->id,
+            'body' => 'hello room',
+        ]);
+        Event::assertDispatched(MessageSent::class);
+    }
+
+    public function test_a_gagged_member_is_refused(): void
+    {
+        ChatMember::create([
+            'member_id' => $this->member->id,
+            'gagged_until' => now()->addMinutes(10),
+        ]);
+
+        $this->actingAs($this->member, 'member')
+            ->postJson('/chat/messages', ['body' => 'hello'])
+            ->assertForbidden();
+
+        $this->assertDatabaseCount('chat_messages', 0);
+    }
+
+    public function test_a_kicked_member_is_refused_for_the_cooldown(): void
+    {
+        ChatMember::create([
+            'member_id' => $this->member->id,
+            'kicked_until' => now()->addSeconds(60),
+        ]);
+
+        $this->actingAs($this->member, 'member')
+            ->postJson('/chat/messages', ['body' => 'hello'])
+            ->assertForbidden();
+    }
+
+    public function test_a_banned_member_is_refused(): void
+    {
+        ChatMember::create(['member_id' => $this->member->id, 'banned_at' => now()]);
+
+        $this->actingAs($this->member, 'member')
+            ->postJson('/chat/messages', ['body' => 'hello'])
+            ->assertForbidden();
+    }
+
+    public function test_the_rate_limiter_stops_a_flood(): void
+    {
+        $responses = [];
+
+        for ($i = 0; $i < 22; $i++) {
+            $responses[] = $this->actingAs($this->member, 'member')
+                ->postJson('/chat/messages', ['body' => "line {$i}"])
+                ->status();
+        }
+
+        $this->assertContains(429, $responses);
+    }
+
+    public function test_control_and_bidi_characters_are_stripped(): void
+    {
+        $this->actingAs($this->member, 'member')
+            ->postJson('/chat/messages', ['body' => "safe\u{202E}reversed\x07"])
+            ->assertCreated();
+
+        $this->assertSame('safereversed', ChatMessage::query()->value('body'));
+    }
+
+    public function test_an_external_link_is_rejected(): void
+    {
+        $this->actingAs($this->member, 'member')
+            ->postJson('/chat/messages', ['body' => 'visit https://spam.example.test now'])
+            ->assertStatus(422);
+    }
+
+    public function test_a_member_may_delete_their_own_message_and_the_cache_is_dropped(): void
+    {
+        $message = ChatMessage::create(['member_id' => $this->member->id, 'body' => 'oops']);
+
+        $this->actingAs($this->member, 'member')
+            ->deleteJson("/chat/messages/{$message->id}")
+            ->assertOk();
+
+        $this->assertSoftDeleted('chat_messages', ['id' => $message->id]);
+    }
+
+    public function test_a_member_may_not_delete_someone_elses_message(): void
+    {
+        $other = Member::create([
+            'name' => 'Aki',
+            'email' => 'aki@example.test',
+            'password' => 'password123!',
+            'email_verified_at' => now(),
+        ]);
+        $message = ChatMessage::create(['member_id' => $other->id, 'body' => 'theirs']);
+
+        $this->actingAs($this->member, 'member')
+            ->deleteJson("/chat/messages/{$message->id}")
+            ->assertForbidden();
+    }
+}
+```
+
+- [ ] **Step 2: Run it to verify it fails**
+
+Run: `vendor/bin/phpunit --filter=SendMessageTest`
+Expected: FAIL — 404 on `/chat`, because no route exists yet.
+
+- [ ] **Step 3: Write the text cleaner**
+
+```php
+<?php
+
+namespace App\Support;
+
+/**
+ * Strips what a message body must never carry.
+ *
+ * C0/C1 control characters do nothing visible but survive escaping, and the
+ * Unicode bidi overrides (U+202A–U+202E, U+2066–U+2069) let a sender reorder
+ * how everyone else's client renders the line — a classic way to make a URL
+ * read as something it is not. Neither belongs in chat.
+ */
+class ChatText
+{
+    public static function clean(string $body): string
+    {
+        $withoutControls = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/u', '', $body) ?? '';
+        $withoutBidi = preg_replace('/[\x{202A}-\x{202E}\x{2066}-\x{2069}]/u', '', $withoutControls) ?? '';
+
+        return trim($withoutBidi);
+    }
+}
+```
+
+- [ ] **Step 4: Write the events**
+
+`app/Events/Chat/MessageSent.php`:
+
+```php
+<?php
+
+namespace App\Events\Chat;
+
+use Illuminate\Broadcasting\Channel;
+use Illuminate\Broadcasting\InteractsWithSockets;
+use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
+use Illuminate\Foundation\Events\Dispatchable;
+use Illuminate\Queue\SerializesModels;
+
+/**
+ * ShouldBroadcastNow, not ShouldBroadcast: production sets
+ * QUEUE_CONNECTION=redis and runs no queue worker by default, so a queued
+ * broadcast would sit in Redis forever while every Event::fake test passed.
+ *
+ * The payload is structured data, never HTML — the client builds text nodes
+ * from it and never touches innerHTML.
+ */
+class MessageSent implements ShouldBroadcastNow
+{
+    use Dispatchable, InteractsWithSockets, SerializesModels;
+
+    /**
+     * @param  array<string, mixed>  $message
+     */
+    public function __construct(public readonly array $message) {}
+
+    public function broadcastOn(): Channel
+    {
+        return new Channel('chat.lobby');
+    }
+
+    public function broadcastAs(): string
+    {
+        return 'message.sent';
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function broadcastWith(): array
+    {
+        return $this->message;
+    }
+}
+```
+
+`app/Events/Chat/MessageDeleted.php`:
+
+```php
+<?php
+
+namespace App\Events\Chat;
+
+use Illuminate\Broadcasting\Channel;
+use Illuminate\Broadcasting\InteractsWithSockets;
+use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
+use Illuminate\Foundation\Events\Dispatchable;
+use Illuminate\Queue\SerializesModels;
+
+class MessageDeleted implements ShouldBroadcastNow
+{
+    use Dispatchable, InteractsWithSockets, SerializesModels;
+
+    public function __construct(public readonly int $messageId) {}
+
+    public function broadcastOn(): Channel
+    {
+        return new Channel('chat.lobby');
+    }
+
+    public function broadcastAs(): string
+    {
+        return 'message.deleted';
+    }
+
+    /**
+     * @return array<string, int>
+     */
+    public function broadcastWith(): array
+    {
+        return ['id' => $this->messageId];
+    }
+}
+```
+
+- [ ] **Step 5: Write the controller**
+
+```php
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Enums\ChatRank;
+use App\Events\Chat\MessageDeleted;
+use App\Events\Chat\MessageSent;
+use App\Models\ChatMember;
+use App\Models\ChatMessage;
+use App\Models\Member;
+use App\Policies\ChatPolicy;
+use App\Rules\NoExternalLinks;
+use App\Services\Chat\ChatService;
+use App\Support\ChatText;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\View\View;
+
+class ChatController extends Controller
+{
+    public function __construct(
+        private readonly ChatService $chat,
+        private readonly ChatPolicy $policy,
+    ) {}
+
+    public function show(): View
+    {
+        return view('chat', [
+            'history' => $this->chat->history(),
+        ]);
+    }
+
+    public function store(Request $request): JsonResponse
+    {
+        $request->merge(['body' => ChatText::clean((string) $request->input('body', ''))]);
+
+        $validated = $request->validate([
+            'body' => ['required', 'string', 'min:1', 'max:500', new NoExternalLinks],
+        ]);
+
+        $member = $this->member($request);
+        $chatMember = $this->chatMember($member);
+
+        if (! $chatMember->canSpeak()) {
+            return response()->json(['message' => $this->refusal($chatMember)], 403);
+        }
+
+        $message = ChatMessage::create([
+            'member_id' => $member->id,
+            'body' => $validated['body'],
+        ]);
+        $message->setRelation('member', $member);
+
+        $record = $this->chat->record($message);
+        $this->chat->remember($record);
+
+        MessageSent::dispatch($record);
+
+        return response()->json($record, 201);
+    }
+
+    public function destroy(Request $request, int $id): JsonResponse
+    {
+        $message = ChatMessage::query()->findOrFail($id);
+        $member = $this->member($request);
+
+        $actorRank = $this->chatMember($member)->rank;
+        $authorRank = ChatMember::query()->find($message->member_id)?->rank ?? ChatRank::Member;
+
+        if (! $this->policy->canDeleteMessage($actorRank, $authorRank, $message->member_id === $member->id)) {
+            return response()->json(['message' => 'You cannot delete that message.'], 403);
+        }
+
+        $message->deleted_by = $member->id;
+        $message->save();
+        $message->delete();
+
+        // Drop the whole cached list rather than surgically removing one blob:
+        // the next read rebuilds 200 rows from MySQL, excluding soft-deleted
+        // ones, so a deleted message cannot reappear.
+        $this->chat->forgetHistory();
+
+        MessageDeleted::dispatch($message->id);
+
+        return response()->json(['deleted' => true]);
+    }
+
+    private function member(Request $request): Member
+    {
+        /** @var Member $member */
+        $member = Auth::guard('member')->user();
+
+        return $member;
+    }
+
+    /** Create the row on demand — a member who has never spoken has none. */
+    private function chatMember(Member $member): ChatMember
+    {
+        return ChatMember::query()->firstOrCreate(['member_id' => $member->id]);
+    }
+
+    private function refusal(ChatMember $chatMember): string
+    {
+        return match (true) {
+            $chatMember->isBanned() => 'You are banned from the chat.',
+            $chatMember->isGagged() => 'You are gagged and cannot send messages right now.',
+            default => 'You were kicked. Try again in a moment.',
+        };
+    }
+}
+```
+
+- [ ] **Step 6: Add the routes**
+
+In `routes/web.php`, after the public page routes and before the admin group:
+
+```php
+// Live chat lobby. Guests read; members post. `verified` must name the member
+// route — the bare middleware redirects to the admin Fortify notice.
+Route::get('/chat', [ChatController::class, 'show'])->name('chat.show');
+
+Route::middleware(['auth:member', 'verified:member.verification.notice'])->group(function (): void {
+    Route::post('/chat/messages', [ChatController::class, 'store'])
+        ->middleware('throttle:20,1')
+        ->name('chat.messages.store');
+
+    Route::delete('/chat/messages/{id}', [ChatController::class, 'destroy'])
+        ->whereNumber('id')
+        ->name('chat.messages.destroy');
+});
+```
+
+Add `use App\Http\Controllers\ChatController;` to the imports at the top.
+
+- [ ] **Step 7: Add a placeholder view so the page route resolves**
+
+`resources/views/chat.blade.php` — Task 9 builds the real thing; this is enough to make Task 5's tests meaningful:
+
+```blade
+@extends('layouts.app')
+
+@section('content')
+    <main class="mx-auto w-full max-w-3xl px-4 py-6">
+        <h1 class="text-xl font-semibold">Chat</h1>
+        <ul id="chat-messages">
+            @foreach ($history as $line)
+                <li>{{ $line['name'] }}: {{ $line['body'] }}</li>
+            @endforeach
+        </ul>
+    </main>
+@endsection
+```
+
+- [ ] **Step 8: Run the test**
+
+Run: `vendor/bin/phpunit --filter=SendMessageTest`
+Expected: PASS, 12 tests.
+
+If `test_an_unverified_member_may_not_post` returns 302 instead of 403, the `verified` middleware is redirecting rather than aborting — confirm the request is `postJson` (Laravel aborts 403 for JSON) and that the middleware is `verified:member.verification.notice`.
+
+- [ ] **Step 9: Commit**
+
+```bash
+./vendor/bin/pint
+vendor/bin/phpstan analyse --memory-limit=1G
+git add app/Support/ChatText.php app/Events app/Http/Controllers/ChatController.php routes/web.php resources/views/chat.blade.php tests/Feature/Chat/SendMessageTest.php
+git commit -m "feat(chat): send and delete messages, with the sanction checks"
+```
+
+---
+
+## Task 6: In-room moderation
+
+**Files:**
+- Create: `app/Services/Chat/ModerationService.php`, `app/Events/Chat/MemberSanctioned.php`
+- Create: `app/Http/Controllers/ChatModerationController.php`
+- Modify: `routes/web.php`
+- Test: `tests/Feature/Chat/ModerationTest.php`
+
+**Interfaces:**
+- Consumes: `ChatPolicy`, `ChatMember`, `ChatRank`.
+- Produces: `ModerationService::gag(ChatMember $actor, ChatMember $target, int $minutes): void`,
+  `kick(...)`, `ban(ChatMember $actor, ChatMember $target, ?int $minutes, ?string $reason): void`,
+  `unban(...)`, `setRank(ChatMember $actor, ChatMember $target, ChatRank $rank): void`.
+  Each one logs to `chat_moderation_log` and dispatches `MemberSanctioned`. Task 10's dashboard calls the same service with `adminId` instead of an actor.
+
+- [ ] **Step 1: Write the failing test**
+
+```php
+<?php
+
+namespace Tests\Feature\Chat;
+
+use App\Enums\ChatRank;
+use App\Models\ChatMember;
+use App\Models\Member;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\TestCase;
+
+class ModerationTest extends TestCase
+{
+    use RefreshDatabase;
+
+    private function member(string $name, ChatRank $rank = ChatRank::Member): Member
+    {
+        $member = Member::create([
+            'name' => $name,
+            'email' => strtolower($name).'@example.test',
+            'password' => 'password123!',
+            'email_verified_at' => now(),
+        ]);
+
+        ChatMember::create(['member_id' => $member->id, 'rank' => $rank]);
+
+        return $member;
+    }
+
+    public function test_a_mod_can_gag_a_member(): void
+    {
+        $mod = $this->member('Mod', ChatRank::Mod);
+        $target = $this->member('Rin');
+
+        $this->actingAs($mod, 'member')->postJson('/chat/moderate', [
+            'action' => 'gag',
+            'target_uuid' => $target->uuid,
+            'minutes' => 10,
+        ])->assertOk();
+
+        $this->assertTrue(ChatMember::query()->find($target->id)->isGagged());
+        $this->assertDatabaseHas('chat_moderation_log', [
+            'actor_member_id' => $mod->id,
+            'target_member_id' => $target->id,
+            'action' => 'gag',
+        ]);
+    }
+
+    public function test_a_mod_cannot_gag_another_mod(): void
+    {
+        $mod = $this->member('Mod', ChatRank::Mod);
+        $other = $this->member('Other', ChatRank::Mod);
+
+        $this->actingAs($mod, 'member')->postJson('/chat/moderate', [
+            'action' => 'gag',
+            'target_uuid' => $other->uuid,
+            'minutes' => 10,
+        ])->assertForbidden();
+
+        $this->assertFalse(ChatMember::query()->find($other->id)->isGagged());
+    }
+
+    public function test_a_mod_cannot_ban_but_an_owner_can(): void
+    {
+        $mod = $this->member('Mod', ChatRank::Mod);
+        $owner = $this->member('Owner', ChatRank::Owner);
+        $target = $this->member('Rin');
+
+        $this->actingAs($mod, 'member')->postJson('/chat/moderate', [
+            'action' => 'ban', 'target_uuid' => $target->uuid,
+        ])->assertForbidden();
+
+        $this->actingAs($owner, 'member')->postJson('/chat/moderate', [
+            'action' => 'ban', 'target_uuid' => $target->uuid, 'reason' => 'spam',
+        ])->assertOk();
+
+        $this->assertTrue(ChatMember::query()->find($target->id)->isBanned());
+    }
+
+    public function test_unban_clears_every_ban_column(): void
+    {
+        $owner = $this->member('Owner', ChatRank::Owner);
+        $target = $this->member('Rin');
+        ChatMember::query()->where('member_id', $target->id)->update([
+            'banned_at' => now(), 'banned_until' => now()->addDay(), 'ban_reason' => 'spam',
+        ]);
+
+        $this->actingAs($owner, 'member')->postJson('/chat/moderate', [
+            'action' => 'unban', 'target_uuid' => $target->uuid,
+        ])->assertOk();
+
+        $row = ChatMember::query()->find($target->id);
+        $this->assertNull($row->banned_at);
+        $this->assertNull($row->banned_until);
+        $this->assertNull($row->ban_reason);
+    }
+
+    public function test_an_owner_may_make_a_mod_but_not_another_owner(): void
+    {
+        $owner = $this->member('Owner', ChatRank::Owner);
+        $target = $this->member('Rin');
+
+        $this->actingAs($owner, 'member')->postJson('/chat/moderate', [
+            'action' => 'rank', 'target_uuid' => $target->uuid, 'rank' => 'mod',
+        ])->assertOk();
+
+        $this->assertSame(ChatRank::Mod, ChatMember::query()->find($target->id)->rank);
+
+        $this->actingAs($owner, 'member')->postJson('/chat/moderate', [
+            'action' => 'rank', 'target_uuid' => $target->uuid, 'rank' => 'owner',
+        ])->assertForbidden();
+    }
+
+    public function test_a_plain_member_cannot_moderate_at_all(): void
+    {
+        $member = $this->member('Rin');
+        $target = $this->member('Aki');
+
+        $this->actingAs($member, 'member')->postJson('/chat/moderate', [
+            'action' => 'kick', 'target_uuid' => $target->uuid,
+        ])->assertForbidden();
+    }
+}
+```
+
+- [ ] **Step 2: Run it to verify it fails**
+
+Run: `vendor/bin/phpunit --filter=ModerationTest`
+Expected: FAIL — 404, no `/chat/moderate` route.
+
+- [ ] **Step 3: Write the event**
+
+```php
+<?php
+
+namespace App\Events\Chat;
+
+use Illuminate\Broadcasting\Channel;
+use Illuminate\Broadcasting\InteractsWithSockets;
+use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
+use Illuminate\Foundation\Events\Dispatchable;
+use Illuminate\Queue\SerializesModels;
+
+/**
+ * Tells the room someone was gagged, kicked, banned or re-ranked.
+ *
+ * The client reacts by dropping its presence subscription when the subject is
+ * itself. That is a UX nicety, NOT a security control — the server-side truth
+ * is the POST check and the presence authorisation. A socket already connected
+ * keeps reading until it reconnects, which is acceptable only because /chat is
+ * world-readable anyway.
+ */
+class MemberSanctioned implements ShouldBroadcastNow
+{
+    use Dispatchable, InteractsWithSockets, SerializesModels;
+
+    public function __construct(
+        public readonly string $uuid,
+        public readonly string $action,
+    ) {}
+
+    public function broadcastOn(): Channel
+    {
+        return new Channel('chat.lobby');
+    }
+
+    public function broadcastAs(): string
+    {
+        return 'member.sanctioned';
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function broadcastWith(): array
+    {
+        return ['uuid' => $this->uuid, 'action' => $this->action];
+    }
+}
+```
+
+- [ ] **Step 4: Write the service**
+
+```php
+<?php
+
+namespace App\Services\Chat;
+
+use App\Enums\ChatRank;
+use App\Events\Chat\MemberSanctioned;
+use App\Models\ChatMember;
+use App\Models\ChatModerationLog;
+
+/**
+ * Applies a moderation action and records it.
+ *
+ * Authorisation is NOT done here — the caller asks ChatPolicy first, because
+ * the dashboard acts as an admin with no rank and the room acts as a member
+ * with one. What this class guarantees is that no action is applied without a
+ * log row and a broadcast.
+ */
+class ModerationService
+{
+    public function gag(ChatMember $target, int $minutes, ?int $actorId, ?int $adminId): void
+    {
+        $target->update(['gagged_until' => now()->addMinutes($minutes)]);
+        $this->record('gag', $target, $actorId, $adminId, ['minutes' => $minutes]);
+    }
+
+    public function ungag(ChatMember $target, ?int $actorId, ?int $adminId): void
+    {
+        $target->update(['gagged_until' => null]);
+        $this->record('ungag', $target, $actorId, $adminId);
+    }
+
+    public function kick(ChatMember $target, ?int $actorId, ?int $adminId): void
+    {
+        $target->update(['kicked_until' => now()->addSeconds(60)]);
+        $this->record('kick', $target, $actorId, $adminId);
+    }
+
+    public function ban(ChatMember $target, ?int $minutes, ?string $reason, ?int $actorId, ?int $adminId): void
+    {
+        $target->update([
+            'banned_at' => now(),
+            'banned_until' => $minutes === null ? null : now()->addMinutes($minutes),
+            'ban_reason' => $reason,
+        ]);
+        $this->record('ban', $target, $actorId, $adminId, ['minutes' => $minutes, 'reason' => $reason]);
+    }
+
+    public function unban(ChatMember $target, ?int $actorId, ?int $adminId): void
+    {
+        $target->update(['banned_at' => null, 'banned_until' => null, 'ban_reason' => null]);
+        $this->record('unban', $target, $actorId, $adminId);
+    }
+
+    public function setRank(ChatMember $target, ChatRank $rank, ?int $actorId, ?int $adminId): void
+    {
+        $target->update(['rank' => $rank]);
+        $this->record('rank_change', $target, $actorId, $adminId, ['rank' => $rank->value]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $meta
+     */
+    private function record(string $action, ChatMember $target, ?int $actorId, ?int $adminId, array $meta = []): void
+    {
+        ChatModerationLog::create([
+            'actor_member_id' => $actorId,
+            'admin_id' => $adminId,
+            'target_member_id' => $target->member_id,
+            'action' => $action,
+            'meta' => $meta === [] ? null : $meta,
+        ]);
+
+        $uuid = $target->member?->uuid;
+
+        if ($uuid !== null) {
+            MemberSanctioned::dispatch($uuid, $action);
+        }
+    }
+}
+```
+
+- [ ] **Step 5: Write the controller**
+
+```php
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Enums\ChatRank;
+use App\Models\ChatMember;
+use App\Models\Member;
+use App\Policies\ChatPolicy;
+use App\Services\Chat\ModerationService;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rule;
+
+/**
+ * In-room moderation. Members only: a site admin moderates from the dashboard,
+ * so every route under /chat stays on one guard instead of threading two
+ * identity types through the policy.
+ */
+class ChatModerationController extends Controller
+{
+    public function __construct(
+        private readonly ChatPolicy $policy,
+        private readonly ModerationService $moderation,
+    ) {}
+
+    public function __invoke(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'action' => ['required', Rule::in(['gag', 'ungag', 'kick', 'ban', 'unban', 'rank'])],
+            'target_uuid' => ['required', 'string'],
+            'minutes' => ['nullable', 'integer', 'min:1', 'max:43200'],
+            'reason' => ['nullable', 'string', 'max:255'],
+            'rank' => ['nullable', Rule::enum(ChatRank::class)],
+        ]);
+
+        /** @var Member $actor */
+        $actor = Auth::guard('member')->user();
+        $actorRow = ChatMember::query()->firstOrCreate(['member_id' => $actor->id]);
+
+        $target = Member::query()->where('uuid', $validated['target_uuid'])->firstOrFail();
+        $targetRow = ChatMember::query()->firstOrCreate(['member_id' => $target->id]);
+        $targetRow->setRelation('member', $target);
+
+        if (! $this->policy->canActOn($actorRow->rank, $targetRow->rank)) {
+            return response()->json(['message' => 'You cannot act on that member.'], 403);
+        }
+
+        $allowed = match ($validated['action']) {
+            'gag', 'ungag' => $this->policy->canGag($actorRow->rank),
+            'kick' => $this->policy->canKick($actorRow->rank),
+            'ban', 'unban' => $this->policy->canBan($actorRow->rank),
+            'rank' => $this->policy->canSetRank($actorRow->rank, ChatRank::from($validated['rank'] ?? '')),
+        };
+
+        if (! $allowed) {
+            return response()->json(['message' => 'Your rank does not allow that.'], 403);
+        }
+
+        match ($validated['action']) {
+            'gag' => $this->moderation->gag($targetRow, $validated['minutes'] ?? 10, $actor->id, null),
+            'ungag' => $this->moderation->ungag($targetRow, $actor->id, null),
+            'kick' => $this->moderation->kick($targetRow, $actor->id, null),
+            'ban' => $this->moderation->ban($targetRow, $validated['minutes'] ?? null, $validated['reason'] ?? null, $actor->id, null),
+            'unban' => $this->moderation->unban($targetRow, $actor->id, null),
+            'rank' => $this->moderation->setRank($targetRow, ChatRank::from($validated['rank']), $actor->id, null),
+        };
+
+        return response()->json(['ok' => true]);
+    }
+}
+```
+
+**Note:** `ChatRank::from('')` throws on an invalid value. Guard the `rank` branch by validating `rank` as `required_if:action,rank` — add that to the rules:
+
+```php
+            'rank' => ['required_if:action,rank', 'nullable', Rule::enum(ChatRank::class)],
+```
+
+and in the `$allowed` match, use `ChatRank::from($validated['rank'])` only in the `'rank'` arm, which validation now guarantees is present.
+
+- [ ] **Step 6: Add the route**
+
+Inside the existing `['auth:member', 'verified:member.verification.notice']` group in `routes/web.php`:
+
+```php
+    Route::post('/chat/moderate', ChatModerationController::class)
+        ->middleware('throttle:30,1')
+        ->name('chat.moderate');
+```
+
+- [ ] **Step 7: Run the test**
+
+Run: `vendor/bin/phpunit --filter=ModerationTest`
+Expected: PASS, 6 tests.
+
+- [ ] **Step 8: Commit**
+
+```bash
+./vendor/bin/pint
+vendor/bin/phpstan analyse --memory-limit=1G
+git add app/Services/Chat/ModerationService.php app/Events/Chat/MemberSanctioned.php app/Http/Controllers/ChatModerationController.php routes/web.php tests/Feature/Chat/ModerationTest.php
+git commit -m "feat(chat): in-room moderation with an audit row per action"
+```
+
+---
