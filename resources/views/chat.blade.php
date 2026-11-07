@@ -1,12 +1,62 @@
 @extends('layouts.app')
 
+@section('title', 'Chat')
+@section('robots', 'noindex,follow')
+
+@php
+    $member = auth('member')->user();
+    // Unverified members read the room but cannot post (the POST route is
+    // behind `verified` and would 403/redirect anyway).
+    $canPost = $member !== null && $member->hasVerifiedEmail();
+
+    // The bootstrap goes in a script block, never in an x-data attribute: a
+    // double quote in a message body would close the attribute and turn the
+    // rest of the payload into markup. The HEX flags also neutralise </script>
+    // and ampersands inside the JSON itself. Members are identified by uuid
+    // only; members.id is never exposed.
+    $bootstrap = json_encode([
+        'history' => $history,
+        'me' => $member?->uuid,
+        'canPost' => $canPost,
+        // No socket config here on purpose: after `artisan optimize` env()
+        // returns null outside config files. The browser values are compiled
+        // into the bundle by Vite instead; see lobby.js.
+    ], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_THROW_ON_ERROR);
+@endphp
+
 @section('content')
-    <main class="mx-auto w-full max-w-3xl px-4 py-6">
-        <h1 class="text-xl font-semibold">Chat</h1>
-        <ul id="chat-messages">
-            @foreach ($history as $line)
-                <li>{{ $line['name'] }}: {{ $line['body'] }}</li>
-            @endforeach
-        </ul>
+    <main class="mx-auto flex w-full max-w-5xl gap-4 px-4 py-6" x-data="chatLobby" x-init="start()">
+        <section class="flex min-h-[60vh] flex-1 flex-col rounded-xl border border-white/10">
+            <ul class="flex-1 space-y-1 overflow-y-auto p-3" x-ref="list">
+                <template x-for="line in messages" :key="line.id">
+                    <x-chat.message />
+                </template>
+            </ul>
+
+            @if ($canPost)
+                <form class="flex gap-2 border-t border-white/10 p-3" @submit.prevent="send()">
+                    <input
+                        class="flex-1 rounded-md bg-black/20 px-3 py-2 text-sm"
+                        x-model="draft"
+                        maxlength="500"
+                        placeholder="Say something"
+                    >
+                    <button class="rounded-md px-3 py-2 text-sm font-medium" :disabled="sending">Send</button>
+                </form>
+                <p class="px-3 pb-3 text-xs text-red-400" x-show="error" x-text="error"></p>
+            @elseif ($member !== null)
+                <p class="border-t border-white/10 p-3 text-sm opacity-70">
+                    <a href="{{ route('member.verification.notice') }}" class="underline">Verify your email to join the conversation</a>
+                </p>
+            @else
+                <p class="border-t border-white/10 p-3 text-sm opacity-70">
+                    <a href="{{ route('member.login') }}" class="underline">Log in to join the conversation</a>
+                </p>
+            @endif
+        </section>
+
+        <x-chat.roster />
     </main>
+
+    <script type="application/json" id="chat-bootstrap">{!! $bootstrap !!}</script>
 @endsection

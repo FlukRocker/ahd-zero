@@ -1,6 +1,7 @@
 import '../css/app.css';
 
 import Alpine from 'alpinejs';
+import chatLobby from './chat/lobby';
 
 // Expose Alpine for inline Blade usage and debugging.
 window.Alpine = Alpine;
@@ -168,5 +169,9 @@ Alpine.data('commentSection', (type, id, canPost) => ({
         return new Date(then).toLocaleDateString('th-TH');
     },
 }));
+
+// Chat lobby. Echo/pusher-js are dynamically imported inside it, so the socket
+// client only downloads on /chat.
+Alpine.data('chatLobby', chatLobby);
 
 Alpine.start();
