@@ -334,6 +334,35 @@ class AdminChatTest extends TestCase
         $this->assertDatabaseHas('chat_cosmetics', ['slug' => 'sunset', 'active' => true]);
     }
 
+    public function test_create_cosmetic_422_returns_field_errors_for_a_bad_colour_and_duplicate_slug(): void
+    {
+        ChatCosmetic::create([
+            'type' => CosmeticType::NameColor,
+            'name' => 'Existing',
+            'slug' => 'taken',
+            'payload' => ['color' => '#ff0000'],
+            'price' => 5,
+            'active' => true,
+        ]);
+
+        $response = $this->actingAs($this->admin)
+            ->postJson('/dashboard/chat/cosmetics', [
+                'type' => 'name_color',
+                'name' => 'Dupe',
+                'slug' => 'taken',
+                'payload' => ['color' => 'red;background:url(//evil)'],
+                'price' => 10,
+                'sort' => 0,
+            ])
+            ->assertStatus(422);
+
+        $errors = array_keys($response->json('errors'));
+        $this->assertContains('slug', $errors);
+        $this->assertNotEmpty(array_filter($errors, fn ($k) => str_starts_with($k, 'payload')));
+        $this->assertDatabaseCount('chat_cosmetics', 1);
+        $this->assertDatabaseMissing('chat_cosmetics', ['name' => 'Dupe']);
+    }
+
     public function test_updating_a_cosmetic_with_a_bad_payload_is_rejected(): void
     {
         $cosmetic = ChatCosmetic::create([

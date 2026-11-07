@@ -14,7 +14,15 @@ import {
 import { dashboard } from '@/routes';
 import { type NavItem } from '@/types';
 import { Link } from '@inertiajs/vue3';
-import { BookOpen, Folder, LayoutGrid, MessageSquare, Settings, Users } from 'lucide-vue-next';
+import {
+    BookOpen,
+    Folder,
+    LayoutGrid,
+    MessageSquare,
+    MessagesSquare,
+    Settings,
+    Users,
+} from 'lucide-vue-next';
 import AppLogo from './AppLogo.vue';
 
 const mainNavItems: NavItem[] = [
@@ -32,6 +40,11 @@ const mainNavItems: NavItem[] = [
         title: 'Comments',
         href: '/dashboard/comments',
         icon: MessageSquare,
+    },
+    {
+        title: 'Chat',
+        href: '/dashboard/chat',
+        icon: MessagesSquare,
     },
     {
         title: 'Site Settings',
