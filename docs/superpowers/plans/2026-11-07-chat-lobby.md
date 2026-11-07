@@ -1512,9 +1512,14 @@ class RedisChatHistory implements ChatHistory
 
     public function push(array $message): void
     {
+        $json = json_encode($message);
+
         try {
-            Redis::pipeline(function ($pipe): void {
-                $pipe->lpush(self::KEY, json_encode(func_get_arg(0)));
+            // One pipeline so the push and the trim cannot interleave with
+            // another request's pair and leave the list over the cap.
+            Redis::pipeline(function ($pipe) use ($json): void {
+                $pipe->lpush(self::KEY, $json);
+                $pipe->ltrim(self::KEY, 0, self::LIMIT - 1);
             });
         } catch (Throwable $e) {
             Log::warning('Chat history push failed', ['error' => $e->getMessage()]);
@@ -1559,23 +1564,6 @@ class RedisChatHistory implements ChatHistory
 }
 ```
 
-**Note on `push`:** write it as a single pipelined `lpush` + `ltrim`, which `func_get_arg` above does not express. Use this body instead — the pipeline keeps the push and the trim from interleaving with another request's:
-
-```php
-    public function push(array $message): void
-    {
-        $json = json_encode($message);
-
-        try {
-            Redis::pipeline(function ($pipe) use ($json): void {
-                $pipe->lpush(self::KEY, $json);
-                $pipe->ltrim(self::KEY, 0, self::LIMIT - 1);
-            });
-        } catch (Throwable $e) {
-            Log::warning('Chat history push failed', ['error' => $e->getMessage()]);
-        }
-    }
-```
 
 `app/Support/ArrayChatHistory.php`:
 
@@ -1624,7 +1612,6 @@ class ArrayChatHistory implements ChatHistory
 }
 ```
 
-Wait — `push()` under `throws: true` must behave like a failed write, and the test for the cap calls `recent(500)` expecting 200 rows, so `recent` must not be capped by `$limit` below the stored count. Both hold above: `array_slice($this->messages, -500)` on 200 rows returns 200.
 
 - [ ] **Step 4: Write ChatService**
 
@@ -2218,9 +2205,13 @@ git commit -m "feat(chat): send and delete messages, with the sanction checks"
 
 **Interfaces:**
 - Consumes: `ChatPolicy`, `ChatMember`, `ChatRank`.
-- Produces: `ModerationService::gag(ChatMember $actor, ChatMember $target, int $minutes): void`,
-  `kick(...)`, `ban(ChatMember $actor, ChatMember $target, ?int $minutes, ?string $reason): void`,
-  `unban(...)`, `setRank(ChatMember $actor, ChatMember $target, ChatRank $rank): void`.
+- Produces, all taking the target row plus `?int $actorId, ?int $adminId` (exactly one of which is set — the room passes an actor, the dashboard passes an admin):
+  `ModerationService::gag(ChatMember $target, int $minutes, ?int $actorId, ?int $adminId): void`,
+  `ungag(ChatMember $target, ?int $actorId, ?int $adminId): void`,
+  `kick(ChatMember $target, ?int $actorId, ?int $adminId): void`,
+  `ban(ChatMember $target, ?int $minutes, ?string $reason, ?int $actorId, ?int $adminId): void`,
+  `unban(ChatMember $target, ?int $actorId, ?int $adminId): void`,
+  `setRank(ChatMember $target, ChatRank $rank, ?int $actorId, ?int $adminId): void`.
   Each one logs to `chat_moderation_log` and dispatches `MemberSanctioned`. Task 10's dashboard calls the same service with `adminId` instead of an actor.
 
 - [ ] **Step 1: Write the failing test**
@@ -2526,7 +2517,9 @@ class ChatModerationController extends Controller
             'target_uuid' => ['required', 'string'],
             'minutes' => ['nullable', 'integer', 'min:1', 'max:43200'],
             'reason' => ['nullable', 'string', 'max:255'],
-            'rank' => ['nullable', Rule::enum(ChatRank::class)],
+            // required_if, because the 'rank' arm below calls ChatRank::from()
+            // and that throws on an empty string.
+            'rank' => ['required_if:action,rank', 'nullable', Rule::enum(ChatRank::class)],
         ]);
 
         /** @var Member $actor */
@@ -2545,7 +2538,7 @@ class ChatModerationController extends Controller
             'gag', 'ungag' => $this->policy->canGag($actorRow->rank),
             'kick' => $this->policy->canKick($actorRow->rank),
             'ban', 'unban' => $this->policy->canBan($actorRow->rank),
-            'rank' => $this->policy->canSetRank($actorRow->rank, ChatRank::from($validated['rank'] ?? '')),
+            'rank' => $this->policy->canSetRank($actorRow->rank, ChatRank::from($validated['rank'])),
         };
 
         if (! $allowed) {
@@ -2566,13 +2559,6 @@ class ChatModerationController extends Controller
 }
 ```
 
-**Note:** `ChatRank::from('')` throws on an invalid value. Guard the `rank` branch by validating `rank` as `required_if:action,rank` — add that to the rules:
-
-```php
-            'rank' => ['required_if:action,rank', 'nullable', Rule::enum(ChatRank::class)],
-```
-
-and in the `$allowed` match, use `ChatRank::from($validated['rank'])` only in the `'rank'` arm, which validation now guarantees is present.
 
 - [ ] **Step 6: Add the route**
 
@@ -2612,8 +2598,8 @@ git commit -m "feat(chat): in-room moderation with an audit row per action"
 - Consumes: `ChatMember`, `ChatCosmetic`, `ChatCosmeticMember`, `ChatTransaction`, `CosmeticType`.
 - Produces:
   - `StoreService::wallet(int $memberId): ChatMember` — `insertOrIgnore` then a locked read.
-  - `StoreService::buy(Member $member, ChatCosmetic $cosmetic): void` — throws `StoreException` with a human message on refusal.
-  - `StoreService::equip(Member $member, ChatCosmetic $cosmetic): void`
+  - `StoreService::buy(int $memberId, ChatCosmetic $cosmetic): void` — throws `StoreException` with a human message on refusal.
+  - `StoreService::equip(int $memberId, ChatCosmetic $cosmetic): void`
   - `StoreService::grantCoins(int $memberId, int $amount, int $adminId, ?string $note): void`
   - `StoreService::grantCosmetic(int $memberId, ChatCosmetic $cosmetic, int $adminId): void`
   - `App\Exceptions\StoreException`
@@ -4088,7 +4074,384 @@ git commit -m "feat(chat): add the dashboard console for ranks, coins and cosmet
 
 ---
 
-## Task 11: Deployment wiring
+## Task 11: Make the cosmetics visible
+
+Until this task, a member can buy and equip a cosmetic and nothing changes on screen, and a smiley code stays literal for everybody. This is the task that makes the store mean something.
+
+**Files:**
+- Modify: `app/Services/Chat/ChatService.php` (extend `record()`)
+- Create: `app/Services/Chat/MessageRenderer.php`
+- Modify: `resources/views/chat.blade.php` (render parts, apply the style map)
+- Modify: `resources/js/chat/lobby.js` (render parts)
+- Test: `tests/Feature/Chat/MessageRenderingTest.php`
+
+**Interfaces:**
+- Consumes: `CosmeticStyle`, `ChatCosmeticMember`, `ChatCosmetic`, `CosmeticType`.
+- Produces: `MessageRenderer::parts(string $body, array $smilies): array` — a list of `['t' => 'text'|'img', 'v' => string]` segments — and `MessageRenderer::styleFor(int $memberId): array<string, string>`.
+  `ChatService::record()` gains two keys: `parts` and `style`.
+
+**Why the server splits the body:** the client must never use `innerHTML`, so it cannot do a find-and-replace on a string and inject `<img>`. Splitting server-side into typed segments lets the client create a text node or an image element per segment and never parse markup.
+
+- [ ] **Step 1: Write the failing test**
+
+```php
+<?php
+
+namespace Tests\Feature\Chat;
+
+use App\Enums\CosmeticType;
+use App\Models\ChatCosmetic;
+use App\Models\ChatCosmeticMember;
+use App\Models\ChatMessage;
+use App\Models\Member;
+use App\Services\Chat\ChatService;
+use App\Services\Chat\MessageRenderer;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\TestCase;
+
+class MessageRenderingTest extends TestCase
+{
+    use RefreshDatabase;
+
+    private Member $member;
+
+    private ChatCosmetic $smiley;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->member = Member::create([
+            'name' => 'Rin',
+            'email' => 'rin@example.test',
+            'password' => 'password123!',
+        ]);
+
+        $this->smiley = ChatCosmetic::create([
+            'type' => CosmeticType::Smiley,
+            'name' => 'Akuma',
+            'slug' => 'akuma',
+            'payload' => ['code' => '(akuma)', 'asset' => 'default'],
+            'price' => 50,
+            'active' => true,
+        ]);
+    }
+
+    private function own(ChatCosmetic $cosmetic, bool $equipped = false): void
+    {
+        ChatCosmeticMember::create([
+            'member_id' => $this->member->id,
+            'cosmetic_id' => $cosmetic->id,
+            'acquired_at' => now(),
+            'source' => 'purchase',
+            'equipped' => $equipped,
+        ]);
+    }
+
+    public function test_a_smiley_the_sender_owns_becomes_an_image_segment(): void
+    {
+        $this->own($this->smiley);
+
+        $message = ChatMessage::create(['member_id' => $this->member->id, 'body' => 'hi (akuma) there']);
+        $record = $this->app->make(ChatService::class)->record($message->fresh()->load('member'));
+
+        $this->assertSame(
+            [
+                ['t' => 'text', 'v' => 'hi '],
+                ['t' => 'img', 'v' => '/chat/pawns/default.svg'],
+                ['t' => 'text', 'v' => ' there'],
+            ],
+            $record['parts'],
+        );
+    }
+
+    public function test_a_smiley_the_sender_does_not_own_stays_literal_text(): void
+    {
+        $message = ChatMessage::create(['member_id' => $this->member->id, 'body' => 'hi (akuma) there']);
+        $record = $this->app->make(ChatService::class)->record($message->fresh()->load('member'));
+
+        $this->assertSame([['t' => 'text', 'v' => 'hi (akuma) there']], $record['parts']);
+    }
+
+    public function test_an_equipped_name_colour_reaches_the_record_as_a_custom_property(): void
+    {
+        $colour = ChatCosmetic::create([
+            'type' => CosmeticType::NameColor,
+            'name' => 'Sunset',
+            'slug' => 'sunset',
+            'payload' => ['color' => '#ff8800'],
+            'price' => 0,
+            'active' => true,
+        ]);
+        $this->own($colour, equipped: true);
+
+        $message = ChatMessage::create(['member_id' => $this->member->id, 'body' => 'hello']);
+        $record = $this->app->make(ChatService::class)->record($message->fresh()->load('member'));
+
+        $this->assertSame(['--chat-name-color' => '#ff8800'], $record['style']);
+    }
+
+    public function test_an_unequipped_cosmetic_does_not_style_anything(): void
+    {
+        $colour = ChatCosmetic::create([
+            'type' => CosmeticType::NameColor,
+            'name' => 'Sunset',
+            'slug' => 'sunset',
+            'payload' => ['color' => '#ff8800'],
+            'price' => 0,
+            'active' => true,
+        ]);
+        $this->own($colour, equipped: false);
+
+        $message = ChatMessage::create(['member_id' => $this->member->id, 'body' => 'hello']);
+
+        $this->assertSame([], $this->app->make(ChatService::class)->record($message->fresh()->load('member'))['style']);
+    }
+
+    public function test_a_body_that_looks_like_a_code_but_is_not_a_cosmetic_is_left_alone(): void
+    {
+        $parts = (new MessageRenderer)->parts('see (notacode) here', []);
+
+        $this->assertSame([['t' => 'text', 'v' => 'see (notacode) here']], $parts);
+    }
+}
+```
+
+- [ ] **Step 2: Run it to verify it fails**
+
+Run: `vendor/bin/phpunit --filter=MessageRenderingTest`
+Expected: FAIL — `Class "App\Services\Chat\MessageRenderer" not found`.
+
+- [ ] **Step 3: Write the renderer**
+
+```php
+<?php
+
+namespace App\Services\Chat;
+
+use App\Enums\CosmeticType;
+use App\Models\ChatCosmetic;
+use App\Models\ChatCosmeticMember;
+use App\Support\CosmeticStyle;
+
+/**
+ * Turns a stored body into typed segments, and a member's equipped items into
+ * inline custom properties.
+ *
+ * The split happens here rather than in the browser because the client is not
+ * allowed to touch innerHTML — it cannot find-and-replace a code with an <img>
+ * without parsing markup. Given segments, it creates a text node or an image
+ * element per segment and never parses anything.
+ *
+ * Ownership is the gate: a code the SENDER does not own stays literal text, so
+ * nobody gets to use a smiley they did not buy by typing its code.
+ */
+class MessageRenderer
+{
+    /**
+     * @param  array<string, string>  $smilies  code => asset url, for codes the sender owns
+     * @return array<int, array{t: string, v: string}>
+     */
+    public function parts(string $body, array $smilies): array
+    {
+        if ($smilies === []) {
+            return [['t' => 'text', 'v' => $body]];
+        }
+
+        $codes = array_map(
+            static fn (string $code): string => preg_quote($code, '/'),
+            array_keys($smilies),
+        );
+
+        $pieces = preg_split(
+            '/('.implode('|', $codes).')/',
+            $body,
+            -1,
+            PREG_SPLIT_DELIM_CAPTURE | PREG_SPLIT_NO_EMPTY,
+        ) ?: [$body];
+
+        $parts = [];
+
+        foreach ($pieces as $piece) {
+            $parts[] = isset($smilies[$piece])
+                ? ['t' => 'img', 'v' => $smilies[$piece]]
+                : ['t' => 'text', 'v' => $piece];
+        }
+
+        return $parts;
+    }
+
+    /**
+     * The smiley codes this member may actually use, as code => asset url.
+     * An asset that no longer exists on disk is dropped, so a stale row cannot
+     * produce a broken image.
+     *
+     * @return array<string, string>
+     */
+    public function smiliesFor(int $memberId): array
+    {
+        $owned = ChatCosmetic::query()
+            ->where('type', CosmeticType::Smiley->value)
+            ->where('active', true)
+            ->whereIn('id', ChatCosmeticMember::query()->where('member_id', $memberId)->select('cosmetic_id'))
+            ->get();
+
+        $map = [];
+
+        foreach ($owned as $cosmetic) {
+            $code = $cosmetic->payload['code'] ?? null;
+            $asset = $cosmetic->payload['asset'] ?? null;
+
+            if (! is_string($code) || ! is_string($asset) || ! CosmeticStyle::isValidSmileyCode($code)) {
+                continue;
+            }
+
+            $url = CosmeticStyle::assetUrl(CosmeticType::Pawn, $asset);
+
+            if ($url !== null) {
+                $map[$code] = $url;
+            }
+        }
+
+        return $map;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function styleFor(int $memberId): array
+    {
+        $equipped = ChatCosmetic::query()
+            ->whereIn('id', ChatCosmeticMember::query()
+                ->where('member_id', $memberId)
+                ->where('equipped', true)
+                ->select('cosmetic_id'))
+            ->get();
+
+        $style = [];
+
+        foreach ($equipped as $cosmetic) {
+            $style += CosmeticStyle::for($cosmetic);
+        }
+
+        return $style;
+    }
+}
+```
+
+- [ ] **Step 4: Extend `ChatService::record()`**
+
+Inject the renderer and add the two keys. Replace the constructor and `record()` in `app/Services/Chat/ChatService.php`:
+
+```php
+    public function __construct(
+        private readonly ChatHistory $history,
+        private readonly MessageRenderer $renderer,
+    ) {}
+```
+
+```php
+    /**
+     * @return array<string, mixed>
+     */
+    public function record(ChatMessage $message): array
+    {
+        $memberId = $message->member_id;
+
+        return [
+            'id' => $message->id,
+            'uuid' => $message->member?->uuid,
+            'name' => $message->member?->name,
+            'body' => $message->body,
+            'parts' => $this->renderer->parts($message->body, $this->renderer->smiliesFor($memberId)),
+            'style' => $this->renderer->styleFor($memberId),
+            'at' => $message->created_at?->toIso8601String(),
+        ];
+    }
+```
+
+Note the cost: `record()` now runs two queries per message, so `history()` building 50 records runs 100. Acceptable for a 50-row page; if it shows up in profiling, batch the lookups by member before mapping. Do not pre-optimise it now.
+
+- [ ] **Step 5: Render the segments in Blade**
+
+Replace the message `<template>` in `resources/views/chat.blade.php`:
+
+```blade
+                <template x-for="line in messages" :key="line.id">
+                    <li class="text-sm">
+                        <span class="chat-name font-medium" :style="styleOf(line)" x-text="line.name"></span>
+                        <span>
+                            <template x-for="(part, index) in line.parts" :key="index">
+                                <span>
+                                    <span x-show="part.t === 'text'" x-text="part.v"></span>
+                                    <img
+                                        x-show="part.t === 'img'"
+                                        :src="part.v"
+                                        alt=""
+                                        class="inline h-4 w-4 align-text-bottom"
+                                    >
+                                </span>
+                            </template>
+                        </span>
+                    </li>
+                </template>
+```
+
+Add to the page's styles (inside the existing `@section('content')` block, above `<main>`):
+
+```blade
+    <style>
+        .chat-name {
+            color: var(--chat-name-color, inherit);
+            text-shadow: var(--chat-glow, none);
+        }
+        .chat-name:has(+ *)[style*="--chat-name-gradient"] {
+            background: var(--chat-name-gradient);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+    </style>
+```
+
+- [ ] **Step 6: Build the style string in the component**
+
+Add to `resources/js/chat/lobby.js`:
+
+```js
+        /**
+         * Builds the inline custom properties for one line. The values come
+         * from CosmeticStyle, which re-validated them server-side, and the
+         * keys are a fixed set of `--chat-*` names — so this cannot emit a
+         * property the page did not define.
+         */
+        styleOf(line) {
+            return Object.entries(line.style ?? {})
+                .map(([property, value]) => `${property}: ${value}`)
+                .join('; ');
+        },
+```
+
+- [ ] **Step 7: Run the tests**
+
+Run: `vendor/bin/phpunit --filter=MessageRenderingTest`
+Expected: PASS, 5 tests.
+Run: `vendor/bin/phpunit`
+Expected: the whole suite green — `ChatHistoryTest` and `SendMessageTest` both build records, so a broken `record()` shows up there first.
+
+- [ ] **Step 8: Commit**
+
+```bash
+./vendor/bin/pint
+vendor/bin/phpstan analyse --memory-limit=1G
+pnpm build
+git add app/Services/Chat/MessageRenderer.php app/Services/Chat/ChatService.php resources/views/chat.blade.php resources/js/chat/lobby.js tests/Feature/Chat/MessageRenderingTest.php
+git commit -m "feat(chat): show equipped cosmetics and the smilies a sender owns"
+```
+
+---
+
+## Task 12: Deployment wiring
 
 Everything in this task is **configuration an operator applies**, not something an agent runs against production. Write the files; hand over the commands.
 
@@ -4253,3 +4616,5 @@ Recorded here so the spec and the plan do not silently disagree. Executors read 
 3. **History lives behind `App\Contracts\ChatHistory`**, which the spec described only as "a Redis list". The seam exists so tests do not need a live Redis and so the failure path is testable.
 4. **`chat_messages` gains `deleted_by_admin_id`**, which the spec implied ("exactly one of actor/admin") but did not list as a column.
 5. **Admin grants of cosmetics got a route** (`POST dashboard/chat/members/{id}/cosmetics`). The spec defined `source = grant` with nothing able to produce it.
+6. **The broadcast record carries `parts` and `style`** (Task 11). The spec said the client builds elements from structured data and never uses `innerHTML`; typed segments are what make that possible, since a find-and-replace of a smiley code into an `<img>` cannot be done without parsing markup.
+7. **`record()` costs two extra queries per message.** Noted in Task 11 rather than pre-optimised: batching by member is the fix if a 50-row page ever shows up in profiling.
