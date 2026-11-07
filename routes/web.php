@@ -6,6 +6,7 @@ use App\Http\Controllers\Admin\SiteSettingsController;
 use App\Http\Controllers\AnimeController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\ChatController;
+use App\Http\Controllers\ChatModerationController;
 use App\Http\Controllers\CommentController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DirectoryController;
@@ -122,6 +123,10 @@ Route::middleware(['auth:member', 'verified:member.verification.notice'])->group
     Route::delete('/chat/messages/{id}', [ChatController::class, 'destroy'])
         ->whereNumber('id')
         ->name('chat.messages.destroy');
+
+    Route::post('/chat/moderate', ChatModerationController::class)
+        ->middleware('throttle:30,1')
+        ->name('chat.moderate');
 });
 
 // Authenticated admin area
