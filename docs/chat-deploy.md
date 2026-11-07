@@ -249,16 +249,26 @@ assume the opposite.
   page has a create-cosmetic form, grants, a message list with removal, and
   paginated members.
 - **Lobby moderation is deliberately narrow.** A lobby ban is a fixed 24 hour
-  timed ban after a confirm; permanent bans are admin-page only. Deleting
-  someone else's message asks for confirmation. Gag is 10 minutes and kick is a
-  fixed server-side duration. Rank changes, ungag and unban are admin-page only.
+  timed ban after a confirm; permanent bans are site-admin only. Deleting
+  someone else's message asks for confirmation. Gag is 10 minutes and kick is
+  60 seconds (`ModerationService::kick`). There is no ungag control anywhere;
+  gags expire after 10 minutes.
+- **"Admin-page only" means the site-admin dashboard.** That is the web-guard
+  dashboard at `/dashboard/chat`. A chat owner or main owner is a member and
+  cannot reach it, so owners have no in-room UI for unban, permanent ban or
+  rank changes. Only a site admin can do those.
 - **No unequip in the store.** The store only equips; equipping another item
   in the same slot replaces it.
-- **The `myRank` hint can be stale.** The lobby derives it from cached history,
-  so controls may show or hide wrongly for a while. The server is authoritative
-  and rejects anything the viewer is not allowed to do.
-- **Pawn and background types are hidden** from the store and from the admin
-  create-cosmetic form.
+- **The controls shown can be stale.** `myRank` is a fresh `ChatMember` query
+  at page load, but each history line's author `rank` comes from the Redis
+  history (up to 300 seconds old) and live lines never refresh it. The UI may
+  offer or hide a control that the server then accepts or refuses. The server
+  is the authority, and its message is shown inline.
+- **Pawn and background types are hidden in the UI only.** They are hidden from
+  the store and from the admin create-cosmetic form, but `buy` does not filter
+  by type at the API level, so keep such cosmetics inactive.
+- **The lobby message menu opens downward** and may be clipped on the bottom
+  line. This is unverified in a browser.
 - **Pawn and background cosmetics have no visible effect yet.** The server emits
   `--chat-pawn` and `--chat-background`, but the client and CSS do not use them,
   and no `public/chat/backgrounds/` assets exist, so backgrounds cannot be

@@ -71,6 +71,9 @@ describe('chat lobby moderation', () => {
     }
 
     beforeEach(() => {
+        // happy-dom ships no window.confirm/prompt; give vi.spyOn something to wrap.
+        window.confirm = () => false;
+        window.prompt = () => null;
         const meta = document.createElement('meta');
         meta.name = 'csrf-token';
         meta.content = 't';
@@ -78,6 +81,7 @@ describe('chat lobby moderation', () => {
     });
 
     afterEach(() => {
+        vi.restoreAllMocks();
         vi.unstubAllGlobals();
         document.head.innerHTML = '';
     });
@@ -115,13 +119,14 @@ describe('chat lobby moderation', () => {
     it('test_ban_asks_for_a_reason_and_cancel_sends_nothing', async () => {
         const fetchMock = respond(200, { ok: true });
         const lobby = make();
-        vi.stubGlobal('window', Object.assign(window, { prompt: vi.fn(() => null), confirm: vi.fn(() => true) }));
+        const promptSpy = vi.spyOn(window, 'prompt').mockReturnValue(null);
+        const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
         await lobby.moderate(lobby.messages[0], 'ban');
-        expect(window.prompt).toHaveBeenCalled();
+        expect(promptSpy).toHaveBeenCalled();
         expect(fetchMock).not.toHaveBeenCalled();
 
-        (window.prompt as any).mockReturnValue('spam');
-        (window.confirm as any).mockReturnValue(false);
+        promptSpy.mockReturnValue('spam');
+        confirmSpy.mockReturnValue(false);
         await lobby.moderate(lobby.messages[0], 'ban');
         expect(fetchMock).not.toHaveBeenCalled();
     });
@@ -129,8 +134,8 @@ describe('chat lobby moderation', () => {
     it('test_ban_sends_a_timed_ban', async () => {
         const fetchMock = respond(200, { ok: true });
         const lobby = make();
-        const confirmMock = vi.fn(() => true);
-        vi.stubGlobal('window', Object.assign(window, { prompt: vi.fn(() => 'spam'), confirm: confirmMock }));
+        vi.spyOn(window, 'prompt').mockReturnValue('spam');
+        const confirmMock = vi.spyOn(window, 'confirm').mockReturnValue(true);
         await lobby.moderate(lobby.messages[0], 'ban');
         expect(confirmMock.mock.calls[0][0]).toContain('24 hours');
         expect(JSON.parse((fetchMock.mock.calls[0] as any)[1].body)).toEqual({
@@ -143,7 +148,7 @@ describe('chat lobby moderation', () => {
 
     it('test_delete_removes_the_line_only_after_ok', async () => {
         const lobby = make();
-        vi.stubGlobal('window', Object.assign(window, { confirm: vi.fn(() => true) }));
+        vi.spyOn(window, 'confirm').mockReturnValue(true);
         const fetchMock = respond(403, { message: 'You cannot delete that message.' });
         await lobby.moderate(lobby.messages[0], 'delete');
         expect((fetchMock.mock.calls[0] as any)[0]).toBe('/chat/messages/1');
@@ -158,8 +163,7 @@ describe('chat lobby moderation', () => {
 
     it('test_delete_confirms_only_for_someone_elses_message', async () => {
         respond(200, { deleted: true });
-        const confirmMock = vi.fn(() => false);
-        vi.stubGlobal('window', Object.assign(window, { confirm: confirmMock }));
+        const confirmMock = vi.spyOn(window, 'confirm').mockReturnValue(false);
         const lobby = make();
         await lobby.moderate(lobby.messages[0], 'delete');
         expect(confirmMock).toHaveBeenCalledTimes(1);
@@ -168,6 +172,34 @@ describe('chat lobby moderation', () => {
         await lobby.moderate(lobby.messages[1], 'delete');
         expect(confirmMock).toHaveBeenCalledTimes(1);
         expect(lobby.messages.map((m: { id: number }) => m.id)).toEqual([1]);
+    });
+
+    it('test_delete_404_removes_the_line_without_an_error', async () => {
+        vi.spyOn(window, 'confirm').mockReturnValue(true);
+        respond(404, { message: 'Not found.' });
+        const lobby = make();
+        await lobby.moderate(lobby.messages[0], 'delete');
+        expect(lobby.error).toBe('');
+        expect(lobby.messages.map((m: { id: number }) => m.id)).toEqual([2]);
+    });
+
+    it('test_non_ok_json_null_body_shows_the_fallback_not_offline', async () => {
+        respond(500, null);
+        const lobby = make();
+        await lobby.moderate(lobby.messages[0], 'gag');
+        expect(lobby.error).toBe('That action failed.');
+    });
+
+    it('test_successful_moderation_shows_done_and_next_action_clears_it', async () => {
+        respond(200, { ok: true });
+        const lobby = make();
+        await lobby.moderate(lobby.messages[0], 'gag');
+        expect(lobby.notice).toBe('Done.');
+
+        respond(403, { message: 'Nope.' });
+        await lobby.moderate(lobby.messages[0], 'kick');
+        expect(lobby.notice).toBe('');
+        expect(lobby.error).toBe('Nope.');
     });
 
     it('test_429_without_a_message_falls_back', async () => {

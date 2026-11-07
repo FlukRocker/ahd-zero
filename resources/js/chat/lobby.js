@@ -186,6 +186,7 @@ export default function chatLobby() {
 
             this.sending = true;
             this.error = '';
+            this.notice = '';
 
             try {
                 const response = await fetch('/chat/messages', {
@@ -259,6 +260,7 @@ export default function chatLobby() {
 
             this.busy = { ...this.busy, [key]: true };
             this.error = '';
+            this.notice = '';
             this.menuOpen = null;
 
             try {
@@ -274,7 +276,14 @@ export default function chatLobby() {
                 });
 
                 if (!response.ok) {
-                    const payload = await response.json().catch(() => ({}));
+                    if (action === 'delete' && response.status === 404) {
+                        // Already deleted elsewhere: drop the line, no error text.
+                        this.messages = this.messages.filter((m) => m.id !== line.id);
+
+                        return;
+                    }
+
+                    const payload = (await response.json().catch(() => ({}))) ?? {};
                     this.error = payload.message
                         ?? (response.status === 429 ? 'Slow down a moment.' : 'That action failed.');
 
@@ -283,6 +292,8 @@ export default function chatLobby() {
 
                 if (action === 'delete') {
                     this.messages = this.messages.filter((m) => m.id !== line.id);
+                } else {
+                    this.notice = 'Done.';
                 }
             } catch {
                 this.error = 'You appear to be offline.';

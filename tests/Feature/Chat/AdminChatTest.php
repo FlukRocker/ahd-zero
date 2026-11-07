@@ -93,6 +93,18 @@ class AdminChatTest extends TestCase
         );
     }
 
+    public function test_a_message_with_a_missing_member_row_does_not_break_the_console(): void
+    {
+        $message = ChatMessage::create(['member_id' => $this->member->id, 'body' => 'orphan']);
+        DB::table('members')->where('id', $this->member->id)->delete();
+
+        $this->actingAs($this->admin)->get('/dashboard/chat')->assertOk()->assertInertia(
+            fn ($page) => $page->has('messages', 1)
+                ->where('messages.0.id', $message->id)
+                ->where('messages.0.member', null)
+        );
+    }
+
     public function test_an_admin_grants_coins_and_the_ledger_matches(): void
     {
         $this->actingAs($this->admin)

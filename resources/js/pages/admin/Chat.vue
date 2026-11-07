@@ -22,6 +22,7 @@ interface ParticipantRow {
     rank: string;
     balance: number;
     banned_at: string | null;
+    banned_until: string | null;
     member: { name: string } | null;
 }
 
@@ -151,7 +152,7 @@ async function send(
         return { ok: false, status: res.status };
     }
 
-    router.reload({ preserveScroll: true });
+    router.reload();
 
     return { ok: true, status: res.status };
 }
@@ -268,11 +269,18 @@ function setRank(memberId: number, rank: string) {
     void send('POST', `/dashboard/chat/members/${memberId}/rank`, { rank });
 }
 
+function isBanned(row: ParticipantRow): boolean {
+    return (
+        Boolean(row.banned_at) &&
+        (!row.banned_until || new Date(row.banned_until) > new Date())
+    );
+}
+
 function toggleBan(row: ParticipantRow) {
     void send(
         'POST',
         `/dashboard/chat/members/${row.member_id}/ban`,
-        row.banned_at ? { unban: true } : {},
+        isBanned(row) ? { unban: true } : {},
     );
 }
 
@@ -337,7 +345,7 @@ function deactivate(id: number) {
                                     Grant coins
                                 </button>
                                 <button type="button" @click="toggleBan(row)">
-                                    {{ row.banned_at ? 'Unban' : 'Ban' }}
+                                    {{ isBanned(row) ? 'Unban' : 'Ban' }}
                                 </button>
                                 <select v-model="grantChoice[row.member_id]">
                                     <option value="" disabled>Cosmetic…</option>

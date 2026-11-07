@@ -27,8 +27,17 @@ class ChatController extends Controller
 
     public function show(): View
     {
+        $member = Auth::guard('member')->user();
+
+        // Fresh query, not derived from cached history. Null for guests;
+        // 'member' when there is no chat_members row yet.
+        $myRank = $member === null
+            ? null
+            : ChatMember::query()->whereKey($member->id)->first()?->rank->value ?? ChatRank::Member->value;
+
         return view('chat', [
             'history' => $this->chat->history(),
+            'myRank' => $myRank,
         ]);
     }
 

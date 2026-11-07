@@ -52,7 +52,9 @@ class ChatManagementController extends Controller
                     'id' => $message->id,
                     'body' => $message->body,
                     'created_at' => (string) $message->created_at?->toIso8601String(),
-                    'member' => ['id' => (int) $message->member_id, 'name' => $message->member->name],
+                    'member' => $message->member === null
+                        ? null
+                        : ['id' => (int) $message->member_id, 'name' => $message->member->name],
                 ])
                 ->values()
                 ->all(),
