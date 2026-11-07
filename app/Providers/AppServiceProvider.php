@@ -4,6 +4,9 @@ namespace App\Providers;
 
 use App\View\Composers\GlobalComposer;
 use App\View\Composers\SidebarComposer;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
@@ -38,6 +41,11 @@ class AppServiceProvider extends ServiceProvider
         if (str_starts_with((string) config('app.url'), 'https://')) {
             URL::forceScheme('https');
         }
+
+        // Per member, not per IP: the member guard is not the default guard,
+        // so the stock `throttle:N,M` would key on IP and punish shared NATs.
+        RateLimiter::for('chat-send', fn (Request $request): Limit => Limit::perMinute(20)
+            ->by('chat-send:'.($request->user('member')?->getAuthIdentifier() ?? $request->ip())));
 
         View::composer('*', GlobalComposer::class);
         // Scoped to the one component so admin/Inertia views never run the

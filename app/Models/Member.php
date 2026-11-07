@@ -12,7 +12,7 @@ use Illuminate\Notifications\Notifiable;
 use Override;
 
 /**
- * @property string $id
+ * @property int $id
  * @property string $uuid
  * @property string $name
  * @property string $email

@@ -5,6 +5,7 @@ use App\Http\Controllers\Admin\MemberManagementController;
 use App\Http\Controllers\Admin\SiteSettingsController;
 use App\Http\Controllers\AnimeController;
 use App\Http\Controllers\CategoryController;
+use App\Http\Controllers\ChatController;
 use App\Http\Controllers\CommentController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DirectoryController;
@@ -107,6 +108,20 @@ Route::prefix('api')->group(function (): void {
         Route::get('/notifications/comments', [CommentController::class, 'notifications']);
         Route::post('/notifications/comments/read', [CommentController::class, 'markRead']);
     });
+});
+
+// Live chat lobby. Guests read; members post. `verified` must name the member
+// route — the bare middleware redirects to the admin Fortify notice.
+Route::get('/chat', [ChatController::class, 'show'])->name('chat.show');
+
+Route::middleware(['auth:member', 'verified:member.verification.notice'])->group(function (): void {
+    Route::post('/chat/messages', [ChatController::class, 'store'])
+        ->middleware('throttle:chat-send')
+        ->name('chat.messages.store');
+
+    Route::delete('/chat/messages/{id}', [ChatController::class, 'destroy'])
+        ->whereNumber('id')
+        ->name('chat.messages.destroy');
 });
 
 // Authenticated admin area
