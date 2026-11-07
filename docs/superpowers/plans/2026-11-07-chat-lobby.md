@@ -2599,3 +2599,1057 @@ git commit -m "feat(chat): in-room moderation with an audit row per action"
 ```
 
 ---
+
+## Task 7: The store — buying, equipping, granting
+
+**Files:**
+- Create: `app/Services/Chat/StoreService.php`, `app/Http/Controllers/ChatStoreController.php`
+- Create: `resources/views/chat/store.blade.php`
+- Modify: `routes/web.php`
+- Test: `tests/Feature/Chat/StoreTest.php`
+
+**Interfaces:**
+- Consumes: `ChatMember`, `ChatCosmetic`, `ChatCosmeticMember`, `ChatTransaction`, `CosmeticType`.
+- Produces:
+  - `StoreService::wallet(int $memberId): ChatMember` — `insertOrIgnore` then a locked read.
+  - `StoreService::buy(Member $member, ChatCosmetic $cosmetic): void` — throws `StoreException` with a human message on refusal.
+  - `StoreService::equip(Member $member, ChatCosmetic $cosmetic): void`
+  - `StoreService::grantCoins(int $memberId, int $amount, int $adminId, ?string $note): void`
+  - `StoreService::grantCosmetic(int $memberId, ChatCosmetic $cosmetic, int $adminId): void`
+  - `App\Exceptions\StoreException`
+
+- [ ] **Step 1: Write the failing test**
+
+```php
+<?php
+
+namespace Tests\Feature\Chat;
+
+use App\Enums\CosmeticType;
+use App\Models\ChatCosmetic;
+use App\Models\ChatMember;
+use App\Models\Member;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\TestCase;
+
+class StoreTest extends TestCase
+{
+    use RefreshDatabase;
+
+    private Member $member;
+
+    private ChatCosmetic $cosmetic;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->withoutVite();
+
+        $this->member = Member::create([
+            'name' => 'Rin',
+            'email' => 'rin@example.test',
+            'password' => 'password123!',
+            'email_verified_at' => now(),
+        ]);
+
+        $this->cosmetic = ChatCosmetic::create([
+            'type' => CosmeticType::NameColor,
+            'name' => 'Sunset',
+            'slug' => 'sunset',
+            'payload' => ['color' => '#ff8800'],
+            'price' => 100,
+            'active' => true,
+        ]);
+    }
+
+    private function fund(int $coins): void
+    {
+        ChatMember::updateOrCreate(['member_id' => $this->member->id], ['balance' => $coins]);
+    }
+
+    /** Review Focus #1: no chat_members row exists yet. */
+    public function test_a_first_time_member_with_no_row_can_be_granted_and_buy(): void
+    {
+        $this->assertDatabaseCount('chat_members', 0);
+
+        $this->app->make(\App\Services\Chat\StoreService::class)
+            ->grantCoins($this->member->id, 150, 1, 'welcome');
+
+        $this->actingAs($this->member, 'member')
+            ->postJson("/chat/store/{$this->cosmetic->id}/buy")
+            ->assertOk();
+
+        $this->assertSame(50, ChatMember::query()->find($this->member->id)->balance);
+    }
+
+    public function test_buying_debits_the_balance_and_writes_a_ledger_row(): void
+    {
+        $this->fund(100);
+
+        $this->actingAs($this->member, 'member')
+            ->postJson("/chat/store/{$this->cosmetic->id}/buy")
+            ->assertOk();
+
+        $this->assertSame(0, ChatMember::query()->find($this->member->id)->balance);
+        $this->assertDatabaseHas('chat_transactions', [
+            'member_id' => $this->member->id,
+            'delta' => -100,
+            'balance_after' => 0,
+            'reason' => 'purchase',
+        ]);
+        $this->assertDatabaseHas('chat_cosmetic_member', [
+            'member_id' => $this->member->id,
+            'cosmetic_id' => $this->cosmetic->id,
+            'source' => 'purchase',
+        ]);
+    }
+
+    public function test_insufficient_funds_is_refused_without_charging(): void
+    {
+        $this->fund(99);
+
+        $this->actingAs($this->member, 'member')
+            ->postJson("/chat/store/{$this->cosmetic->id}/buy")
+            ->assertStatus(422);
+
+        $this->assertSame(99, ChatMember::query()->find($this->member->id)->balance);
+        $this->assertDatabaseCount('chat_cosmetic_member', 0);
+    }
+
+    public function test_an_inactive_cosmetic_cannot_be_bought(): void
+    {
+        $this->fund(500);
+        $this->cosmetic->update(['active' => false]);
+
+        $this->actingAs($this->member, 'member')
+            ->postJson("/chat/store/{$this->cosmetic->id}/buy")
+            ->assertStatus(422);
+
+        $this->assertDatabaseCount('chat_cosmetic_member', 0);
+    }
+
+    public function test_buying_twice_charges_once(): void
+    {
+        $this->fund(250);
+
+        $this->actingAs($this->member, 'member')->postJson("/chat/store/{$this->cosmetic->id}/buy")->assertOk();
+        $this->actingAs($this->member, 'member')->postJson("/chat/store/{$this->cosmetic->id}/buy")->assertStatus(422);
+
+        $this->assertSame(150, ChatMember::query()->find($this->member->id)->balance);
+        $this->assertDatabaseCount('chat_cosmetic_member', 1);
+        $this->assertDatabaseCount('chat_transactions', 1);
+    }
+
+    public function test_equipping_clears_the_previous_item_in_the_same_slot(): void
+    {
+        $gradient = ChatCosmetic::create([
+            'type' => CosmeticType::NameGradient,
+            'name' => 'Dawn',
+            'slug' => 'dawn',
+            'payload' => ['from' => '#ff0000', 'to' => '#0000ff', 'angle' => 45],
+            'price' => 0,
+            'active' => true,
+        ]);
+        $this->fund(1000);
+
+        $this->actingAs($this->member, 'member')->postJson("/chat/store/{$this->cosmetic->id}/buy");
+        $this->actingAs($this->member, 'member')->postJson("/chat/store/{$gradient->id}/buy");
+
+        $this->actingAs($this->member, 'member')->postJson("/chat/cosmetics/{$this->cosmetic->id}/equip")->assertOk();
+        $this->actingAs($this->member, 'member')->postJson("/chat/cosmetics/{$gradient->id}/equip")->assertOk();
+
+        // name_color and name_gradient share the `name` slot, so only one wins.
+        $this->assertDatabaseHas('chat_cosmetic_member', [
+            'cosmetic_id' => $gradient->id, 'equipped' => true,
+        ]);
+        $this->assertDatabaseHas('chat_cosmetic_member', [
+            'cosmetic_id' => $this->cosmetic->id, 'equipped' => false,
+        ]);
+    }
+
+    public function test_equipping_something_you_do_not_own_is_forbidden(): void
+    {
+        $this->actingAs($this->member, 'member')
+            ->postJson("/chat/cosmetics/{$this->cosmetic->id}/equip")
+            ->assertForbidden();
+    }
+
+    public function test_an_admin_grant_writes_a_ledger_row_that_sums_to_the_balance(): void
+    {
+        $service = $this->app->make(\App\Services\Chat\StoreService::class);
+
+        $service->grantCoins($this->member->id, 60, 1, 'event prize');
+        $service->grantCoins($this->member->id, 40, 1, 'second prize');
+
+        $balance = ChatMember::query()->find($this->member->id)->balance;
+
+        $this->assertSame(100, $balance);
+        $this->assertSame(100, (int) \App\Models\ChatTransaction::query()
+            ->where('member_id', $this->member->id)->sum('delta'));
+    }
+}
+```
+
+- [ ] **Step 2: Run it to verify it fails**
+
+Run: `vendor/bin/phpunit --filter=StoreTest`
+Expected: FAIL — `Target class [App\Services\Chat\StoreService] does not exist.`
+
+- [ ] **Step 3: Write the exception**
+
+`app/Exceptions/StoreException.php`:
+
+```php
+<?php
+
+namespace App\Exceptions;
+
+use RuntimeException;
+
+/**
+ * A refusal the member should see: not enough coins, already owned, inactive.
+ * The controller turns it into a 422 with the message, never a 500.
+ */
+class StoreException extends RuntimeException {}
+```
+
+- [ ] **Step 4: Write the service**
+
+```php
+<?php
+
+namespace App\Services\Chat;
+
+use App\Exceptions\StoreException;
+use App\Models\ChatCosmetic;
+use App\Models\ChatCosmeticMember;
+use App\Models\ChatMember;
+use App\Models\ChatModerationLog;
+use App\Models\ChatTransaction;
+use Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\DB;
+
+/**
+ * Coins and inventory.
+ *
+ * Every balance path starts with insertOrIgnore: a member who has never spoken
+ * has no chat_members row, and `SELECT ... FOR UPDATE` on a row that does not
+ * exist locks nothing — two concurrent first-time writes would both insert and
+ * collide on the primary key.
+ */
+class StoreService
+{
+    /** Ensure the row exists, then take a write lock on it. */
+    public function wallet(int $memberId): ChatMember
+    {
+        DB::table('chat_members')->insertOrIgnore([
+            'member_id' => $memberId,
+            'rank' => 'member',
+            'balance' => 0,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        /** @var ChatMember $wallet */
+        $wallet = ChatMember::query()->whereKey($memberId)->lockForUpdate()->firstOrFail();
+
+        return $wallet;
+    }
+
+    public function buy(int $memberId, ChatCosmetic $cosmetic): void
+    {
+        if (! $cosmetic->active) {
+            throw new StoreException('That item is not available.');
+        }
+
+        DB::transaction(function () use ($memberId, $cosmetic): void {
+            $wallet = $this->wallet($memberId);
+
+            $owned = ChatCosmeticMember::query()
+                ->where('member_id', $memberId)
+                ->where('cosmetic_id', $cosmetic->id)
+                ->exists();
+
+            if ($owned) {
+                throw new StoreException('You already own that item.');
+            }
+
+            if ($wallet->balance < $cosmetic->price) {
+                throw new StoreException('You do not have enough coins.');
+            }
+
+            try {
+                ChatCosmeticMember::create([
+                    'member_id' => $memberId,
+                    'cosmetic_id' => $cosmetic->id,
+                    'acquired_at' => now(),
+                    'source' => 'purchase',
+                    'equipped' => false,
+                ]);
+            } catch (QueryException $e) {
+                // The unique index is the real guard; the check above only
+                // narrows the window. 23000 = integrity constraint violation.
+                if ($e->getCode() === '23000') {
+                    throw new StoreException('You already own that item.');
+                }
+
+                throw $e;
+            }
+
+            $balance = $wallet->balance - $cosmetic->price;
+            $wallet->update(['balance' => $balance]);
+
+            ChatTransaction::create([
+                'member_id' => $memberId,
+                'delta' => -$cosmetic->price,
+                'balance_after' => $balance,
+                'reason' => 'purchase',
+                'cosmetic_id' => $cosmetic->id,
+            ]);
+        });
+    }
+
+    public function equip(int $memberId, ChatCosmetic $cosmetic): void
+    {
+        $slot = $cosmetic->type->slot();
+
+        if ($slot === null) {
+            throw new StoreException('That item is always available and is not equipped.');
+        }
+
+        DB::transaction(function () use ($memberId, $cosmetic, $slot): void {
+            $owned = ChatCosmeticMember::query()
+                ->where('member_id', $memberId)
+                ->where('cosmetic_id', $cosmetic->id)
+                ->lockForUpdate()
+                ->first();
+
+            if ($owned === null) {
+                throw new StoreException('You do not own that item.');
+            }
+
+            $sameSlotTypes = array_values(array_filter(
+                \App\Enums\CosmeticType::cases(),
+                fn (\App\Enums\CosmeticType $type): bool => $type->slot() === $slot,
+            ));
+
+            ChatCosmeticMember::query()
+                ->where('member_id', $memberId)
+                ->whereIn('cosmetic_id', ChatCosmetic::query()
+                    ->whereIn('type', array_map(fn ($type) => $type->value, $sameSlotTypes))
+                    ->pluck('id'))
+                ->update(['equipped' => false]);
+
+            $owned->update(['equipped' => true]);
+        });
+    }
+
+    public function grantCoins(int $memberId, int $amount, int $adminId, ?string $note = null): void
+    {
+        if ($amount < 1) {
+            throw new StoreException('A grant must be a positive number of coins.');
+        }
+
+        DB::transaction(function () use ($memberId, $amount, $adminId, $note): void {
+            $wallet = $this->wallet($memberId);
+            $balance = $wallet->balance + $amount;
+
+            $wallet->update(['balance' => $balance]);
+
+            ChatTransaction::create([
+                'member_id' => $memberId,
+                'delta' => $amount,
+                'balance_after' => $balance,
+                'reason' => 'admin_grant',
+                'admin_id' => $adminId,
+                'note' => $note,
+            ]);
+
+            ChatModerationLog::create([
+                'admin_id' => $adminId,
+                'target_member_id' => $memberId,
+                'action' => 'grant_coins',
+                'meta' => ['amount' => $amount, 'note' => $note],
+            ]);
+        });
+    }
+
+    public function grantCosmetic(int $memberId, ChatCosmetic $cosmetic, int $adminId): void
+    {
+        DB::transaction(function () use ($memberId, $cosmetic, $adminId): void {
+            ChatCosmeticMember::query()->firstOrCreate(
+                ['member_id' => $memberId, 'cosmetic_id' => $cosmetic->id],
+                ['acquired_at' => now(), 'source' => 'grant', 'equipped' => false],
+            );
+
+            ChatModerationLog::create([
+                'admin_id' => $adminId,
+                'target_member_id' => $memberId,
+                'action' => 'grant_cosmetic',
+                'meta' => ['cosmetic_id' => $cosmetic->id],
+            ]);
+        });
+    }
+}
+```
+
+- [ ] **Step 5: Write the controller**
+
+```php
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Exceptions\StoreException;
+use App\Models\ChatCosmetic;
+use App\Models\ChatCosmeticMember;
+use App\Models\ChatMember;
+use App\Models\Member;
+use App\Services\Chat\StoreService;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\View\View;
+
+class ChatStoreController extends Controller
+{
+    public function __construct(private readonly StoreService $store) {}
+
+    public function index(): View
+    {
+        $member = $this->member();
+
+        return view('chat.store', [
+            'cosmetics' => ChatCosmetic::query()->where('active', true)->orderBy('sort')->get(),
+            'owned' => ChatCosmeticMember::query()->where('member_id', $member->id)->pluck('cosmetic_id'),
+            'balance' => ChatMember::query()->find($member->id)?->balance ?? 0,
+        ]);
+    }
+
+    public function buy(ChatCosmetic $cosmetic): JsonResponse
+    {
+        try {
+            $this->store->buy($this->member()->id, $cosmetic);
+        } catch (StoreException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+
+        return response()->json(['ok' => true]);
+    }
+
+    public function equip(ChatCosmetic $cosmetic): JsonResponse
+    {
+        try {
+            $this->store->equip($this->member()->id, $cosmetic);
+        } catch (StoreException $e) {
+            // Not owning it is an authorisation failure, not a validation one.
+            return response()->json(['message' => $e->getMessage()], 403);
+        }
+
+        return response()->json(['ok' => true]);
+    }
+
+    private function member(): Member
+    {
+        /** @var Member $member */
+        $member = Auth::guard('member')->user();
+
+        return $member;
+    }
+}
+```
+
+- [ ] **Step 6: Add routes and the store view**
+
+Inside the member group in `routes/web.php`:
+
+```php
+    Route::get('/chat/store', [ChatStoreController::class, 'index'])->name('chat.store');
+
+    Route::post('/chat/store/{cosmetic}/buy', [ChatStoreController::class, 'buy'])
+        ->middleware('throttle:30,1')
+        ->name('chat.store.buy');
+
+    Route::post('/chat/cosmetics/{cosmetic}/equip', [ChatStoreController::class, 'equip'])
+        ->middleware('throttle:60,1')
+        ->name('chat.cosmetics.equip');
+```
+
+`resources/views/chat/store.blade.php`:
+
+```blade
+@extends('layouts.app')
+
+@section('content')
+    <main class="mx-auto w-full max-w-3xl px-4 py-6">
+        <h1 class="text-xl font-semibold">Chat store</h1>
+        <p class="text-sm opacity-70">Balance: {{ $balance }} coins</p>
+
+        <ul class="mt-4 grid gap-3 sm:grid-cols-2">
+            @foreach ($cosmetics as $cosmetic)
+                <li class="rounded-lg border border-white/10 p-3">
+                    <span class="font-medium">{{ $cosmetic->name }}</span>
+                    <span class="text-sm opacity-70">{{ $cosmetic->price }} coins</span>
+                    @if ($owned->contains($cosmetic->id))
+                        <span class="text-xs uppercase opacity-60">Owned</span>
+                    @endif
+                </li>
+            @endforeach
+        </ul>
+    </main>
+@endsection
+```
+
+- [ ] **Step 7: Run the test**
+
+Run: `vendor/bin/phpunit --filter=StoreTest`
+Expected: PASS, 8 tests.
+
+**Known coverage limit:** sqlite ignores `FOR UPDATE`, so no test here proves the lock. What the tests do prove is the outcome — one charge, one inventory row — which the unique index guarantees regardless. Do not add a test that claims to prove the locking.
+
+- [ ] **Step 8: Commit**
+
+```bash
+./vendor/bin/pint
+vendor/bin/phpstan analyse --memory-limit=1G
+git add app/Services/Chat/StoreService.php app/Exceptions/StoreException.php app/Http/Controllers/ChatStoreController.php resources/views/chat/store.blade.php routes/web.php tests/Feature/Chat/StoreTest.php
+git commit -m "feat(chat): buy, equip and grant cosmetics without double charging"
+```
+
+---
+
+## Task 8: Wire up broadcasting
+
+**Files:**
+- Modify: `bootstrap/app.php`
+- Modify: `app/Http/Middleware/SecurityHeaders.php:50-55`
+- Create: `routes/channels.php`
+- Create: `config/broadcasting.php` (from the Reverb package)
+- Modify: `.env.example`
+- Test: `tests/Feature/Chat/BroadcastAuthTest.php`, extend `tests/Feature/SecurityHeadersTest.php`
+
+**Interfaces:**
+- Consumes: `ChatMember`, `Member`.
+- Produces: a working `POST /broadcasting/auth` under the member guard; the presence channel `chat.roster` returning `['uuid', 'name', 'rank']`.
+
+- [ ] **Step 1: Write the failing test**
+
+```php
+<?php
+
+namespace Tests\Feature\Chat;
+
+use App\Models\ChatMember;
+use App\Models\Member;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\TestCase;
+
+class BroadcastAuthTest extends TestCase
+{
+    use RefreshDatabase;
+
+    private Member $member;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->member = Member::create([
+            'name' => 'Rin',
+            'email' => 'rin@example.test',
+            'password' => 'password123!',
+            'email_verified_at' => now(),
+        ]);
+    }
+
+    public function test_the_broadcasting_auth_route_exists(): void
+    {
+        $this->assertTrue(
+            app('router')->getRoutes()->hasNamedRoute('broadcasting.auth')
+            || collect(app('router')->getRoutes())->contains(
+                fn ($route) => $route->uri() === 'broadcasting/auth'
+            )
+        );
+    }
+
+    public function test_a_guest_cannot_authorize_the_roster(): void
+    {
+        $this->postJson('/broadcasting/auth', [
+            'socket_id' => '1234.5678',
+            'channel_name' => 'presence-chat.roster',
+        ])->assertForbidden();
+    }
+
+    public function test_a_banned_member_cannot_authorize_the_roster(): void
+    {
+        ChatMember::create(['member_id' => $this->member->id, 'banned_at' => now()]);
+
+        $this->actingAs($this->member, 'member')->postJson('/broadcasting/auth', [
+            'socket_id' => '1234.5678',
+            'channel_name' => 'presence-chat.roster',
+        ])->assertForbidden();
+    }
+
+    public function test_a_member_joins_the_roster_as_a_uuid_never_a_numeric_id(): void
+    {
+        $this->actingAs($this->member, 'member')->postJson('/broadcasting/auth', [
+            'socket_id' => '1234.5678',
+            'channel_name' => 'presence-chat.roster',
+        ])
+            ->assertOk()
+            ->assertSee($this->member->uuid)
+            ->assertDontSee('"id":'.$this->member->id, false);
+    }
+}
+```
+
+- [ ] **Step 2: Run it to verify it fails**
+
+Run: `vendor/bin/phpunit --filter=BroadcastAuthTest`
+Expected: FAIL — 404; `bootstrap/app.php` registers no broadcasting routes, so `/broadcasting/auth` does not exist.
+
+- [ ] **Step 3: Install Reverb**
+
+```bash
+composer require laravel/reverb
+```
+
+Do **not** run `php artisan install:broadcasting` — it is interactive and rewrites the JS entry. Create `config/broadcasting.php` by copying the package default and keeping the `reverb` connection:
+
+```bash
+cp vendor/laravel/framework/src/Illuminate/Broadcasting/../../../config/broadcasting.php config/broadcasting.php 2>/dev/null \
+  || php -r "copy('vendor/laravel/reverb/stubs/broadcasting.php','config/broadcasting.php');"
+```
+
+If neither path exists in this Laravel version, write `config/broadcasting.php` with `'default' => env('BROADCAST_CONNECTION', 'null')` and a `reverb` connection block taken from the Reverb README. Commit the file either way — it is application config, not vendor code.
+
+- [ ] **Step 4: Register broadcasting in `bootstrap/app.php`**
+
+Add the `withBroadcasting` call to the `Application::configure(...)` chain, directly after `withRouting(...)`:
+
+```php
+    ->withBroadcasting(
+        __DIR__.'/../routes/channels.php',
+        // The member guard, not web: the chat's participants are members, and
+        // the default guard would 403 every one of them.
+        ['prefix' => 'broadcasting', 'middleware' => ['web', 'auth:member']],
+    )
+```
+
+- [ ] **Step 5: Write `routes/channels.php`**
+
+```php
+<?php
+
+use App\Models\ChatMember;
+use App\Models\Member;
+use Illuminate\Support\Facades\Broadcast;
+
+/**
+ * `chat.lobby` is public and needs no entry here — messages, deletions and
+ * sanction notices go to everyone, including guests, because the room is
+ * world-readable.
+ *
+ * `chat.roster` is the presence channel: the online list. It is named
+ * `chat.roster` rather than reusing `chat.lobby` so one channel name never has
+ * two meanings.
+ *
+ * Note what this cannot do: authorisation runs at SUBSCRIBE time, so banning
+ * someone does not evict a socket that is already connected. They keep reading
+ * until they reconnect. That is acceptable only because the room is public;
+ * the controls that matter are here and on the POST.
+ */
+Broadcast::channel('chat.roster', function (Member $member): array|bool {
+    $chatMember = ChatMember::query()->find($member->id);
+
+    if ($chatMember?->isBanned() === true) {
+        return false;
+    }
+
+    return [
+        'uuid' => $member->uuid,
+        'name' => $member->name,
+        'rank' => $chatMember?->rank->value ?? 'member',
+    ];
+}, ['guards' => ['member']]);
+```
+
+- [ ] **Step 6: Exclude /chat from the guest cache header**
+
+In `app/Http/Middleware/SecurityHeaders.php`, add `chat` to the skip list (currently lines 50–55):
+
+```php
+        $skip = str_starts_with($path, 'dashboard')
+            || str_starts_with($path, 'settings')
+            || str_starts_with($path, 'api/')
+            || str_starts_with($path, 'login')
+            || str_starts_with($path, 'member/')
+            // A chat page is per-viewer and changes every second. Letting
+            // Cloudflare hold it for s-maxage=300 would serve one visitor's
+            // render — roster and all — to the next.
+            || str_starts_with($path, 'chat')
+            || str_starts_with($path, 'two-factor');
+```
+
+- [ ] **Step 7: Add the header test**
+
+Append to `tests/Feature/SecurityHeadersTest.php`:
+
+```php
+    public function test_the_chat_page_is_never_handed_to_a_shared_cache(): void
+    {
+        $this->withoutVite();
+
+        $cacheControl = (string) $this->get('/chat')->headers->get('Cache-Control');
+
+        $this->assertStringNotContainsString('s-maxage', $cacheControl);
+    }
+```
+
+- [ ] **Step 8: Add the env keys**
+
+In `.env.example`:
+
+```dotenv
+BROADCAST_CONNECTION=reverb
+
+# Server → daemon. The app talks to Reverb over loopback.
+REVERB_APP_ID=
+REVERB_APP_KEY=
+REVERB_APP_SECRET=
+REVERB_HOST=127.0.0.1
+REVERB_PORT=8080
+REVERB_SCHEME=http
+
+# Browser → public host. Cloudflare terminates TLS, so the browser never sees
+# port 8080 and must use wss on 443 — these are NOT the same values as above.
+VITE_REVERB_APP_KEY="${REVERB_APP_KEY}"
+VITE_REVERB_HOST=ahdzero.com
+VITE_REVERB_PORT=443
+VITE_REVERB_SCHEME=https
+```
+
+- [ ] **Step 9: Run the tests**
+
+Run: `vendor/bin/phpunit --filter=BroadcastAuthTest` then `vendor/bin/phpunit --filter=SecurityHeadersTest`
+Expected: PASS, 4 and 3 tests.
+
+- [ ] **Step 10: Commit**
+
+```bash
+./vendor/bin/pint
+vendor/bin/phpstan analyse --memory-limit=1G
+git add bootstrap/app.php routes/channels.php config/broadcasting.php composer.json composer.lock app/Http/Middleware/SecurityHeaders.php .env.example tests/Feature/Chat/BroadcastAuthTest.php tests/Feature/SecurityHeadersTest.php
+git commit -m "feat(chat): register broadcasting on the member guard"
+```
+
+---
+
+## Task 9: The lobby page
+
+**Files:**
+- Rewrite: `resources/views/chat.blade.php`
+- Create: `resources/views/components/chat/message.blade.php`, `resources/views/components/chat/roster.blade.php`
+- Create: `resources/js/chat/lobby.js`
+- Modify: `resources/js/blade.js`
+- Test: `tests/Feature/Chat/ChatPageTest.php`
+
+**Interfaces:**
+- Consumes: `ChatService::history()`, `CosmeticStyle`.
+- Produces: the Alpine component `chatLobby(config)` registered on `window`, and a `<script type="application/json" id="chat-bootstrap">` block holding `{history, me, echo}`.
+
+- [ ] **Step 1: Write the failing test**
+
+```php
+<?php
+
+namespace Tests\Feature\Chat;
+
+use App\Contracts\ChatHistory;
+use App\Models\ChatMessage;
+use App\Models\Member;
+use App\Support\ArrayChatHistory;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\TestCase;
+
+class ChatPageTest extends TestCase
+{
+    use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->withoutVite();
+        $this->app->instance(ChatHistory::class, new ArrayChatHistory);
+    }
+
+    /**
+     * Review Focus #2. The dangerous pattern is x-data="{ msgs: @json($h) }":
+     * a double quote inside a body closes the attribute and everything after
+     * it is markup. The bootstrap must live in a script block, hex-escaped.
+     */
+    public function test_a_hostile_message_body_cannot_break_out_of_the_bootstrap(): void
+    {
+        $member = Member::create([
+            'name' => 'Rin',
+            'email' => 'rin@example.test',
+            'password' => 'password123!',
+        ]);
+        ChatMessage::create([
+            'member_id' => $member->id,
+            'body' => '"><script>alert(1)</script>',
+        ]);
+
+        $response = $this->get('/chat');
+
+        $response->assertOk();
+        $response->assertDontSee('<script>alert(1)</script>', false);
+        $response->assertSee('<', false);
+    }
+
+    public function test_the_bootstrap_block_is_json_not_an_attribute(): void
+    {
+        $this->get('/chat')
+            ->assertSee('id="chat-bootstrap"', false)
+            ->assertSee('type="application/json"', false);
+    }
+
+    public function test_a_guest_sees_the_room_read_only(): void
+    {
+        $this->get('/chat')
+            ->assertOk()
+            ->assertSee('Log in to join the conversation');
+    }
+}
+```
+
+- [ ] **Step 2: Run it to verify it fails**
+
+Run: `vendor/bin/phpunit --filter=ChatPageTest`
+Expected: FAIL — the placeholder view from Task 5 has no bootstrap block.
+
+- [ ] **Step 3: Write the view**
+
+`resources/views/chat.blade.php`:
+
+```blade
+@extends('layouts.app')
+
+@section('title', 'Chat')
+@section('robots', 'noindex,follow')
+
+@php
+    // The bootstrap goes in a script block, never in an x-data attribute: a
+    // double quote in a message body would close the attribute and turn the
+    // rest of the payload into markup. The HEX flags also neutralise </script>
+    // and ampersands inside the JSON itself.
+    $bootstrap = json_encode([
+        'history' => $history,
+        'me' => auth('member')->user()?->uuid,
+        'canPost' => auth('member')->check(),
+        'reverb' => [
+            'key' => config('broadcasting.connections.reverb.key'),
+            'host' => env('VITE_REVERB_HOST'),
+            'port' => (int) env('VITE_REVERB_PORT', 443),
+            'scheme' => env('VITE_REVERB_SCHEME', 'https'),
+        ],
+    ], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
+@endphp
+
+@section('content')
+    <main class="mx-auto flex w-full max-w-5xl gap-4 px-4 py-6" x-data="chatLobby()" x-init="start()">
+        <section class="flex min-h-[60vh] flex-1 flex-col rounded-xl border border-white/10">
+            <ul class="flex-1 space-y-1 overflow-y-auto p-3" x-ref="list">
+                <template x-for="line in messages" :key="line.id">
+                    <li class="text-sm">
+                        <span class="font-medium" x-text="line.name"></span>
+                        <span x-text="line.body"></span>
+                    </li>
+                </template>
+            </ul>
+
+            @auth('member')
+                <form class="flex gap-2 border-t border-white/10 p-3" @submit.prevent="send()">
+                    <input
+                        class="flex-1 rounded-md bg-black/20 px-3 py-2 text-sm"
+                        x-model="draft"
+                        maxlength="500"
+                        placeholder="Say something"
+                    >
+                    <button class="rounded-md px-3 py-2 text-sm font-medium" :disabled="sending">Send</button>
+                </form>
+                <p class="px-3 pb-3 text-xs text-red-400" x-show="error" x-text="error"></p>
+            @else
+                <p class="border-t border-white/10 p-3 text-sm opacity-70">
+                    <a href="{{ route('member.login') }}" class="underline">Log in to join the conversation</a>
+                </p>
+            @endauth
+        </section>
+
+        <aside class="hidden w-56 rounded-xl border border-white/10 p-3 lg:block">
+            <h2 class="text-xs font-semibold uppercase opacity-60">Online</h2>
+            <ul class="mt-2 space-y-1 text-sm">
+                <template x-for="person in roster" :key="person.uuid">
+                    <li x-text="person.name"></li>
+                </template>
+            </ul>
+        </aside>
+    </main>
+
+    <script type="application/json" id="chat-bootstrap">{!! $bootstrap !!}</script>
+@endsection
+```
+
+- [ ] **Step 4: Write the Alpine component**
+
+`resources/js/chat/lobby.js`:
+
+```js
+/**
+ * The chat lobby.
+ *
+ * Two rules hold the security story together:
+ *  1. Nothing here touches innerHTML. Alpine's x-text creates text nodes, so a
+ *     message body is never parsed as markup.
+ *  2. Echo and pusher-js are imported dynamically, so the ~40 KB socket client
+ *     is fetched on /chat only and not on every SEO page.
+ */
+export default function chatLobby() {
+    return {
+        messages: [],
+        roster: [],
+        draft: '',
+        sending: false,
+        error: '',
+        config: null,
+
+        start() {
+            const node = document.getElementById('chat-bootstrap');
+            this.config = JSON.parse(node.textContent);
+            this.messages = this.config.history ?? [];
+            this.connect();
+        },
+
+        async connect() {
+            const { reverb } = this.config;
+
+            if (!reverb?.key) {
+                return; // No socket configured: the page still works over HTTP.
+            }
+
+            const [{ default: Echo }, { default: Pusher }] = await Promise.all([
+                import('laravel-echo'),
+                import('pusher-js'),
+            ]);
+
+            window.Pusher = Pusher;
+
+            const echo = new Echo({
+                broadcaster: 'reverb',
+                key: reverb.key,
+                wsHost: reverb.host,
+                wsPort: reverb.port,
+                wssPort: reverb.port,
+                forceTLS: reverb.scheme === 'https',
+                enabledTransports: ['ws', 'wss'],
+            });
+
+            echo.channel('chat.lobby')
+                .listen('.message.sent', (line) => this.append(line))
+                .listen('.message.deleted', ({ id }) => {
+                    this.messages = this.messages.filter((line) => line.id !== id);
+                });
+
+            if (this.config.canPost) {
+                echo.join('chat.roster')
+                    .here((people) => { this.roster = people; })
+                    .joining((person) => { this.roster.push(person); })
+                    .leaving((person) => {
+                        this.roster = this.roster.filter((p) => p.uuid !== person.uuid);
+                    });
+            }
+        },
+
+        append(line) {
+            this.messages.push(line);
+
+            if (this.messages.length > 200) {
+                this.messages.shift();
+            }
+
+            this.$nextTick(() => {
+                this.$refs.list.scrollTop = this.$refs.list.scrollHeight;
+            });
+        },
+
+        async send() {
+            const body = this.draft.trim();
+
+            if (body === '' || this.sending) {
+                return;
+            }
+
+            this.sending = true;
+            this.error = '';
+
+            try {
+                const response = await fetch('/chat/messages', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Accept: 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content ?? '',
+                    },
+                    body: JSON.stringify({ body }),
+                });
+
+                if (!response.ok) {
+                    const payload = await response.json().catch(() => ({}));
+                    this.error = payload.message
+                        ?? (response.status === 429 ? 'Slow down a moment.' : 'That message was not sent.');
+
+                    return;
+                }
+
+                this.draft = '';
+            } catch {
+                this.error = 'You appear to be offline.';
+            } finally {
+                this.sending = false;
+            }
+        },
+    };
+}
+```
+
+- [ ] **Step 5: Register it**
+
+In `resources/js/blade.js`, beside the existing `Alpine.data(...)` registrations:
+
+```js
+import chatLobby from './chat/lobby';
+
+Alpine.data('chatLobby', chatLobby);
+```
+
+- [ ] **Step 6: Install the client libraries**
+
+```bash
+pnpm add laravel-echo pusher-js
+```
+
+- [ ] **Step 7: Run the tests and build**
+
+Run: `vendor/bin/phpunit --filter=ChatPageTest`
+Expected: PASS, 3 tests.
+Run: `pnpm build`
+Expected: builds clean; `laravel-echo` appears in its own chunk, not in the main Blade bundle.
+
+- [ ] **Step 8: Commit**
+
+```bash
+./vendor/bin/pint
+git add resources/views/chat.blade.php resources/js/chat/lobby.js resources/js/blade.js package.json pnpm-lock.yaml tests/Feature/Chat/ChatPageTest.php
+git commit -m "feat(chat): render the lobby and connect it to the socket"
+```
+
+---
