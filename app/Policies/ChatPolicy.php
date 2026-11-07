@@ -36,11 +36,12 @@ class ChatPolicy
 
     /**
      * Promoting is capped one rung below the actor: an owner makes mods, a
-     * main owner makes owners. Nobody mints their own rank.
+     * main owner makes owners. Nobody mints their own rank. Only owner and above
+     * may change ranks at all. Callers must also canActOn() the target for demotions.
      */
     public function canSetRank(ChatRank $actor, ChatRank $newRank): bool
     {
-        return $actor->outranks($newRank);
+        return $actor->level() >= ChatRank::Owner->level() && $actor->outranks($newRank);
     }
 
     /**

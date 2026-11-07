@@ -59,4 +59,12 @@ class ChatPolicyTest extends TestCase
         $this->assertFalse($this->policy->canDeleteMessage(ChatRank::Mod, ChatRank::Mod, false));
         $this->assertFalse($this->policy->canDeleteMessage(ChatRank::Member, ChatRank::Member, false));
     }
+
+    public function test_a_mod_may_not_set_ranks(): void
+    {
+        $this->assertFalse($this->policy->canSetRank(ChatRank::Mod, ChatRank::Member));
+        $this->assertTrue($this->policy->canSetRank(ChatRank::Owner, ChatRank::Mod));
+        $this->assertFalse($this->policy->canSetRank(ChatRank::Owner, ChatRank::Owner));
+        $this->assertTrue($this->policy->canSetRank(ChatRank::MainOwner, ChatRank::Owner));
+    }
 }
