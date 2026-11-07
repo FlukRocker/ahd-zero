@@ -127,4 +127,51 @@ class CosmeticStyleTest extends TestCase
         $this->assertFalse($fails(CosmeticType::Smiley, ['code' => '(akuma)', 'asset' => 'default']));
         $this->assertTrue($fails(CosmeticType::Smiley, ['code' => '<img>', 'asset' => 'default']));
     }
+
+    public function test_trailing_newlines_are_refused(): void
+    {
+        $this->assertNull(CosmeticStyle::assetUrl(CosmeticType::Pawn, "gold\n"));
+        $this->assertFalse(CosmeticStyle::isValidSmileyCode("(akuma)\n"));
+    }
+
+    public function test_gradient_angle_and_glow_strength_must_be_in_range_ints(): void
+    {
+        foreach ([90.0, '90', -1, null, true] as $angle) {
+            $this->assertSame([], CosmeticStyle::for($this->cosmetic(CosmeticType::NameGradient, [
+                'from' => '#ff0000', 'to' => '#0000ff', 'angle' => $angle,
+            ])), 'angle '.var_export($angle, true));
+        }
+
+        foreach ([-1, 0, 4, 2.0, '2', null] as $strength) {
+            $this->assertSame([], CosmeticStyle::for($this->cosmetic(CosmeticType::Glow, [
+                'color' => '#ff0000', 'strength' => $strength,
+            ])), 'strength '.var_export($strength, true));
+        }
+    }
+
+    public function test_a_non_array_payload_falls_back_for_every_type(): void
+    {
+        foreach (CosmeticType::cases() as $type) {
+            foreach ([null, 'x', 5, []] as $payload) {
+                $cosmetic = new ChatCosmetic;
+                $cosmetic->type = $type;
+                $cosmetic->payload = $payload;
+
+                $this->assertSame([], CosmeticStyle::for($cosmetic), $type->value.' '.var_export($payload, true));
+            }
+        }
+    }
+
+    public function test_the_save_rule_rejects_non_array_input_cleanly(): void
+    {
+        foreach (CosmeticType::cases() as $type) {
+            foreach ([null, 'x', 5] as $value) {
+                $failed = false;
+                (new CosmeticPayload($type))->validate('payload', $value, function () use (&$failed) {
+                    $failed = true;
+                });
+                $this->assertTrue($failed, $type->value);
+            }
+        }
+    }
 }

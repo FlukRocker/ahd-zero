@@ -5,6 +5,7 @@ namespace App\Support;
 use App\Enums\CosmeticType;
 use App\Models\ChatCosmetic;
 
+use function is_array;
 use function is_int;
 use function is_string;
 
@@ -34,7 +35,14 @@ class CosmeticStyle
      */
     public static function for(ChatCosmetic $cosmetic): array
     {
+        // A hand-edited row can decode to null or a JSON scalar despite the array
+        // cast, so the declared type is not trusted here.
+        /** @var mixed $payload */
         $payload = $cosmetic->payload;
+
+        if (! is_array($payload)) {
+            return [];
+        }
 
         return match ($cosmetic->type) {
             CosmeticType::NameColor => self::hex($payload['color'] ?? null) !== null
