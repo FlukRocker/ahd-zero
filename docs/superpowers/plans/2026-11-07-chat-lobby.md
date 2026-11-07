@@ -24,6 +24,10 @@
 - **The `catagory_id` column spelling is intentional** — do not "fix" it anywhere you touch.
 - Every task ends green: `vendor/bin/phpunit`, `./vendor/bin/pint`, and `vendor/bin/phpstan analyse --memory-limit=1G` (level 4, must report `[OK] No errors`).
 - Tests that render a page call `$this->withoutVite()` in `setUp`, like every existing feature test.
+- **Bind the history fake once, in `Tests\TestCase::setUp()`**, not per test class:
+  `$this->app->instance(\App\Contracts\ChatHistory::class, new \App\Support\ArrayChatHistory);`
+  Any test that touches `/chat` otherwise opens a real Redis connection — including the
+  `SecurityHeaders` cache-header test in Task 8, which does not look chat-related at all.
 
 ## Review Focus
 
@@ -3896,12 +3900,11 @@ class AdminChatTest extends TestCase
         parent::setUp();
         $this->withoutVite();
 
-        $this->admin = User::create([
-            'name' => 'Admin',
-            'email' => 'admin@example.test',
-            'password' => 'password123!',
-            'email_verified_at' => now(),
-        ]);
+        // User::$fillable is name/email/password only, so mass-assigning
+        // email_verified_at silently drops it — and the dashboard group's
+        // `verified` middleware would then bounce this admin. The factory
+        // is what DashboardTest uses.
+        $this->admin = User::factory()->create();
 
         $this->member = Member::create([
             'name' => 'Rin',
@@ -3916,9 +3919,24 @@ class AdminChatTest extends TestCase
         $this->get('/dashboard/chat')->assertRedirect();
     }
 
+    /**
+     * Deliberately logs in through the real form rather than actingAs().
+     *
+     * actingAs($member, 'member') calls shouldUse('member'), which makes
+     * the member guard the default — so the dashboard group's plain `auth`
+     * would check THAT guard and let the member in, failing this test on a
+     * codebase that is actually safe. Nothing in production ever sets the
+     * default guard to member. If this test goes red, fix the test; do not
+     * touch the shared admin middleware group.
+     */
     public function test_a_member_cannot_reach_the_console(): void
     {
-        $this->actingAs($this->member, 'member')->get('/dashboard/chat')->assertRedirect();
+        $this->post('/member/login', [
+            'email' => 'rin@example.test',
+            'password' => 'password123!',
+        ]);
+
+        $this->get('/dashboard/chat')->assertRedirect();
     }
 
     public function test_an_admin_sees_the_console(): void
