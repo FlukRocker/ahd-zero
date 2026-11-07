@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Models\PageView;
+use App\Support\CrawlerDetector;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -39,6 +40,12 @@ class TrackPageView
 
     private function track(Request $request): void
     {
+        // Crawlers, SEO tools and scripts were ~45-57% of page_views and
+        // pushed their pages up the trending lists: only count people.
+        if (CrawlerDetector::isCrawler($request->userAgent())) {
+            return;
+        }
+
         $route = $request->route();
         if ($route === null) {
             return;
