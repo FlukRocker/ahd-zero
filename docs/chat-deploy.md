@@ -243,12 +243,22 @@ assume the opposite.
   The recent-history list is cached in Redis for 300 seconds. A message served
   from that cache can show the sender's style from before a cosmetic change
   until the cache entry expires or is rebuilt.
-- **The member-facing store and in-room moderation have no UI.** Only JSON
-  endpoints exist. The store page is a read-only list, and the lobby has no
-  delete or moderate controls. The admin page has no create-cosmetic form, no
-  grant-cosmetic form, no message list, and no pagination beyond 20 members.
-  There are no nav links to `/chat` or `/dashboard/chat`. This must be built
-  before a public launch.
+- **What the UI covers now.** The site header links to `/chat` (everyone) and
+  `/chat/store` (logged-in members only). The store page buys and equips
+  cosmetics. Lobby messages carry delete, gag, kick and ban controls. The admin
+  page has a create-cosmetic form, grants, a message list with removal, and
+  paginated members.
+- **Lobby moderation is deliberately narrow.** A lobby ban is a fixed 24 hour
+  timed ban after a confirm; permanent bans are admin-page only. Deleting
+  someone else's message asks for confirmation. Gag is 10 minutes and kick is a
+  fixed server-side duration. Rank changes, ungag and unban are admin-page only.
+- **No unequip in the store.** The store only equips; equipping another item
+  in the same slot replaces it.
+- **The `myRank` hint can be stale.** The lobby derives it from cached history,
+  so controls may show or hide wrongly for a while. The server is authoritative
+  and rejects anything the viewer is not allowed to do.
+- **Pawn and background types are hidden** from the store and from the admin
+  create-cosmetic form.
 - **Pawn and background cosmetics have no visible effect yet.** The server emits
   `--chat-pawn` and `--chat-background`, but the client and CSS do not use them,
   and no `public/chat/backgrounds/` assets exist, so backgrounds cannot be

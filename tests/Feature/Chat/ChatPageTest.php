@@ -52,6 +52,18 @@ class ChatPageTest extends TestCase
         $this->assertNull($this->bootstrap($this->get('/chat')->getContent())['myRank']);
     }
 
+    public function test_header_links_to_chat_for_everyone_and_store_for_members(): void
+    {
+        $guest = $this->get('/')->getContent();
+        $this->assertStringContainsString('href="'.route('chat.show', [], false).'"', $guest);
+        $this->assertStringNotContainsString('href="'.route('chat.store', [], false).'"', $guest);
+
+        $member = $this->member();
+        $html = $this->actingAs($member, 'member')->get('/')->getContent();
+        $this->assertStringContainsString('href="'.route('chat.show', [], false).'"', $html);
+        $this->assertStringContainsString('href="'.route('chat.store', [], false).'"', $html);
+    }
+
     public function test_a_hostile_message_body_cannot_break_out_of_the_bootstrap(): void
     {
         $member = $this->member();
