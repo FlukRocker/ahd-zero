@@ -115,22 +115,30 @@ async function send(
     method: string,
     url: string,
     body?: object,
-): Promise<boolean> {
+): Promise<{ ok: boolean; status: number }> {
     error.value = '';
     fieldErrors.value = {};
-    const res = await fetch(url, {
-        method,
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRF-TOKEN':
-                document
-                    .querySelector('meta[name="csrf-token"]')
-                    ?.getAttribute('content') ?? '',
-            Accept: 'application/json',
-        },
-        credentials: 'same-origin',
-        body: body ? JSON.stringify(body) : undefined,
-    });
+    let res: Response;
+
+    try {
+        res = await fetch(url, {
+            method,
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN':
+                    document
+                        .querySelector('meta[name="csrf-token"]')
+                        ?.getAttribute('content') ?? '',
+                Accept: 'application/json',
+            },
+            credentials: 'same-origin',
+            body: body ? JSON.stringify(body) : undefined,
+        });
+    } catch {
+        error.value = 'Network error — please retry.';
+
+        return { ok: false, status: 0 };
+    }
 
     if (!res.ok) {
         const data = ((await res.json().catch(() => ({}))) ?? {}) as {
@@ -140,15 +148,36 @@ async function send(
         error.value = data.message ?? `Request failed (${res.status})`;
         fieldErrors.value = data.errors ?? {};
 
-        return false;
+        return { ok: false, status: res.status };
     }
 
     router.reload({ preserveScroll: true });
 
-    return true;
+    return { ok: true, status: res.status };
+}
+
+const busy = ref(false);
+
+// One in-flight request at a time for the create/grant/delete buttons.
+async function guarded<T>(fn: () => Promise<T>): Promise<T | undefined> {
+    if (busy.value) {
+        return undefined;
+    }
+
+    busy.value = true;
+
+    try {
+        return await fn();
+    } finally {
+        busy.value = false;
+    }
 }
 
 async function createCosmetic() {
+    await guarded(doCreateCosmetic);
+}
+
+async function doCreateCosmetic() {
     const fields: PayloadFields = {
         color: form.color,
         from: form.from,
@@ -159,7 +188,7 @@ async function createCosmetic() {
         asset: form.asset,
     };
 
-    const ok = await send('POST', '/dashboard/chat/cosmetics', {
+    const { ok } = await send('POST', '/dashboard/chat/cosmetics', {
         type: form.type,
         name: form.name,
         slug: form.slug,
@@ -175,6 +204,10 @@ async function createCosmetic() {
 }
 
 function grantCosmetic(memberId: number, memberName: string) {
+    if (busy.value) {
+        return;
+    }
+
     const id = Number(grantChoice[memberId]);
     const item = props.cosmetics.find((c) => c.id === id);
 
@@ -183,19 +216,41 @@ function grantCosmetic(memberId: number, memberName: string) {
     }
 
     if (window.confirm(`Grant "${item.name}" to ${memberName}?`)) {
-        void send('POST', `/dashboard/chat/members/${memberId}/cosmetics`, {
-            cosmetic_id: id,
+        void guarded(async () => {
+            const { ok } = await send(
+                'POST',
+                `/dashboard/chat/members/${memberId}/cosmetics`,
+                { cosmetic_id: id },
+            );
+
+            if (ok) {
+                grantChoice[memberId] = '';
+            }
         });
     }
 }
 
 function deleteMessage(row: MessageRow) {
+    if (busy.value) {
+        return;
+    }
+
     if (
         window.confirm(
             `Delete this message from ${row.member?.name ?? 'unknown'}?`,
         )
     ) {
-        void send('DELETE', `/dashboard/chat/messages/${row.id}`);
+        void guarded(async () => {
+            const { status } = await send(
+                'DELETE',
+                `/dashboard/chat/messages/${row.id}`,
+            );
+
+            if (status === 404) {
+                router.reload();
+                error.value = 'That message was already removed.';
+            }
+        });
     }
 }
 
@@ -296,7 +351,9 @@ function deactivate(id: number) {
                                 </select>
                                 <button
                                     type="button"
-                                    :disabled="!grantChoice[row.member_id]"
+                                    :disabled="
+                                        busy || !grantChoice[row.member_id]
+                                    "
                                     @click="
                                         grantCosmetic(
                                             row.member_id,
@@ -435,7 +492,9 @@ function deactivate(id: number) {
                         payloadError()
                     }}</span>
                     <div>
-                        <button type="submit">Create cosmetic</button>
+                        <button type="submit" :disabled="busy">
+                            Create cosmetic
+                        </button>
                     </div>
                 </form>
             </div>
@@ -471,6 +530,7 @@ function deactivate(id: number) {
                         <button
                             type="button"
                             class="ml-2 underline"
+                            :disabled="busy"
                             @click="deleteMessage(m)"
                         >
                             Delete
