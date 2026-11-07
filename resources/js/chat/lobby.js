@@ -7,6 +7,43 @@
  *  2. Echo and pusher-js are imported dynamically, so the ~40 KB socket client
  *     is fetched on /chat only and not on every SEO page.
  */
+// The only custom properties a chat line may set, and the only image path it
+// may load from. The server (CosmeticStyle) already validated the values; this
+// is a second, independent gate so a malformed cached record cannot reach CSS.
+export const STYLE_KEYS = ['--chat-name-color', '--chat-name-gradient', '--chat-glow'];
+const SAFE_VALUE = /^[#a-z0-9 .,()%-]+$/i;
+const SAFE_IMAGE = /^\/chat\/pawns\/[a-z0-9-]{1,32}\.svg$/;
+
+export function safeStyle(style) {
+    const out = {};
+
+    if (style === null || typeof style !== 'object') {
+        return out;
+    }
+
+    for (const key of STYLE_KEYS) {
+        const value = style[key];
+
+        if (typeof value === 'string' && SAFE_VALUE.test(value)) {
+            out[key] = value;
+        }
+    }
+
+    return out;
+}
+
+export function safeParts(line) {
+    if (!Array.isArray(line.parts)) {
+        return [{ t: 'text', v: String(line.body ?? '') }];
+    }
+
+    return line.parts.filter((part) => part && (part.t === 'text' || part.t === 'img'));
+}
+
+export function safeImage(part) {
+    return part.t === 'img' && typeof part.v === 'string' && SAFE_IMAGE.test(part.v) ? part.v : null;
+}
+
 export default function chatLobby() {
     return {
         messages: [],
@@ -82,7 +119,30 @@ export default function chatLobby() {
             }
         },
 
+        /** An object of validated custom properties, applied via style.setProperty. */
+        styleOf(line) {
+            return safeStyle(line.style);
+        },
+
+        hasGradient(line) {
+            return '--chat-name-gradient' in safeStyle(line.style);
+        },
+
+        partsOf(line) {
+            return safeParts(line);
+        },
+
+        imageSrc(part) {
+            return safeImage(part);
+        },
+
         append(line) {
+            // History and the live socket overlap on reconnect; a duplicate id
+            // would also be a duplicate x-for :key.
+            if (this.messages.some((existing) => existing.id === line.id)) {
+                return;
+            }
+
             this.messages.push(line);
 
             if (this.messages.length > 200) {

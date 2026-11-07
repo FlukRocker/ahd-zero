@@ -15,7 +15,10 @@ use App\Models\ChatMessage;
  */
 class ChatService
 {
-    public function __construct(private readonly ChatHistory $history) {}
+    public function __construct(
+        private readonly ChatHistory $history,
+        private readonly MessageRenderer $renderer,
+    ) {}
 
     /**
      * @return array<int, array<string, mixed>>
@@ -35,8 +38,12 @@ class ChatService
             ->limit(ChatHistory::LIMIT)
             ->get()
             ->reverse()
-            ->values()
-            ->map(fn (ChatMessage $message): array => $this->record($message))
+            ->values();
+
+        // Two queries for every author at once, not two per message.
+        $this->renderer->preload($rebuilt->pluck('member_id')->unique()->map(fn ($id): int => (int) $id)->all());
+
+        $rebuilt = $rebuilt->map(fn (ChatMessage $message): array => $this->record($message))
             ->all();
 
         // Warm the cache back up, or push() (LPUSHX) stays a no-op forever
@@ -54,11 +61,15 @@ class ChatService
      */
     public function record(ChatMessage $message): array
     {
+        $memberId = (int) $message->member_id;
+
         return [
             'id' => $message->id,
             'uuid' => $message->member?->uuid,
             'name' => $message->member?->name,
             'body' => $message->body,
+            'parts' => $this->renderer->parts($message->body, $this->renderer->smiliesFor($memberId)),
+            'style' => $this->renderer->styleFor($memberId),
             'at' => $message->created_at?->toIso8601String(),
         ];
     }

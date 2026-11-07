@@ -69,7 +69,7 @@ class ChatPageTest extends TestCase
     {
         $html = $this->get('/chat')->getContent();
 
-        $this->assertStringContainsString('x-text="line.body"', $html);
+        $this->assertStringContainsString('x-text="part.v"', $html);
         $this->assertStringContainsString('x-text="line.name"', $html);
         $this->assertStringNotContainsString('x-html', $html);
         $this->assertStringNotContainsString('x-html', (string) file_get_contents(resource_path('js/chat/lobby.js')));
