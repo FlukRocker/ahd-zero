@@ -84,6 +84,18 @@ class Member extends Authenticatable implements MustVerifyEmail
     }
 
     /**
+     * Presence channels broadcast this as `channel_data.user_id`, which
+     * every other subscriber in the room receives. The default is the
+     * bigint primary key; the uuid is the only member identifier that is
+     * safe to hand out.
+     */
+    #[Override]
+    public function getAuthIdentifierForBroadcasting(): string
+    {
+        return $this->uuid;
+    }
+
+    /**
      * Override the default VerifyEmail notification — the built-in one signs
      * URLs against the `verification.verify` route, which lives on the admin
      * (web) guard. Members need their own signed route on /member/email/...

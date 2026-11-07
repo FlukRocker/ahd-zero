@@ -59,4 +59,18 @@ class SecurityHeadersTest extends TestCase
         $this->assertSame(["'self'"], $directives['form-action'] ?? null);
         $this->assertNotContains('https:', $directives['style-src'] ?? []);
     }
+
+    public function test_the_chat_page_is_never_handed_to_a_shared_cache(): void
+    {
+        $this->withoutVite();
+
+        // assertOk first: a 500 would also carry no s-maxage, so the assertion
+        // below would pass while the page was broken.
+        $response = $this->get('/chat')->assertOk();
+
+        $this->assertStringNotContainsString(
+            's-maxage',
+            (string) $response->headers->get('Cache-Control'),
+        );
+    }
 }
