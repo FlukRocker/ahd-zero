@@ -27,6 +27,7 @@ class AppServiceProvider extends ServiceProvider
             \App\Contracts\ChatHistory::class,
             \App\Support\RedisChatHistory::class,
         );
+        $this->app->bind(\App\Contracts\ReportTargetResolver::class, \App\Support\EloquentReportTargets::class);
         $this->app->bind(\App\Contracts\AdminFeed::class, \App\Services\AdminFeeds::class);
     }
 
@@ -50,6 +51,9 @@ class AppServiceProvider extends ServiceProvider
         // so the stock `throttle:N,M` would key on IP and punish shared NATs.
         RateLimiter::for('chat-send', fn (Request $request): Limit => Limit::perMinute(20)
             ->by('chat-send:'.($request->user('member')?->getAuthIdentifier() ?? $request->ip())));
+
+        RateLimiter::for('reports', fn (Request $request): Limit => Limit::perMinute(10)
+            ->by('reports:'.($request->user('member')?->getAuthIdentifier() ?? $request->ip())));
 
         // Admin login at /login also signs the linked Member in.
         Event::listen(Login::class, LinkAdminToMember::class);

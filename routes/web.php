@@ -14,6 +14,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DirectoryController;
 use App\Http\Controllers\GenreController;
 use App\Http\Controllers\IndexController;
+use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\SitemapController;
 use App\Http\Controllers\StudioController;
@@ -122,6 +123,10 @@ Route::middleware(['auth:member', 'verified:member.verification.notice'])->group
     Route::post('/chat/messages', [ChatController::class, 'store'])
         ->middleware('throttle:chat-send')
         ->name('chat.messages.store');
+
+    Route::post('/reports', [ReportController::class, 'store'])
+        ->middleware('throttle:reports')
+        ->name('reports.store');
 
     Route::delete('/chat/messages/{id}', [ChatController::class, 'destroy'])
         ->whereNumber('id')
