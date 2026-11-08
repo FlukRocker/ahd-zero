@@ -3,6 +3,7 @@
 use App\Http\Controllers\Admin\ChatManagementController;
 use App\Http\Controllers\Admin\CommentManagementController;
 use App\Http\Controllers\Admin\MemberManagementController;
+use App\Http\Controllers\Admin\ReportManagementController;
 use App\Http\Controllers\Admin\SiteSettingsController;
 use App\Http\Controllers\AnimeController;
 use App\Http\Controllers\CategoryController;
@@ -162,6 +163,14 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::delete('dashboard/comments/{commentId}', [CommentManagementController::class, 'destroy'])->name('admin.comments.destroy');
     Route::post('dashboard/comments/delete-all-by-user', [CommentManagementController::class, 'destroyAllByUser'])->name('admin.comments.destroyAllByUser');
     Route::post('dashboard/comments/{commentId}/delete-and-ban', [CommentManagementController::class, 'destroyAndBan'])->name('admin.comments.destroyAndBan');
+
+    // Member reports. {target} is "{type}:{id}" so one action resolves every report on the item.
+    Route::get('dashboard/reports', [ReportManagementController::class, 'index'])->name('admin.reports');
+    foreach (['delete' => 'delete', 'ban-chat' => 'banChat', 'ban-site' => 'banSite', 'ban-comment' => 'banComment', 'dismiss' => 'dismiss'] as $uri => $method) {
+        Route::post("dashboard/reports/{target}/{$uri}", [ReportManagementController::class, $method])
+            ->where('target', '(comment|chat_message):[A-Za-z0-9]{1,32}')
+            ->name('admin.reports.'.$method);
+    }
 
     Route::get('dashboard/chat', [ChatManagementController::class, 'index'])->name('admin.chat');
     Route::post('dashboard/chat/rooms', [ChatManagementController::class, 'storeRoom'])->name('admin.chat.rooms.store');
