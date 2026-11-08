@@ -224,4 +224,14 @@ class ChatPageTest extends TestCase
             ->assertOk()
             ->assertSee('Message #');
     }
+
+    public function test_message_menu_has_a_report_entry_for_posters(): void
+    {
+        $html = $this->actingAs($this->member(), 'member')->get('/chat')->assertOk()->getContent();
+
+        $this->assertStringContainsString('report:', $html);
+        $this->assertStringContainsString('รายงาน', $html);
+        $this->assertStringContainsString('x-model="reportReason"', $html);
+        $this->assertStringNotContainsString('x-html', $html);
+    }
 }

@@ -3,6 +3,7 @@ import { renderMarkdown } from '@/composables/useMarkdown';
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import CommentForm from './CommentForm.vue';
 import ReactionBar from './ReactionBar.vue';
+import ReportModal from './ReportModal.vue';
 
 export interface CommentData {
     id: string;
@@ -37,6 +38,7 @@ const showReplyForm = ref(false);
 const editing = ref(false);
 const menuOpen = ref(false);
 const showDeleteConfirm = ref(false);
+const showReport = ref(false);
 const editBody = ref('');
 const menuBtnRef = ref<HTMLButtonElement | null>(null);
 const menuStyle = ref({ top: '0px', left: '0px' });
@@ -86,6 +88,11 @@ const isOwner = computed(
     () => props.currentUserId === props.comment.user_id,
 );
 const canDelete = computed(() => isOwner.value || props.isAdmin);
+// Any signed-in member may report someone else's comment; the server checks
+// verification and answers with a message the modal shows.
+const canReport = computed(
+    () => props.currentUserId !== null && !isOwner.value,
+);
 
 function startEdit() {
     editBody.value = props.comment.body;
@@ -148,7 +155,7 @@ function handleReply(
                     </div>
 
                     <button
-                        v-if="!isDeleted && (isOwner || isAdmin)"
+                        v-if="!isDeleted && (isOwner || isAdmin || canReport)"
                         ref="menuBtnRef"
                         type="button"
                         class="menu-trigger"
@@ -263,6 +270,14 @@ function handleReply(
                     แก้ไข
                 </button>
                 <button
+                    v-if="canReport"
+                    type="button"
+                    class="dropdown-item"
+                    @click="showReport = true; menuOpen = false"
+                >
+                    รายงาน
+                </button>
+                <button
                     v-if="canDelete"
                     type="button"
                     class="dropdown-item dropdown-item-danger"
@@ -272,6 +287,13 @@ function handleReply(
                 </button>
             </div>
         </Teleport>
+
+        <ReportModal
+            :open="showReport"
+            type="comment"
+            :target-id="comment.id"
+            @close="showReport = false"
+        />
 
         <Teleport to="body">
             <div

@@ -69,6 +69,7 @@
             @endif
         </section>
         </div>
+        <x-chat.report-modal />
     </main>
 
     <script type="application/json" id="chat-bootstrap">{!! $bootstrap !!}</script>

@@ -59,7 +59,7 @@
                         class="block w-full whitespace-nowrap rounded px-2 py-1 text-left hover:bg-white/10 disabled:opacity-50"
                         @click="moderate(line, action)"
                         :disabled="!!busy[String(line.id) + action]"
-                        x-text="({ delete: 'Delete', gag: 'Gag 10 min', kick: 'Kick', ban: 'Ban 24 h' })[action]"
+                        x-text="({ delete: 'Delete', gag: 'Gag 10 min', kick: 'Kick', ban: 'Ban 24 h', report: 'รายงาน' })[action]"
                     ></button>
                 </li>
             </template>

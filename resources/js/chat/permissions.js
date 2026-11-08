@@ -37,3 +37,8 @@ export function allowedActions(myRank, myUuid, canPost, line) {
 
     return actions;
 }
+
+/** A verified poster may report anyone's line but their own. Server re-checks. */
+export function canReport(myUuid, canPost, line) {
+    return !!canPost && !!myUuid && !!line.uuid && line.uuid !== myUuid;
+}

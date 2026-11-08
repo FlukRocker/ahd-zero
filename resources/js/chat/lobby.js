@@ -7,7 +7,7 @@
  *  2. Echo and pusher-js are imported dynamically, so the ~40 KB socket client
  *     is fetched on /chat only and not on every SEO page.
  */
-import { allowedActions } from './permissions';
+import { allowedActions, canReport } from './permissions';
 
 // The only custom properties a chat line may set, and the only image path it
 // may load from. The server (CosmeticStyle) already validated the values; this
@@ -57,6 +57,12 @@ export default function chatLobby() {
         busy: {},
         menuOpen: null,
         config: null,
+        // Report modal state (one shared modal in the page).
+        reportLine: null,
+        reportReason: 'spam',
+        reportNote: '',
+        reportMessage: '',
+        reportBusy: false,
 
         start() {
             const node = document.getElementById('chat-bootstrap');
@@ -137,7 +143,69 @@ export default function chatLobby() {
         },
 
         actionsFor(line) {
-            return allowedActions(this.config?.myRank ?? null, this.config?.me ?? null, !!this.config?.canPost, line);
+            const actions = allowedActions(this.config?.myRank ?? null, this.config?.me ?? null, !!this.config?.canPost, line);
+
+            if (canReport(this.config?.me ?? null, !!this.config?.canPost, line)) {
+                actions.push('report');
+            }
+
+            return actions;
+        },
+
+        openReport(line) {
+            this.menuOpen = null;
+            this.reportLine = line;
+            this.reportReason = 'spam';
+            this.reportNote = '';
+            this.reportMessage = '';
+        },
+
+        closeReport() {
+            this.reportLine = null;
+        },
+
+        async sendReport() {
+            if (this.reportBusy || this.reportLine === null) {
+                return;
+            }
+
+            this.reportBusy = true;
+
+            try {
+                const body = {
+                    target_type: 'chat_message',
+                    target_id: String(this.reportLine.id),
+                    reason: this.reportReason,
+                };
+
+                if (this.reportNote.trim() !== '') {
+                    body.note = this.reportNote.trim();
+                }
+
+                const response = await fetch('/reports', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Accept: 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content ?? '',
+                    },
+                    credentials: 'same-origin',
+                    body: JSON.stringify(body),
+                });
+
+                if (response.status === 201) {
+                    this.reportMessage = 'ขอบคุณ เราจะตรวจสอบ';
+                } else if (response.status === 200) {
+                    this.reportMessage = 'คุณรายงานรายการนี้แล้ว';
+                } else {
+                    const payload = await response.json().catch(() => ({}));
+                    this.reportMessage = payload.message ?? 'ส่งรายงานไม่สำเร็จ';
+                }
+            } catch {
+                this.reportMessage = 'ส่งรายงานไม่สำเร็จ';
+            } finally {
+                this.reportBusy = false;
+            }
         },
 
         isLast(line) {
@@ -235,6 +303,12 @@ export default function chatLobby() {
             const key = String(line.id) + action;
 
             if (this.busy[key]) {
+                return;
+            }
+
+            if (action === 'report') {
+                this.openReport(line);
+
                 return;
             }
 

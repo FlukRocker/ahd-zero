@@ -44,3 +44,15 @@ describe('allowedActions', () => {
         expect(allowedActions('owner', 'a', true, line('b'))).toEqual([]);
     });
 });
+
+describe('canReport', () => {
+    it('test_can_report_only_for_a_verified_member_on_someone_elses_line', async () => {
+        const { canReport } = await import('../../resources/js/chat/permissions');
+
+        expect(canReport('a', true, { uuid: 'b' })).toBe(true);
+        expect(canReport('a', true, { uuid: 'a' })).toBe(false);
+        expect(canReport('a', false, { uuid: 'b' })).toBe(false);
+        expect(canReport(null, true, { uuid: 'b' })).toBe(false);
+        expect(canReport('a', true, {})).toBe(false);
+    });
+});
