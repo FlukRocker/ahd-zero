@@ -49,6 +49,6 @@ class ChatRoom extends Model
      */
     public static function activeOrdered(): Collection
     {
-        return static::query()->active()->orderBy('sort')->orderBy('id')->get();
+        return self::query()->active()->orderBy('sort')->orderBy('id')->get();
     }
 }
