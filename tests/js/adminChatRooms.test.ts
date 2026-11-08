@@ -1,12 +1,21 @@
 // @vitest-environment happy-dom
-import { createApp, defineComponent, h, reactive, type App } from 'vue';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { createApp, defineComponent, h, reactive, type App } from 'vue';
 
 // A lightweight stand-in for the Inertia reload: the new props arrive a moment
 // AFTER the request that triggered it, like a real partial reload.
 const state = reactive({
     cosmetics: [],
-    rooms: [{ id: 7, slug: 'anime', name: 'Anime', topic: null, sort: 0, active: true }],
+    rooms: [
+        {
+            id: 7,
+            slug: 'anime',
+            name: 'Anime',
+            topic: null,
+            sort: 0,
+            active: true,
+        },
+    ],
     participants: { data: [] },
     messages: [],
     log: [],
@@ -14,11 +23,24 @@ const state = reactive({
 
 vi.mock('@inertiajs/vue3', () => ({
     Head: defineComponent({ render: () => null }),
-    Link: defineComponent({ render() { return h('a', this.$slots.default?.()); } }),
+    Link: defineComponent({
+        render() {
+            return h('a', this.$slots.default?.());
+        },
+    }),
     router: {
         reload: (options?: { onFinish?: () => void }) => {
             setTimeout(() => {
-                state.rooms = [{ id: 7, slug: 'anime', name: 'Anime talk', topic: null, sort: 0, active: true }];
+                state.rooms = [
+                    {
+                        id: 7,
+                        slug: 'anime',
+                        name: 'Anime talk',
+                        topic: null,
+                        sort: 0,
+                        active: true,
+                    },
+                ];
                 options?.onFinish?.();
             }, 20);
         },
@@ -26,7 +48,11 @@ vi.mock('@inertiajs/vue3', () => ({
 }));
 
 vi.mock('@/layouts/AppLayout.vue', () => ({
-    default: defineComponent({ render() { return h('div', this.$slots.default?.()); } }),
+    default: defineComponent({
+        render() {
+            return h('div', this.$slots.default?.());
+        },
+    }),
 }));
 
 import Chat from '@/pages/admin/Chat.vue';
@@ -40,7 +66,10 @@ describe('admin Chat rooms', () => {
     beforeEach(() => {
         root = document.createElement('div');
         document.body.appendChild(root);
-        vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 200 })));
+        vi.stubGlobal(
+            'fetch',
+            vi.fn(async () => new Response('{}', { status: 200 })),
+        );
         app = createApp({ render: () => h(Chat, { ...state }) });
         app.mount(root);
     });
@@ -52,16 +81,22 @@ describe('admin Chat rooms', () => {
     });
 
     it('shows the saved values, not the old ones, after a successful save', async () => {
-        const name = root.querySelector('input[aria-label="Room name"]') as HTMLInputElement;
+        const name = root.querySelector(
+            'input[aria-label="Room name"]',
+        ) as HTMLInputElement;
         name.value = 'Anime talk';
         name.dispatchEvent(new Event('input'));
         await settle(5);
 
-        const save = [...root.querySelectorAll('button')].find((b) => b.textContent?.trim() === 'Save') as HTMLButtonElement;
+        const save = [...root.querySelectorAll('button')].find(
+            (b) => b.textContent?.trim() === 'Save',
+        ) as HTMLButtonElement;
         save.click();
         await settle();
 
-        const after = root.querySelector('input[aria-label="Room name"]') as HTMLInputElement;
+        const after = root.querySelector(
+            'input[aria-label="Room name"]',
+        ) as HTMLInputElement;
         expect(after.value).toBe('Anime talk');
     });
 });
