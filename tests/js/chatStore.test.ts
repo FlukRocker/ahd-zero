@@ -147,3 +147,19 @@ describe('chat store requests', () => {
         expect(store.items.map((i: any) => i.equipped)).toEqual([true, false]);
     });
 });
+
+describe('chat store backgrounds', () => {
+    it('labels a background and exposes its safe preview style', () => {
+        const store = makeStore([], 0);
+        const bg = item({
+            type: 'background',
+            slot: 'background',
+            style: { '--chat-background': '#112233', 'background-image': 'url(x)' },
+        });
+
+        expect(store.typeLabel(bg)).toBe('Message background');
+        expect(store.previewStyle(bg)).toEqual({ '--chat-background': '#112233' });
+        expect(store.isBackground(bg)).toBe(true);
+        expect(store.isBackground(item({}))).toBe(false);
+    });
+});

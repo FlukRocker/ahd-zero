@@ -63,12 +63,13 @@ const props = defineProps<{
     log: LogRow[];
 }>();
 
-// Types the admin can author. pawn and background have no visible effect yet.
+// Types the admin can author. pawn has no visible effect yet.
 const TYPE_OPTIONS = [
     { value: 'name_color', label: 'Name colour' },
     { value: 'name_gradient', label: 'Name gradient' },
     { value: 'glow', label: 'Glow' },
     { value: 'smiley', label: 'Smiley' },
+    { value: 'background', label: 'Message background' },
 ];
 
 const activeCosmetics = computed(() => props.cosmetics.filter((c) => c.active));
@@ -105,10 +106,13 @@ const form = reactive({
     strength: 2,
     code: '',
     asset: '',
+    bgMode: 'color',
 });
 const grantChoice = reactive<Record<number, string>>({});
 
-const formFields = computed(() => fieldsFor(form.type));
+const formFields = computed(() =>
+    fieldsFor(form.type, form.bgMode === 'gradient'),
+);
 
 function fieldError(key: string): string | undefined {
     return fieldErrors.value[key]?.[0];
@@ -197,6 +201,7 @@ async function doCreateCosmetic() {
         strength: form.strength,
         code: form.code,
         asset: form.asset,
+        gradient: form.bgMode === 'gradient',
     };
 
     const { ok } = await send('POST', '/dashboard/chat/cosmetics', {
@@ -617,6 +622,13 @@ function deactivate(id: number) {
                         <span v-if="fieldError('sort')" class="err">{{
                             fieldError('sort')
                         }}</span>
+                    </label>
+                    <label v-if="form.type === 'background'">
+                        Background style
+                        <select v-model="form.bgMode">
+                            <option value="color">Colour</option>
+                            <option value="gradient">Gradient</option>
+                        </select>
                     </label>
                     <label v-if="formFields.includes('color')">
                         Colour

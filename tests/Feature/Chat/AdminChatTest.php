@@ -349,6 +349,26 @@ class AdminChatTest extends TestCase
         $this->assertDatabaseHas('chat_cosmetics', ['slug' => 'sunset', 'active' => true]);
     }
 
+    public function test_admin_can_create_background_cosmetic(): void
+    {
+        $this->actingAs($this->admin)->postJson('/dashboard/chat/cosmetics', [
+            'type' => 'background', 'name' => 'Tint', 'slug' => 'tint',
+            'payload' => ['color' => '#112233'], 'price' => 5,
+        ])->assertOk();
+        $this->actingAs($this->admin)->postJson('/dashboard/chat/cosmetics', [
+            'type' => 'background', 'name' => 'Fade', 'slug' => 'fade',
+            'payload' => ['from' => '#111111', 'to' => '#222222', 'angle' => 90], 'price' => 5,
+        ])->assertOk();
+        $this->actingAs($this->admin)->postJson('/dashboard/chat/cosmetics', [
+            'type' => 'background', 'name' => 'Bad', 'slug' => 'bad',
+            'payload' => ['color' => 'red;background:url(x)'], 'price' => 5,
+        ])->assertStatus(422);
+
+        $this->assertDatabaseHas('chat_cosmetics', ['slug' => 'tint', 'type' => 'background']);
+        $this->assertDatabaseHas('chat_cosmetics', ['slug' => 'fade']);
+        $this->assertDatabaseMissing('chat_cosmetics', ['slug' => 'bad']);
+    }
+
     public function test_create_cosmetic_422_returns_field_errors_for_a_bad_colour_and_duplicate_slug(): void
     {
         ChatCosmetic::create([

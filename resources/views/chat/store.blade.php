@@ -14,6 +14,19 @@
 
 @section('content')
     <x-chat.name-styles />
+    <style>
+        /* Translucent tint behind the text; the text colour is untouched. */
+        .chat-background-preview { position: relative; isolation: isolate; }
+        .chat-background-preview::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            z-index: -1;
+            border-radius: inherit;
+            background: var(--chat-background, transparent);
+            opacity: 0.3;
+        }
+    </style>
     <main class="mx-auto w-full max-w-3xl px-4 py-6" x-data="chatStore">
         <h1 class="text-xl font-semibold">Chat store</h1>
         <p class="text-sm opacity-70">Balance: <span x-text="balance"></span> coins</p>
@@ -22,7 +35,15 @@
         <ul class="mt-4 grid gap-3 sm:grid-cols-2">
             <template x-for="item in items" :key="item.id">
                 <li class="rounded-lg border border-white/10 p-3">
+                    <template x-if="isBackground(item)">
+                        <span
+                            class="chat-background-preview block rounded-md px-2 py-1 text-sm"
+                            :style="previewStyle(item)"
+                            x-text="'Sample message from ' + item.name"
+                        ></span>
+                    </template>
                     <span
+                        x-show="!isBackground(item)"
                         class="chat-name font-medium"
                         :class="{ 'chat-name-gradient': hasGradient(item) }"
                         :style="previewStyle(item)"
