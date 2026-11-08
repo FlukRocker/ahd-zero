@@ -193,12 +193,12 @@ class ChatManagementController extends Controller
             'meta' => ['message_id' => $message->id],
         ]);
 
-        app(ChatService::class)->forgetHistory();
+        app(ChatService::class)->forgetHistory((int) $message->room_id);
 
         // The room has to hear about it too. Without this an admin delete
         // vanishes from the database but stays on every open screen until
         // the next reload.
-        MessageDeleted::dispatch($message->id);
+        MessageDeleted::dispatch((int) $message->room_id, $message->id);
 
         return response()->json(['ok' => true]);
     }

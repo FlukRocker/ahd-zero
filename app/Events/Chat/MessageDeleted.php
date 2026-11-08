@@ -13,11 +13,14 @@ class MessageDeleted implements ShouldBroadcastNow, ShouldRescue
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
-    public function __construct(public readonly int $messageId) {}
+    public function __construct(
+        public readonly int $roomId,
+        public readonly int $messageId,
+    ) {}
 
     public function broadcastOn(): Channel
     {
-        return new Channel('chat.lobby');
+        return new Channel("chat.room.{$this->roomId}");
     }
 
     public function broadcastAs(): string

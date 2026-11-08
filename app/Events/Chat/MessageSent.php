@@ -29,11 +29,14 @@ class MessageSent implements ShouldBroadcastNow, ShouldRescue
     /**
      * @param  array<string, mixed>  $message
      */
-    public function __construct(public readonly array $message) {}
+    public function __construct(
+        public readonly int $roomId,
+        public readonly array $message,
+    ) {}
 
     public function broadcastOn(): Channel
     {
-        return new Channel('chat.lobby');
+        return new Channel("chat.room.{$this->roomId}");
     }
 
     public function broadcastAs(): string

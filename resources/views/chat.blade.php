@@ -16,6 +16,8 @@
     // only; members.id is never exposed.
     $bootstrap = json_encode([
         'history' => $history,
+        'room' => ['id' => $room->id, 'slug' => $room->slug, 'name' => $room->name],
+        'rooms' => $rooms->map(fn ($r) => ['id' => $r->id, 'slug' => $r->slug, 'name' => $r->name, 'topic' => $r->topic])->values()->all(),
         'me' => $member?->uuid,
         'canPost' => $canPost,
         // Null for guests; 'member' when there is no chat_members row.

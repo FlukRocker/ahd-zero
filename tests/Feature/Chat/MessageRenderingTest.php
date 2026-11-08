@@ -234,9 +234,11 @@ class MessageRenderingTest extends TestCase
             ChatMessage::create(['member_id' => $m->id, 'body' => 'b']);
         }
 
+        $lobbyId = \App\Models\ChatRoom::lobby()->id;
+
         DB::flushQueryLog();
         DB::enableQueryLog();
-        $history = $this->app->make(ChatService::class)->history();
+        $history = $this->app->make(ChatService::class)->history($lobbyId);
         $queries = count(DB::getQueryLog());
 
         $this->assertCount(12, $history);

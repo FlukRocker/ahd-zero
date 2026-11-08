@@ -22,14 +22,24 @@ class MemberSanctioned implements ShouldBroadcastNow, ShouldRescue
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
+    /**
+     * @param  array<int, int>  $roomIds  Every active room, so open tabs in any of them react.
+     */
     public function __construct(
+        public readonly array $roomIds,
         public readonly string $uuid,
         public readonly string $action,
     ) {}
 
-    public function broadcastOn(): Channel
+    /**
+     * @return array<int, Channel>
+     */
+    public function broadcastOn(): array
     {
-        return new Channel('chat.lobby');
+        return array_map(
+            fn (int $id): Channel => new Channel("chat.room.{$id}"),
+            $this->roomIds,
+        );
     }
 
     public function broadcastAs(): string

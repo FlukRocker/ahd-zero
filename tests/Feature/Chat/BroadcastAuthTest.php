@@ -16,7 +16,7 @@ class BroadcastAuthTest extends TestCase
     {
         return [
             'socket_id' => '1234.5678',
-            'channel_name' => 'presence-chat.roster',
+            'channel_name' => 'presence-chat.roster.1',
         ];
     }
 

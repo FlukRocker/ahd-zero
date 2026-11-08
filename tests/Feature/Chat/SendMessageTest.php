@@ -73,7 +73,7 @@ class SendMessageTest extends TestCase
             $keys = array_keys($event->broadcastWith());
             sort($keys);
 
-            return $event->broadcastOn()->name === 'chat.lobby'
+            return $event->broadcastOn()->name === 'chat.room.'.\App\Models\ChatRoom::lobby()->id
                 && $keys === ['at', 'body', 'id', 'name', 'parts', 'rank', 'style', 'uuid'];
         });
     }
@@ -228,14 +228,14 @@ class SendMessageTest extends TestCase
     {
         $history = app(ChatHistory::class);
         $message = ChatMessage::create(['member_id' => $this->member->id, 'body' => 'oops']);
-        $history->replace([['id' => $message->id, 'name' => 'Rin', 'body' => 'oops']]);
-        $this->assertNotNull($history->recent(10));
+        $history->replace(\App\Models\ChatRoom::lobby()->id, [['id' => $message->id, 'name' => 'Rin', 'body' => 'oops']]);
+        $this->assertNotNull($history->recent(\App\Models\ChatRoom::lobby()->id, 10));
 
         $this->actingAs($this->member, 'member')
             ->deleteJson("/chat/messages/{$message->id}")
             ->assertOk();
 
-        $this->assertNull($history->recent(10));
+        $this->assertNull($history->recent(\App\Models\ChatRoom::lobby()->id, 10));
         $this->assertDatabaseHas('chat_moderation_log', [
             'action' => 'delete_message',
             'actor_member_id' => $this->member->id,

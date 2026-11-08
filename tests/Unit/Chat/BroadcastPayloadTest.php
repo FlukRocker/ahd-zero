@@ -11,7 +11,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 /**
- * Regression guard: nothing broadcast on the public chat.lobby channel may
+ * Regression guard: nothing broadcast on the public chat.room.* channels may
  * carry the internal member id or an email address.
  */
 class BroadcastPayloadTest extends TestCase
@@ -29,21 +29,21 @@ class BroadcastPayloadTest extends TestCase
         $this->assertSame(['at', 'body', 'id', 'name', 'parts', 'rank', 'style', 'uuid'], $keys);
     }
 
-    public function test_member_sanctioned_goes_to_the_lobby_with_only_uuid_and_action(): void
+    public function test_member_sanctioned_goes_to_each_room_with_only_uuid_and_action(): void
     {
-        $event = new MemberSanctioned('11111111-2222-3333-4444-555555555555', 'ban');
+        $event = new MemberSanctioned([1, 2], '11111111-2222-3333-4444-555555555555', 'ban');
 
-        $this->assertSame('chat.lobby', $event->broadcastOn()->name);
+        $this->assertSame(['chat.room.1', 'chat.room.2'], array_map(fn ($c) => $c->name, $event->broadcastOn()));
         $keys = array_keys($event->broadcastWith());
         sort($keys);
         $this->assertSame(['action', 'uuid'], $keys);
     }
 
-    public function test_message_deleted_goes_to_the_lobby_with_only_the_message_id(): void
+    public function test_message_deleted_goes_to_its_room_with_only_the_message_id(): void
     {
-        $event = new MessageDeleted(42);
+        $event = new MessageDeleted(3, 42);
 
-        $this->assertSame('chat.lobby', $event->broadcastOn()->name);
+        $this->assertSame('chat.room.3', $event->broadcastOn()->name);
         $this->assertSame(['id'], array_keys($event->broadcastWith()));
     }
 }
