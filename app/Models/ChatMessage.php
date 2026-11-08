@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  *
  * @property int $id
  * @property int $member_id
+ * @property int $room_id
  * @property string $body
  * @property \Illuminate\Support\Carbon|null $created_at
  * @property \Illuminate\Support\Carbon|null $deleted_at
@@ -26,7 +27,15 @@ class ChatMessage extends Model
 
     public const UPDATED_AT = null;
 
-    protected $fillable = ['member_id', 'body'];
+    protected $fillable = ['member_id', 'body', 'room_id'];
+
+    /**
+     * @return BelongsTo<ChatRoom, $this>
+     */
+    public function room(): BelongsTo
+    {
+        return $this->belongsTo(ChatRoom::class, 'room_id');
+    }
 
     /**
      * @return BelongsTo<Member, $this>

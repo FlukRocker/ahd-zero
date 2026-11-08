@@ -2,6 +2,7 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 /**
@@ -125,6 +126,39 @@ return new class extends Migration
                 $table->json('meta')->nullable();
                 $table->timestamp('created_at')->nullable();
                 $table->index(['target_member_id', 'created_at']);
+            });
+        }
+
+        // Rooms (the real ones come from ahd-admin 2026_11_08_000001_create_chat_rooms).
+        // The lobby row is seeded here because tests rely on id 1 existing and
+        // this app never seeds it in production either.
+        if (! Schema::hasTable('chat_rooms')) {
+            Schema::create('chat_rooms', function (Blueprint $table): void {
+                $table->id();
+                $table->string('slug', 40)->unique();
+                $table->string('name', 60);
+                $table->string('topic', 160)->nullable();
+                $table->integer('sort')->default(0);
+                $table->boolean('active')->default(true);
+                $table->timestamps();
+            });
+        }
+
+        if (DB::table('chat_rooms')->where('slug', 'lobby')->doesntExist()) {
+            DB::table('chat_rooms')->insert([
+                'id' => 1,
+                'slug' => 'lobby',
+                'name' => 'Lobby',
+                'sort' => 0,
+                'active' => true,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
+
+        if (! Schema::hasColumn('chat_messages', 'room_id')) {
+            Schema::table('chat_messages', function (Blueprint $table): void {
+                $table->unsignedBigInteger('room_id')->default(1)->index();
             });
         }
     }
