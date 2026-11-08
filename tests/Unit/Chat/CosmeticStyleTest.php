@@ -60,7 +60,7 @@ class CosmeticStyleTest extends TestCase
     {
         $this->assertNull(CosmeticStyle::assetUrl(CosmeticType::Pawn, '../../../etc/passwd'));
         $this->assertNull(CosmeticStyle::assetUrl(CosmeticType::Pawn, 'does-not-exist'));
-        $this->assertSame('/chat/pawns/default.svg', CosmeticStyle::assetUrl(CosmeticType::Pawn, 'default'));
+        $this->assertSame('/chat-assets/pawns/default.svg', CosmeticStyle::assetUrl(CosmeticType::Pawn, 'default'));
     }
 
     public function test_background_hex_payload(): void
@@ -149,7 +149,7 @@ class CosmeticStyleTest extends TestCase
             CosmeticStyle::for($this->cosmetic(CosmeticType::Glow, ['color' => '#ff0000', 'strength' => 2])),
         );
         $this->assertSame(
-            ['--chat-pawn' => "url('/chat/pawns/gold.svg')"],
+            ['--chat-pawn' => "url('/chat-assets/pawns/gold.svg')"],
             CosmeticStyle::for($this->cosmetic(CosmeticType::Pawn, ['asset' => 'gold'])),
         );
     }

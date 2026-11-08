@@ -40,7 +40,7 @@ class CosmeticPayload implements ValidationRule
             }
 
             if (! is_string($asset) || \App\Support\CosmeticStyle::assetUrl(CosmeticType::Pawn, $asset) === null) {
-                $fail('The smiley asset must be a file shipped in public/chat/pawns.');
+                $fail('The smiley asset must be a file shipped in public/chat-assets/pawns.');
             }
 
             return;

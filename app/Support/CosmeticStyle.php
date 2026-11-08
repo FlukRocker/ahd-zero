@@ -74,7 +74,7 @@ class CosmeticStyle
         }
 
         $extension = $type === CosmeticType::Pawn ? 'svg' : 'webp';
-        $relative = "/chat/{$directory}/{$slug}.{$extension}";
+        $relative = "/chat-assets/{$directory}/{$slug}.{$extension}";
 
         return is_file(public_path($relative)) ? $relative : null;
     }

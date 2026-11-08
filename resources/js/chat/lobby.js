@@ -14,7 +14,7 @@ import { allowedActions } from './permissions';
 // is a second, independent gate so a malformed cached record cannot reach CSS.
 export const STYLE_KEYS = ['--chat-name-color', '--chat-name-gradient', '--chat-glow', '--chat-background'];
 const SAFE_VALUE = /^[#a-z0-9 .,()%-]+$/i;
-const SAFE_IMAGE = /^\/chat\/pawns\/[a-z0-9-]{1,32}\.svg$/;
+const SAFE_IMAGE = /^\/chat-assets\/pawns\/[a-z0-9-]{1,32}\.svg$/;
 
 export function safeStyle(style) {
     const out = {};

@@ -670,7 +670,7 @@ function deactivate(id: number) {
                         <input v-model="form.code" type="text" />
                     </label>
                     <label v-if="formFields.includes('asset')">
-                        Asset slug (file in public/chat/pawns)
+                        Asset slug (file in public/chat-assets/pawns)
                         <input v-model="form.asset" type="text" />
                     </label>
                     <span v-if="payloadError()" class="err">{{

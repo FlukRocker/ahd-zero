@@ -63,7 +63,7 @@ class MessageRenderingTest extends TestCase
         $this->assertSame(
             [
                 ['t' => 'text', 'v' => 'hi '],
-                ['t' => 'img', 'v' => '/chat/pawns/default.svg'],
+                ['t' => 'img', 'v' => '/chat-assets/pawns/default.svg'],
                 ['t' => 'text', 'v' => ' there'],
             ],
             $record['parts'],
@@ -78,7 +78,7 @@ class MessageRenderingTest extends TestCase
         $message = ChatMessage::create(['member_id' => $this->member->id, 'body' => 'hi (akuma)']);
         $record = $this->app->make(ChatService::class)->record($message->fresh()->load('member'));
 
-        $this->assertSame(['t' => 'img', 'v' => '/chat/pawns/default.svg'], $record['parts'][1]);
+        $this->assertSame(['t' => 'img', 'v' => '/chat-assets/pawns/default.svg'], $record['parts'][1]);
     }
 
     public function test_a_smiley_the_sender_does_not_own_stays_literal_text(): void

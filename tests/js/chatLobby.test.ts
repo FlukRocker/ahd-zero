@@ -101,7 +101,7 @@ describe('chat lobby rendering helpers', () => {
     });
 
     it('only loads images from the pawn directory', () => {
-        expect(safeImage({ t: 'img', v: '/chat/pawns/default.svg' })).toBe('/chat/pawns/default.svg');
+        expect(safeImage({ t: 'img', v: '/chat-assets/pawns/default.svg' })).toBe('/chat-assets/pawns/default.svg');
         expect(safeImage({ t: 'img', v: '//evil.test/a.svg' })).toBeNull();
         expect(safeImage({ t: 'img', v: 'javascript:alert(1)' })).toBeNull();
         expect(safeImage({ t: 'text', v: 'x' })).toBeNull();
