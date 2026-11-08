@@ -48,7 +48,7 @@ The chat is one room today. Admins want topic rooms, a more modern layout, the s
 
 **Backgrounds (security-relevant)**
 - `Background` moves off the asset path in `CosmeticStyle::for()` to colour/gradient, reusing the existing `hex()` builder and the `gradient()` builder (which hardcodes `--chat-name-gradient` today, so it takes the property name as a parameter) and emitting `--chat-background`. Pawn keeps the asset path. The old asset branch for `Background` is removed: `chat_cosmetics` was created empty on prod on 2026-11-08, so no old-shape rows exist (this closes the open question about existing background rows).
-- Today `--chat-background` is not in the client `STYLE_KEYS`, so a background cosmetic renders nowhere. It is added to `STYLE_KEYS`. The existing `SAFE_VALUE` filter already allows hex and `linear-gradient(...)` and blocks `url(...)`, so no new character class is needed.
+- Today `--chat-background` is not in the client `STYLE_KEYS`, so a background cosmetic renders nowhere. It is added to `STYLE_KEYS`. The existing `SAFE_VALUE` filter already allows hex and `linear-gradient(...)` and blocks quoted or slash-containing `url(...)`, so no new character class is needed. (It does NOT block an unquoted `url(x)`, `image-set(...)` or `var(...)`; the server's `CosmeticStyle` is the strict gate, and tightening the client filter is a deferred minor.)
 - Store and admin catalogue previews must use the same safe path.
 - Contrast: the background is painted as a translucent tint at a fixed opacity and text colour is left unchanged, so one catalogue entry works in both the light and dark themes.
 - One background can be equipped at a time (its own slot). It stacks with a name style. It paints the whole message row.

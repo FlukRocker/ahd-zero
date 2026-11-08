@@ -368,15 +368,22 @@ assume the opposite.
   history (up to 300 seconds old) and live lines never refresh it. The UI may
   offer or hide a control that the server then accepts or refuses. The server
   is the authority, and its message is shown inline.
-- **Pawn and background types are hidden in the UI only.** They are hidden from
-  the store and from the admin create-cosmetic form, but `buy` does not filter
-  by type at the API level, so keep such cosmetics inactive.
-- **The lobby message menu opens downward** and may be clipped on the bottom
-  line. This is unverified in a browser.
-- **Pawn and background cosmetics have no visible effect yet.** The server emits
-  `--chat-pawn` and `--chat-background`, but the client and CSS do not use them,
-  and no `public/chat/backgrounds/` assets exist, so backgrounds cannot be
-  saved. Keep pawn and background out of the v1 catalogue until they are built.
+- **The pawn type is hidden in the UI only.** It is hidden from the store and
+  from the admin create-cosmetic form, but `buy` does not filter by type at the
+  API level, so keep pawn cosmetics inactive. Pawns also have no visible effect.
+- **Message backgrounds are colour or gradient only.** They come from the admin
+  catalogue (type `background`) and paint a translucent tint behind the buyer's
+  row. Image backgrounds no longer exist: the old asset path for `background`
+  was removed, so a `background` payload with an `asset` key renders nothing.
+- **The lobby message menu opens upward on the last row and downward on the
+  others.** Checked in a browser: every item is clickable on every row. In a
+  full lobby the bottom items of the second-to-last row's menu may sit under
+  the message list's scroll edge and need scrolling to reach.
+- **The client style filter is weaker than the server's.** `lobby.js`
+  `SAFE_VALUE` blocks quoted and slash-containing `url(...)` but lets an
+  unquoted `url(x)`, `image-set(...)` or `var(...)` through. The server's
+  `CosmeticStyle` is the strict gate; a bad value would need a hand-edited
+  Redis history entry to reach the client.
 - **Admin dashboard powers are not constrained by `ChatPolicy`, by design.**
 - **No reconnect UI and no refetch after a socket gap.** A client that loses
   the socket misses messages sent meanwhile until it reloads.
