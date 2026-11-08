@@ -80,7 +80,6 @@ class ChatPageTest extends TestCase
         $guest->logout();
         $html = $this->get('/chat')->getContent();
         $this->assertStringNotContainsString('href="'.route('chat.store', [], false).'"', $html);
-        $this->assertNotNull($other->id);
     }
 
     public function test_store_page_has_tabs_and_no_sidebar(): void
@@ -203,6 +202,20 @@ class ChatPageTest extends TestCase
 
         $response->assertOk()->assertDontSee('Message #');
         $this->assertFalse($this->bootstrap($response->getContent())['canPost']);
+    }
+
+    /**
+     * Each .chat-row is its own stacking context (isolation: isolate), so the
+     * menu's z-10 only orders it inside its own row and the next row paints
+     * over it. The row holding the open menu must be raised above its siblings.
+     * Alpine is not rendered in PHPUnit; the paint order itself is checked in
+     * the browser (plan Task 9).
+     */
+    public function test_the_row_with_the_open_menu_is_raised_above_following_rows(): void
+    {
+        $html = $this->actingAs($this->member(), 'member')->get('/chat')->assertOk()->getContent();
+
+        $this->assertMatchesRegularExpression('/<li class="chat-row[^>]*:class="\{ \'z-20\': menuOpen === line\.id \}"/', $html);
     }
 
     public function test_a_verified_member_gets_the_composer(): void

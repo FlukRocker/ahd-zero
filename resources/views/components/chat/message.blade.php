@@ -3,7 +3,7 @@
      through :src of a fixed <img>; styles are an object of server-validated
      custom properties applied with style.setProperty. Never x-html, never a
      built style string. --}}
-<li class="chat-row relative flex items-start gap-3 rounded-lg px-3 py-2 text-sm" :style="styleOf(line)">
+<li class="chat-row relative flex items-start gap-3 rounded-lg px-3 py-2 text-sm" :class="{ 'z-20': menuOpen === line.id }" :style="styleOf(line)">
     <span
         class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/10 text-xs font-semibold uppercase"
         aria-hidden="true"
