@@ -12,7 +12,7 @@ import { allowedActions } from './permissions';
 // The only custom properties a chat line may set, and the only image path it
 // may load from. The server (CosmeticStyle) already validated the values; this
 // is a second, independent gate so a malformed cached record cannot reach CSS.
-export const STYLE_KEYS = ['--chat-name-color', '--chat-name-gradient', '--chat-glow'];
+export const STYLE_KEYS = ['--chat-name-color', '--chat-name-gradient', '--chat-glow', '--chat-background'];
 const SAFE_VALUE = /^[#a-z0-9 .,()%-]+$/i;
 const SAFE_IMAGE = /^\/chat\/pawns\/[a-z0-9-]{1,32}\.svg$/;
 

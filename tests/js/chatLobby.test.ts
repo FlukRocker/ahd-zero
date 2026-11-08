@@ -20,6 +20,16 @@ describe('chat lobby rendering helpers', () => {
         expect(safeStyle(null)).toEqual({});
     });
 
+    it('keeps --chat-background for hex and gradient only', () => {
+        expect(safeStyle({ '--chat-background': '#112233' })).toEqual({ '--chat-background': '#112233' });
+        expect(safeStyle({ '--chat-background': 'linear-gradient(45deg, #ff0000, #0000ff)' })).toEqual({
+            '--chat-background': 'linear-gradient(45deg, #ff0000, #0000ff)',
+        });
+        expect(safeStyle({ '--chat-background': "url('/chat/backgrounds/x.webp')" })).toEqual({});
+        expect(safeStyle({ '--chat-background': 'red;background:url(//evil)' })).toEqual({});
+        expect(safeStyle({ '--chat-other': '#112233' })).toEqual({});
+    });
+
     it('falls back to the body when a cached record has no parts', () => {
         expect(safeParts({ body: 'hi' })).toEqual([{ t: 'text', v: 'hi' }]);
     });
