@@ -66,8 +66,12 @@ export default function chatLobby() {
 
         start() {
             const node = document.getElementById('chat-bootstrap');
-            this.config = JSON.parse(node.textContent);
-            this.messages = this.config.history ?? [];
+            this.boot(JSON.parse(node.textContent));
+        },
+
+        boot(config) {
+            this.config = config;
+            this.messages = config.history ?? [];
             this.connect();
         },
 
@@ -383,6 +387,68 @@ export default function chatLobby() {
                 const rest = { ...this.busy };
                 delete rest[key];
                 this.busy = rest;
+            }
+        },
+    };
+}
+
+/**
+ * The floating mini chat. Same behaviour as the lobby, but nothing is fetched
+ * and no socket opens until the panel is first opened, so the bubble costs
+ * nothing on shared-cached pages.
+ */
+export function chatMini() {
+    return {
+        ...chatLobby(),
+        open: false,
+        loading: false,
+        loadError: false,
+
+        async toggle() {
+            this.open = !this.open;
+
+            if (!this.open) {
+                return;
+            }
+
+            if (this.config === null) {
+                await this.load();
+            }
+
+            this.$nextTick(() => this.scrollDown());
+        },
+
+        async load() {
+            if (this.loading) {
+                return;
+            }
+
+            this.loading = true;
+            this.loadError = false;
+
+            try {
+                const response = await fetch('/chat/mini', {
+                    headers: { Accept: 'application/json' },
+                    credentials: 'same-origin',
+                });
+
+                if (!response.ok) {
+                    throw new Error('mini chat load failed');
+                }
+
+                this.boot(await response.json());
+            } catch {
+                this.loadError = true;
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        scrollDown() {
+            const list = this.$refs.list;
+
+            if (list) {
+                list.scrollTop = list.scrollHeight;
             }
         },
     };

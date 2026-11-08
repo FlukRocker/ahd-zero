@@ -34,6 +34,30 @@ class ChatController extends Controller
             ? ChatRoom::lobby()
             : ChatRoom::query()->active()->where('slug', $slug)->firstOrFail();
 
+        return view('chat', [...$this->state($room), 'rooms' => ChatRoom::activeOrdered()]);
+    }
+
+    /** Lobby state as JSON for the floating mini chat, which loads it on first open. */
+    public function mini(): JsonResponse
+    {
+        $room = ChatRoom::lobby();
+        $member = Auth::guard('member')->user();
+        $state = $this->state($room);
+
+        return response()->json([
+            'history' => $state['history'],
+            'room' => ['id' => $room->id, 'slug' => $room->slug, 'name' => $room->name],
+            'me' => $member?->uuid,
+            'canPost' => $member !== null && $member->hasVerifiedEmail(),
+            'myRank' => $state['myRank'],
+        ])->header('Cache-Control', 'no-store, private');
+    }
+
+    /**
+     * @return array{history: array<int, mixed>, myRank: ?string, room: ChatRoom}
+     */
+    private function state(ChatRoom $room): array
+    {
         $member = Auth::guard('member')->user();
 
         // Fresh query, not derived from cached history. Null for guests;
@@ -42,12 +66,11 @@ class ChatController extends Controller
             ? null
             : ChatMember::query()->whereKey($member->id)->first()?->rank->value ?? ChatRank::Member->value;
 
-        return view('chat', [
+        return [
             'history' => $this->chat->history($room->id),
             'myRank' => $myRank,
             'room' => $room,
-            'rooms' => ChatRoom::activeOrdered(),
-        ]);
+        ];
     }
 
     public function store(Request $request): JsonResponse

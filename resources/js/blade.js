@@ -1,7 +1,7 @@
 import '../css/app.css';
 
 import Alpine from 'alpinejs';
-import chatLobby from './chat/lobby';
+import chatLobby, { chatMini } from './chat/lobby';
 import chatStore from './chat/store';
 
 // Expose Alpine for inline Blade usage and debugging.
@@ -174,6 +174,7 @@ Alpine.data('commentSection', (type, id, canPost) => ({
 // Chat lobby. Echo/pusher-js are dynamically imported inside it, so the socket
 // client only downloads on /chat.
 Alpine.data('chatLobby', chatLobby);
+Alpine.data('chatMini', chatMini);
 Alpine.data('chatStore', chatStore);
 
 Alpine.start();

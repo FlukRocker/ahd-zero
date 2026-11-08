@@ -118,6 +118,7 @@ Route::prefix('api')->group(function (): void {
 // Live chat lobby. Guests read; members post. `verified` must name the member
 // route — the bare middleware redirects to the admin Fortify notice.
 Route::get('/chat', [ChatController::class, 'show'])->name('chat.show');
+Route::get('/chat/mini', [ChatController::class, 'mini'])->name('chat.mini');
 Route::get('/chat/room/{slug}', [ChatController::class, 'show'])->name('chat.room');
 
 Route::middleware(['auth:member', 'verified:member.verification.notice'])->group(function (): void {

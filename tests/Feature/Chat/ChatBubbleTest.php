@@ -17,14 +17,34 @@ class ChatBubbleTest extends TestCase
         $this->withoutVite();
     }
 
-    public function test_public_pages_have_a_bubble_linking_to_the_lobby(): void
+    public function test_public_pages_have_a_bubble_that_opens_the_mini_chat(): void
     {
         $html = $this->get('/')->assertOk()->getContent();
 
-        $this->assertMatchesRegularExpression(
-            '#<a[^>]*data-chat-bubble[^>]*href="'.preg_quote(route('chat.show', [], false), '#').'"|<a[^>]*href="'.preg_quote(route('chat.show', [], false), '#').'"[^>]*data-chat-bubble#',
-            $html,
-        );
+        $this->assertStringContainsString('data-chat-bubble', $html);
+        $this->assertStringContainsString('x-data="chatMini"', $html);
+        // The panel carries a way out to the full lobby.
+        $this->assertStringContainsString('href="'.route('chat.show', [], false).'"', $html);
+    }
+
+    public function test_mini_endpoint_returns_lobby_state_uncached_for_a_guest(): void
+    {
+        $response = $this->getJson('/chat/mini')->assertOk()->assertJson([
+            'room' => ['slug' => 'lobby'],
+            'me' => null,
+            'canPost' => false,
+            'myRank' => null,
+        ]);
+
+        $this->assertIsArray($response->json('history'));
+        $this->assertStringNotContainsString('public', (string) $response->headers->get('Cache-Control'));
+    }
+
+    public function test_the_bubble_carries_the_report_dialog(): void
+    {
+        $html = $this->get('/')->assertOk()->getContent();
+
+        $this->assertStringContainsString('closeReport()', $html);
     }
 
     public function test_the_bubble_is_hidden_on_the_chat_pages(): void
