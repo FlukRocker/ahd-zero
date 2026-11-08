@@ -166,7 +166,12 @@ async function send(
         return { ok: false, status: res.status };
     }
 
-    router.reload();
+    // Wait for the fresh props before returning: callers clear their local edit
+    // state afterwards, and doing that while the old props are still on screen
+    // re-seeds the inputs with the old values (and a later save writes them back).
+    await new Promise<void>((resolve) => {
+        router.reload({ onFinish: () => resolve() });
+    });
 
     return { ok: true, status: res.status };
 }
