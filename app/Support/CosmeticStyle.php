@@ -53,7 +53,9 @@ class CosmeticStyle
 
             CosmeticType::Glow => self::glow($payload),
 
-            CosmeticType::Pawn, CosmeticType::Background => self::asset($cosmetic),
+            CosmeticType::Background => self::background($payload),
+
+            CosmeticType::Pawn => self::asset($cosmetic),
 
             CosmeticType::Smiley => [],
         };
@@ -91,7 +93,7 @@ class CosmeticStyle
      * @param  array<string, mixed>  $payload
      * @return array<string, string>
      */
-    private static function gradient(array $payload): array
+    private static function gradient(array $payload, string $property = '--chat-name-gradient'): array
     {
         $from = self::hex($payload['from'] ?? null);
         $to = self::hex($payload['to'] ?? null);
@@ -101,7 +103,24 @@ class CosmeticStyle
             return [];
         }
 
-        return ['--chat-name-gradient' => "linear-gradient({$angle}deg, {$from}, {$to})"];
+        return [$property => "linear-gradient({$angle}deg, {$from}, {$to})"];
+    }
+
+    /**
+     * Colour or gradient only. An asset-shaped payload yields nothing.
+     *
+     * @param  array<string, mixed>  $payload
+     * @return array<string, string>
+     */
+    private static function background(array $payload): array
+    {
+        $color = self::hex($payload['color'] ?? null);
+
+        if ($color !== null) {
+            return ['--chat-background' => $color];
+        }
+
+        return self::gradient($payload, '--chat-background');
     }
 
     /**
@@ -139,8 +158,6 @@ class CosmeticStyle
             return [];
         }
 
-        $property = $cosmetic->type === CosmeticType::Pawn ? '--chat-pawn' : '--chat-background';
-
-        return [$property => "url('{$url}')"];
+        return ['--chat-pawn' => "url('{$url}')"];
     }
 }

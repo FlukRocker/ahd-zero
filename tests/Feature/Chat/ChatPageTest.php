@@ -52,16 +52,57 @@ class ChatPageTest extends TestCase
         $this->assertNull($this->bootstrap($this->get('/chat')->getContent())['myRank']);
     }
 
-    public function test_header_links_to_chat_for_everyone_and_store_for_members(): void
+    public function test_header_has_no_store_link(): void
     {
         $guest = $this->get('/')->getContent();
         $this->assertStringContainsString('href="'.route('chat.show', [], false).'"', $guest);
         $this->assertStringNotContainsString('href="'.route('chat.store', [], false).'"', $guest);
 
-        $member = $this->member();
-        $html = $this->actingAs($member, 'member')->get('/')->getContent();
+        $html = $this->actingAs($this->member(), 'member')->get('/')->getContent();
         $this->assertStringContainsString('href="'.route('chat.show', [], false).'"', $html);
+        $this->assertStringNotContainsString('href="'.route('chat.store', [], false).'"', $html);
+    }
+
+    public function test_chat_page_has_tabs_and_room_sidebar(): void
+    {
+        $other = \App\Models\ChatRoom::create(['slug' => 'anime', 'name' => 'Anime Talk', 'sort' => 5, 'active' => true]);
+
+        $html = $this->actingAs($this->member(), 'member')->get('/chat')->assertOk()->getContent();
+
+        $this->assertMatchesRegularExpression('#<a[^>]*href="[^"]*/chat"[^>]*aria-current="page"[^>]*>\s*Chat#', $html);
         $this->assertStringContainsString('href="'.route('chat.store', [], false).'"', $html);
+        $this->assertStringContainsString('href="'.route('chat.room', 'anime', false).'"', $html);
+        $this->assertStringContainsString('Anime Talk', $html);
+        $this->assertStringContainsString('Message #', $html);
+        $this->assertStringNotContainsString(':disabled="sending"', $html);
+
+        $guest = $this->app['auth']->guard('member');
+        $guest->logout();
+        $html = $this->get('/chat')->getContent();
+        $this->assertStringNotContainsString('href="'.route('chat.store', [], false).'"', $html);
+    }
+
+    public function test_store_page_has_tabs_and_no_sidebar(): void
+    {
+        $html = $this->actingAs($this->member(), 'member')->get('/chat/store')->assertOk()->getContent();
+
+        $this->assertMatchesRegularExpression('#<a[^>]*href="[^"]*/chat/store"[^>]*aria-current="page"#', $html);
+        $this->assertStringContainsString('href="'.route('chat.show', [], false).'"', $html);
+        $this->assertStringNotContainsString('data-chat-sidebar', $html);
+        $this->assertStringNotContainsString('Online', $html);
+    }
+
+    public function test_bootstrap_contains_room_and_no_member_id(): void
+    {
+        $member = $this->member();
+        ChatMessage::create(['member_id' => $member->id, 'body' => 'hi']);
+
+        $data = $this->bootstrap($this->actingAs($member, 'member')->get('/chat')->getContent());
+
+        $this->assertSame(['id', 'slug', 'name'], array_keys($data['room']));
+        $this->assertSame('lobby', $data['room']['slug']);
+        $this->assertArrayNotHasKey('member_id', $data['history'][0]);
+        $this->assertArrayNotHasKey('member_id', $data);
     }
 
     public function test_a_hostile_message_body_cannot_break_out_of_the_bootstrap(): void
@@ -159,14 +200,28 @@ class ChatPageTest extends TestCase
 
         $response = $this->actingAs($member, 'member')->get('/chat');
 
-        $response->assertOk()->assertDontSee('Say something');
+        $response->assertOk()->assertDontSee('Message #');
         $this->assertFalse($this->bootstrap($response->getContent())['canPost']);
+    }
+
+    /**
+     * Each .chat-row is its own stacking context (isolation: isolate), so the
+     * menu's z-10 only orders it inside its own row and the next row paints
+     * over it. The row holding the open menu must be raised above its siblings.
+     * Alpine is not rendered in PHPUnit; the paint order itself is checked in
+     * the browser (plan Task 9).
+     */
+    public function test_the_row_with_the_open_menu_is_raised_above_following_rows(): void
+    {
+        $html = $this->actingAs($this->member(), 'member')->get('/chat')->assertOk()->getContent();
+
+        $this->assertMatchesRegularExpression('/<li class="chat-row[^>]*:class="\{ \'z-20\': menuOpen === line\.id \}"/', $html);
     }
 
     public function test_a_verified_member_gets_the_composer(): void
     {
         $this->actingAs($this->member(), 'member')->get('/chat')
             ->assertOk()
-            ->assertSee('Say something');
+            ->assertSee('Message #');
     }
 }

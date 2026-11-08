@@ -10,6 +10,8 @@ export interface PayloadFields {
     strength?: number;
     code?: string;
     asset?: string;
+    /** background only: true builds from/to/angle, false builds a colour. */
+    gradient?: boolean;
 }
 
 export type PayloadField = keyof PayloadFields;
@@ -20,10 +22,14 @@ const FIELDS: Record<string, PayloadField[]> = {
     glow: ['color', 'strength'],
     smiley: ['code', 'asset'],
     pawn: ['asset'],
-    background: ['asset'],
+    background: ['color'],
 };
 
-export function fieldsFor(type: string): PayloadField[] {
+export function fieldsFor(type: string, gradient = false): PayloadField[] {
+    if (type === 'background' && gradient) {
+        return ['from', 'to', 'angle'];
+    }
+
     return Object.hasOwn(FIELDS, type) ? [...FIELDS[type]] : [];
 }
 
@@ -33,8 +39,8 @@ export function buildPayload(
 ): Record<string, string | number> {
     const out: Record<string, string | number> = {};
 
-    for (const key of fieldsFor(type)) {
-        const value = f[key];
+    for (const key of fieldsFor(type, f.gradient === true)) {
+        const value = f[key] as string | number | undefined;
 
         if (key === 'angle' || key === 'strength') {
             out[key] = Math.trunc(Number(value ?? 0));

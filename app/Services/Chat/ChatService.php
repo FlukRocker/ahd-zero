@@ -23,15 +23,16 @@ class ChatService
     /**
      * @return array<int, array<string, mixed>>
      */
-    public function history(int $limit = 50): array
+    public function history(int $roomId, int $limit = 50): array
     {
-        $cached = $this->history->recent($limit);
+        $cached = $this->history->recent($roomId, $limit);
 
         if ($cached !== null) {
             return $cached;
         }
 
         $rebuilt = ChatMessage::query()
+            ->where('room_id', $roomId)
             ->with('member:id,uuid,name')
             ->orderByDesc('created_at')
             ->orderByDesc('id')
@@ -48,7 +49,7 @@ class ChatService
 
         // Warm the cache back up, or push() (LPUSHX) stays a no-op forever
         // and every request pays for the rebuild.
-        $this->history->replace($rebuilt);
+        $this->history->replace($roomId, $rebuilt);
 
         return array_slice($rebuilt, -$limit);
     }
@@ -78,13 +79,13 @@ class ChatService
     /**
      * @param  array<string, mixed>  $record
      */
-    public function remember(array $record): void
+    public function remember(int $roomId, array $record): void
     {
-        $this->history->push($record);
+        $this->history->push($roomId, $record);
     }
 
-    public function forgetHistory(): void
+    public function forgetHistory(int $roomId): void
     {
-        $this->history->forget();
+        $this->history->forget($roomId);
     }
 }

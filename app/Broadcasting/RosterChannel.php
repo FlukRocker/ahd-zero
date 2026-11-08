@@ -3,6 +3,7 @@
 namespace App\Broadcasting;
 
 use App\Models\ChatMember;
+use App\Models\ChatRoom;
 use App\Models\Member;
 
 /**
@@ -18,8 +19,12 @@ class RosterChannel
     /**
      * @return array<string, string>|false
      */
-    public function join(Member $member): array|false
+    public function join(Member $member, ChatRoom $room): array|false
     {
+        if (! $room->active) {
+            return false;
+        }
+
         $chatMember = ChatMember::query()->find($member->id);
 
         if ($chatMember !== null && ($chatMember->isBanned() || $chatMember->isKicked())) {

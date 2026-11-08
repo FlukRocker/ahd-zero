@@ -3,7 +3,7 @@
 namespace App\Contracts;
 
 /**
- * The recent-messages cache.
+ * The recent-messages cache, one list per room.
  *
  * An interface rather than a Redis call because tests must not need a live
  * Redis, and because "the cache is unavailable" has to be a path we can
@@ -18,12 +18,12 @@ interface ChatHistory
     /**
      * @param  array<string, mixed>  $message
      */
-    public function push(array $message): void;
+    public function push(int $roomId, array $message): void;
 
     /**
      * @return array<int, array<string, mixed>>|null Newest last, or null if unavailable.
      */
-    public function recent(int $limit): ?array;
+    public function recent(int $roomId, int $limit): ?array;
 
     /**
      * Overwrite the whole list with a rebuilt one.
@@ -34,8 +34,8 @@ interface ChatHistory
      *
      * @param  array<int, array<string, mixed>>  $messages  Oldest first.
      */
-    public function replace(array $messages): void;
+    public function replace(int $roomId, array $messages): void;
 
     /** Drop everything, so the next read rebuilds from the database. */
-    public function forget(): void;
+    public function forget(int $roomId): void;
 }

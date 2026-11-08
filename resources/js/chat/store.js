@@ -5,6 +5,7 @@ const TYPE_LABELS = {
     name_gradient: 'Name gradient',
     glow: 'Name glow',
     smiley: 'Smiley',
+    background: 'Message background',
 };
 
 /** New array with item `id` marked owned. Input is not mutated. */
@@ -54,6 +55,10 @@ export default function chatStore() {
 
         previewStyle(item) {
             return safeStyle(item.style);
+        },
+
+        isBackground(item) {
+            return item.type === 'background';
         },
 
         hasGradient(item) {

@@ -197,10 +197,9 @@ class StoreTest extends TestCase
         $this->assertDatabaseCount('chat_transactions', 0);
     }
 
-    public function test_store_index_marks_owned_equipped_and_slot_and_hides_pawn_and_background(): void
+    public function test_store_index_marks_owned_equipped_and_slot_and_hides_pawn(): void
     {
         $pawn = ChatCosmetic::create(['type' => CosmeticType::Pawn, 'name' => 'Pawn', 'slug' => 'pawn1', 'payload' => ['asset' => 'a'], 'price' => 1, 'active' => true]);
-        $bg = ChatCosmetic::create(['type' => CosmeticType::Background, 'name' => 'Bg', 'slug' => 'bg1', 'payload' => ['asset' => 'a'], 'price' => 1, 'active' => true]);
         $other = ChatCosmetic::create(['type' => CosmeticType::Glow, 'name' => 'Glow', 'slug' => 'glow1', 'payload' => ['color' => '#ffffff', 'radius' => 4], 'price' => 5, 'active' => true]);
         \App\Models\ChatCosmeticMember::create(['member_id' => $this->member->id, 'cosmetic_id' => $this->cosmetic->id, 'acquired_at' => now(), 'source' => 'purchase', 'equipped' => true]);
         $this->fund(7);
@@ -210,7 +209,6 @@ class StoreTest extends TestCase
 
         $this->assertSame(7, $response->viewData('balance'));
         $this->assertFalse($items->contains('id', $pawn->id));
-        $this->assertFalse($items->contains('id', $bg->id));
         $sunset = $items->firstWhere('id', $this->cosmetic->id);
         $this->assertSame('name_color', $sunset['type']);
         $this->assertSame('name', $sunset['slot']);
@@ -221,6 +219,34 @@ class StoreTest extends TestCase
         $this->assertFalse($glow['owned']);
         $this->assertFalse($glow['equipped']);
         $this->assertSame('effect', $glow['slot']);
+    }
+
+    public function test_store_lists_background_items_but_not_pawns(): void
+    {
+        $pawn = ChatCosmetic::create(['type' => CosmeticType::Pawn, 'name' => 'Pawn', 'slug' => 'pawn2', 'payload' => ['asset' => 'a'], 'price' => 1, 'active' => true]);
+        $bg = ChatCosmetic::create(['type' => CosmeticType::Background, 'name' => 'Bg', 'slug' => 'bg2', 'payload' => ['color' => '#112233'], 'price' => 1, 'active' => true]);
+
+        $items = collect($this->actingAs($this->member, 'member')->get('/chat/store')->assertOk()->viewData('items'));
+
+        $this->assertFalse($items->contains('id', $pawn->id));
+        $item = $items->firstWhere('id', $bg->id);
+        $this->assertSame('background', $item['type']);
+        $this->assertSame('background', $item['slot']);
+        $this->assertSame(['--chat-background' => '#112233'], $item['style']);
+    }
+
+    public function test_buy_and_equip_background_uses_its_own_slot_and_keeps_name_style(): void
+    {
+        $bg = ChatCosmetic::create(['type' => CosmeticType::Background, 'name' => 'Bg', 'slug' => 'bg3', 'payload' => ['from' => '#ff0000', 'to' => '#0000ff', 'angle' => 45], 'price' => 10, 'active' => true]);
+        $this->fund(1000);
+
+        $this->actingAs($this->member, 'member')->postJson("/chat/store/{$this->cosmetic->id}/buy")->assertOk();
+        $this->actingAs($this->member, 'member')->postJson("/chat/store/{$bg->id}/buy")->assertOk();
+        $this->actingAs($this->member, 'member')->postJson("/chat/cosmetics/{$this->cosmetic->id}/equip")->assertOk();
+        $this->actingAs($this->member, 'member')->postJson("/chat/cosmetics/{$bg->id}/equip")->assertOk();
+
+        $this->assertDatabaseHas('chat_cosmetic_member', ['cosmetic_id' => $bg->id, 'equipped' => true]);
+        $this->assertDatabaseHas('chat_cosmetic_member', ['cosmetic_id' => $this->cosmetic->id, 'equipped' => true]);
     }
 
     public function test_store_preview_style_is_empty_for_a_hostile_payload(): void

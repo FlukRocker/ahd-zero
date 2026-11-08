@@ -4,6 +4,7 @@ namespace Tests\Unit\Chat;
 
 use App\Broadcasting\RosterChannel;
 use App\Models\ChatMember;
+use App\Models\ChatRoom;
 use App\Models\Member;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -28,7 +29,7 @@ class RosterChannelTest extends TestCase
 
     public function test_a_member_joins_as_a_uuid_and_never_a_numeric_id(): void
     {
-        $payload = (new RosterChannel)->join($this->member);
+        $payload = (new RosterChannel)->join($this->member, ChatRoom::lobby());
 
         $this->assertIsArray($payload);
         $this->assertSame($this->member->uuid, $payload['uuid']);
@@ -40,7 +41,7 @@ class RosterChannelTest extends TestCase
     {
         ChatMember::create(['member_id' => $this->member->id, 'banned_at' => now()]);
 
-        $this->assertFalse((new RosterChannel)->join($this->member));
+        $this->assertFalse((new RosterChannel)->join($this->member, ChatRoom::lobby()));
     }
 
     public function test_a_kicked_member_is_refused_until_the_cooldown_passes(): void
@@ -50,11 +51,11 @@ class RosterChannelTest extends TestCase
             'kicked_until' => now()->addSeconds(60),
         ]);
 
-        $this->assertFalse((new RosterChannel)->join($this->member));
+        $this->assertFalse((new RosterChannel)->join($this->member, ChatRoom::lobby()));
 
         $row->update(['kicked_until' => now()->subSecond()]);
 
-        $this->assertIsArray((new RosterChannel)->join($this->member->fresh()));
+        $this->assertIsArray((new RosterChannel)->join($this->member->fresh(), ChatRoom::lobby()));
     }
 
     public function test_the_broadcast_identifier_is_the_uuid(): void

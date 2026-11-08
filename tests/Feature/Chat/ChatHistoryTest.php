@@ -31,9 +31,9 @@ class ChatHistoryTest extends TestCase
         // replace(), not push(): push() mirrors LPUSHX and is a no-op on an
         // empty list, exactly as it is against a missing Redis key.
         $history = $this->app->make(ChatHistory::class);
-        $history->replace([['id' => 1, 'body' => 'cached line', 'uuid' => $this->member->uuid]]);
+        $history->replace(\App\Models\ChatRoom::lobby()->id, [['id' => 1, 'body' => 'cached line', 'uuid' => $this->member->uuid]]);
 
-        $lines = $this->app->make(ChatService::class)->history();
+        $lines = $this->app->make(ChatService::class)->history(\App\Models\ChatRoom::lobby()->id);
 
         $this->assertCount(1, $lines);
         $this->assertSame('cached line', $lines[0]['body']);
@@ -44,7 +44,7 @@ class ChatHistoryTest extends TestCase
         ChatMessage::create(['member_id' => $this->member->id, 'body' => 'kept']);
         ChatMessage::create(['member_id' => $this->member->id, 'body' => 'removed'])->delete();
 
-        $lines = $this->app->make(ChatService::class)->history();
+        $lines = $this->app->make(ChatService::class)->history(\App\Models\ChatRoom::lobby()->id);
 
         $this->assertSame(['kept'], array_column($lines, 'body'));
     }
@@ -57,7 +57,7 @@ class ChatHistoryTest extends TestCase
         ChatMessage::create(['member_id' => $this->member->id, 'body' => 'still here']);
         $this->app->instance(ChatHistory::class, new ArrayChatHistory(throws: true));
 
-        $lines = $this->app->make(ChatService::class)->history();
+        $lines = $this->app->make(ChatService::class)->history(\App\Models\ChatRoom::lobby()->id);
 
         $this->assertSame(['still here'], array_column($lines, 'body'));
     }
@@ -74,26 +74,26 @@ class ChatHistoryTest extends TestCase
         }
 
         $service = $this->app->make(ChatService::class);
-        $service->history();                 // warms the cache
-        $service->forgetHistory();           // a delete clears it
+        $service->history(\App\Models\ChatRoom::lobby()->id);                 // warms the cache
+        $service->forgetHistory(\App\Models\ChatRoom::lobby()->id);           // a delete clears it
 
         $fresh = ChatMessage::create(['member_id' => $this->member->id, 'body' => 'four']);
-        $service->remember($service->record($fresh->load('member')));
+        $service->remember(\App\Models\ChatRoom::lobby()->id, $service->record($fresh->load('member')));
 
-        $this->assertSame(['one', 'two', 'three', 'four'], array_column($service->history(), 'body'));
+        $this->assertSame(['one', 'two', 'three', 'four'], array_column($service->history(\App\Models\ChatRoom::lobby()->id), 'body'));
     }
 
     /** Exercises the fake, not RedisChatHistory — LTRIM is not covered by any test. */
     public function test_pushing_past_the_cap_keeps_only_the_newest(): void
     {
         $history = new ArrayChatHistory;
-        $history->replace([['id' => 0, 'body' => 'seed', 'uuid' => $this->member->uuid]]);
+        $history->replace(1, [['id' => 0, 'body' => 'seed', 'uuid' => $this->member->uuid]]);
 
         foreach (range(1, 205) as $i) {
-            $history->push(['id' => $i, 'body' => "line {$i}", 'uuid' => $this->member->uuid]);
+            $history->push(1, ['id' => $i, 'body' => "line {$i}", 'uuid' => $this->member->uuid]);
         }
 
-        $recent = $history->recent(500);
+        $recent = $history->recent(1, 500);
 
         $this->assertCount(200, $recent);
         $this->assertSame('line 205', end($recent)['body']);
@@ -105,10 +105,10 @@ class ChatHistoryTest extends TestCase
         $service = $this->app->make(ChatService::class);
 
         $message = ChatMessage::create(['member_id' => $this->member->id, 'body' => 'hi']);
-        $service->remember($service->record($message->load('member')));
-        $service->forgetHistory();
+        $service->remember(\App\Models\ChatRoom::lobby()->id, $service->record($message->load('member')));
+        $service->forgetHistory(\App\Models\ChatRoom::lobby()->id);
 
-        $this->assertSame(['hi'], array_column($service->history(), 'body'));
+        $this->assertSame(['hi'], array_column($service->history(\App\Models\ChatRoom::lobby()->id), 'body'));
     }
 
     public function test_rows_created_in_the_same_second_keep_insertion_order(): void
@@ -117,7 +117,7 @@ class ChatHistoryTest extends TestCase
             ChatMessage::create(['member_id' => $this->member->id, 'body' => $body]);
         }
 
-        $lines = $this->app->make(ChatService::class)->history();
+        $lines = $this->app->make(ChatService::class)->history(\App\Models\ChatRoom::lobby()->id);
 
         $this->assertSame(['a', 'b', 'c'], array_column($lines, 'body'));
     }

@@ -42,9 +42,15 @@ describe('buildPayload', () => {
         expect(p).toEqual({ code: '(wave)', asset: 'wave' });
     });
 
-    it('pawn and background have only an asset', () => {
+    it('pawn has only an asset', () => {
         expect(buildPayload('pawn', all)).toEqual({ asset: 'wave' });
-        expect(buildPayload('background', all)).toEqual({ asset: 'wave' });
+    });
+
+    it('background is a colour by default and a gradient on request', () => {
+        expect(buildPayload('background', all)).toEqual({ color: '#ff8800' });
+        expect(
+            buildPayload('background', { ...all, gradient: true, angle: 45.9 }),
+        ).toEqual({ from: '#111111', to: '#222222', angle: 45 });
     });
 
     it('test_buildPayload_ignores_fields_of_other_types', () => {
@@ -63,6 +69,8 @@ describe('fieldsFor', () => {
         expect(fieldsFor('name_gradient')).toEqual(['from', 'to', 'angle']);
         expect(fieldsFor('glow')).toEqual(['color', 'strength']);
         expect(fieldsFor('smiley')).toEqual(['code', 'asset']);
+        expect(fieldsFor('background')).toEqual(['color']);
+        expect(fieldsFor('background', true)).toEqual(['from', 'to', 'angle']);
         expect(fieldsFor('constructor')).toEqual([]);
     });
 });

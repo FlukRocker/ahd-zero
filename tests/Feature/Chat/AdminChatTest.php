@@ -4,14 +4,17 @@ namespace Tests\Feature\Chat;
 
 use App\Enums\ChatRank;
 use App\Enums\CosmeticType;
+use App\Events\Chat\MessageDeleted;
 use App\Models\ChatCosmetic;
 use App\Models\ChatMember;
 use App\Models\ChatMessage;
 use App\Models\ChatModerationLog;
+use App\Models\ChatRoom;
 use App\Models\Member;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Tests\TestCase;
 
 class AdminChatTest extends TestCase
@@ -346,6 +349,26 @@ class AdminChatTest extends TestCase
         $this->assertDatabaseHas('chat_cosmetics', ['slug' => 'sunset', 'active' => true]);
     }
 
+    public function test_admin_can_create_background_cosmetic(): void
+    {
+        $this->actingAs($this->admin)->postJson('/dashboard/chat/cosmetics', [
+            'type' => 'background', 'name' => 'Tint', 'slug' => 'tint',
+            'payload' => ['color' => '#112233'], 'price' => 5,
+        ])->assertOk();
+        $this->actingAs($this->admin)->postJson('/dashboard/chat/cosmetics', [
+            'type' => 'background', 'name' => 'Fade', 'slug' => 'fade',
+            'payload' => ['from' => '#111111', 'to' => '#222222', 'angle' => 90], 'price' => 5,
+        ])->assertOk();
+        $this->actingAs($this->admin)->postJson('/dashboard/chat/cosmetics', [
+            'type' => 'background', 'name' => 'Bad', 'slug' => 'bad',
+            'payload' => ['color' => 'red;background:url(x)'], 'price' => 5,
+        ])->assertStatus(422);
+
+        $this->assertDatabaseHas('chat_cosmetics', ['slug' => 'tint', 'type' => 'background']);
+        $this->assertDatabaseHas('chat_cosmetics', ['slug' => 'fade']);
+        $this->assertDatabaseMissing('chat_cosmetics', ['slug' => 'bad']);
+    }
+
     public function test_create_cosmetic_422_returns_field_errors_for_a_bad_colour_and_duplicate_slug(): void
     {
         ChatCosmetic::create([
@@ -410,5 +433,95 @@ class AdminChatTest extends TestCase
             'target_member_id' => $this->member->id,
         ]);
         $this->assertSame(1, ChatModerationLog::query()->count());
+    }
+
+    public function test_admin_creates_room(): void
+    {
+        $this->actingAs($this->admin)
+            ->postJson('/dashboard/chat/rooms', ['name' => 'Anime talk', 'slug' => 'anime', 'topic' => 'Seasonal', 'sort' => 5])
+            ->assertOk();
+
+        $this->assertDatabaseHas('chat_rooms', ['slug' => 'anime', 'name' => 'Anime talk', 'topic' => 'Seasonal', 'sort' => 5, 'active' => true]);
+
+        $this->actingAs($this->admin)->get('/dashboard/chat')->assertInertia(
+            fn ($page) => $page->has('rooms', 2)
+                ->has('rooms.0', fn ($room) => $room->hasAll(['id', 'slug', 'name', 'topic', 'sort', 'active']))
+        );
+    }
+
+    public function test_duplicate_or_bad_slug_is_rejected(): void
+    {
+        $base = ['name' => 'X', 'topic' => null, 'sort' => 0];
+
+        foreach (['lobby', 'Bad Slug', 'UPPER', 'a', 'has_underscore', str_repeat('a', 41)] as $slug) {
+            $this->actingAs($this->admin)
+                ->postJson('/dashboard/chat/rooms', $base + ['slug' => $slug])
+                ->assertStatus(422)
+                ->assertJsonValidationErrors('slug');
+        }
+
+        $this->assertSame(1, ChatRoom::query()->count());
+    }
+
+    public function test_update_never_changes_slug(): void
+    {
+        $room = ChatRoom::create(['slug' => 'anime', 'name' => 'Anime', 'sort' => 1, 'active' => true]);
+
+        $this->actingAs($this->admin)
+            ->patchJson("/dashboard/chat/rooms/{$room->id}", ['name' => 'Renamed', 'topic' => 'New', 'sort' => 7, 'active' => false, 'slug' => 'hijack'])
+            ->assertOk();
+
+        $fresh = $room->fresh();
+        $this->assertSame('anime', $fresh->slug);
+        $this->assertSame('Renamed', $fresh->name);
+        $this->assertSame('New', $fresh->topic);
+        $this->assertSame(7, $fresh->sort);
+        $this->assertFalse($fresh->active);
+    }
+
+    public function test_lobby_cannot_be_deactivated(): void
+    {
+        $lobby = ChatRoom::lobby();
+
+        $this->actingAs($this->admin)
+            ->patchJson("/dashboard/chat/rooms/{$lobby->id}", ['active' => false])
+            ->assertStatus(422);
+
+        $this->assertTrue($lobby->fresh()->active);
+
+        $this->actingAs($this->admin)
+            ->patchJson("/dashboard/chat/rooms/{$lobby->id}", ['name' => 'Main hall'])
+            ->assertOk();
+        $this->assertSame('Main hall', $lobby->fresh()->name);
+    }
+
+    public function test_non_admin_cannot_manage_rooms(): void
+    {
+        $this->postJson('/dashboard/chat/rooms', ['name' => 'X', 'slug' => 'xx'])->assertUnauthorized();
+        $this->patchJson('/dashboard/chat/rooms/1', ['name' => 'X'])->assertUnauthorized();
+
+        $this->post('/member/login', ['email' => 'rin@example.test', 'password' => 'password123!']);
+        $this->assertAuthenticatedAs($this->member, 'member');
+
+        $this->postJson('/dashboard/chat/rooms', ['name' => 'X', 'slug' => 'xx'])->assertUnauthorized();
+        $this->patchJson('/dashboard/chat/rooms/1', ['name' => 'X'])->assertUnauthorized();
+
+        $this->assertSame(1, ChatRoom::query()->count());
+        $this->assertSame('Lobby', ChatRoom::lobby()->name);
+    }
+
+    public function test_admin_delete_message_uses_its_room(): void
+    {
+        Event::fake([MessageDeleted::class]);
+        $room = ChatRoom::create(['slug' => 'anime', 'name' => 'Anime', 'sort' => 1, 'active' => true]);
+        $message = ChatMessage::create(['member_id' => $this->member->id, 'room_id' => $room->id, 'body' => 'rude']);
+
+        $this->actingAs($this->admin)->deleteJson("/dashboard/chat/messages/{$message->id}")->assertOk();
+
+        Event::assertDispatched(
+            MessageDeleted::class,
+            fn (MessageDeleted $e): bool => $e->broadcastOn()->name === 'chat.room.'.$room->id && $e->messageId === $message->id,
+        );
+        Event::assertNotDispatched(MessageDeleted::class, fn (MessageDeleted $e): bool => $e->broadcastOn()->name === 'chat.room.1');
     }
 }

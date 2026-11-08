@@ -6,6 +6,7 @@ use App\Enums\ChatRank;
 use App\Events\Chat\MemberSanctioned;
 use App\Models\ChatMember;
 use App\Models\ChatModerationLog;
+use App\Models\ChatRoom;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -73,7 +74,11 @@ class ModerationService
         $uuid = $target->member?->uuid;
 
         if ($uuid !== null) {
-            MemberSanctioned::dispatch($uuid, $action);
+            MemberSanctioned::dispatch(
+                array_map('intval', ChatRoom::active()->pluck('id')->all()),
+                $uuid,
+                $action,
+            );
         }
     }
 }

@@ -2,6 +2,72 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import chatLobby, { safeImage, safeParts, safeStyle } from '../../resources/js/chat/lobby';
 
+const echoCalls = vi.hoisted(() => ({ channel: [] as string[], join: [] as string[], leave: [] as string[] }));
+
+vi.mock('laravel-echo', () => ({
+    default: class {
+        channel(name: string) {
+            echoCalls.channel.push(name);
+            const chain: any = { listen: () => chain };
+            return chain;
+        }
+        join(name: string) {
+            echoCalls.join.push(name);
+            const chain: any = { here: () => chain, joining: () => chain, leaving: () => chain };
+            return chain;
+        }
+        leave(name: string) {
+            echoCalls.leave.push(name);
+        }
+    },
+}));
+vi.mock('pusher-js', () => ({ default: class {} }));
+
+describe('chat lobby rooms', () => {
+    afterEach(() => {
+        vi.unstubAllEnvs();
+        vi.unstubAllGlobals();
+        echoCalls.channel.length = 0;
+        echoCalls.join.length = 0;
+        echoCalls.leave.length = 0;
+        document.head.innerHTML = '';
+    });
+
+    function room(canPost = true) {
+        const lobby = chatLobby() as any;
+        lobby.config = { me: 'me', myRank: 'member', canPost, room: { id: 7, slug: 'anime', name: 'Anime' } };
+        return lobby;
+    }
+
+    it('connect() subscribes to the per-room channel names', async () => {
+        vi.stubEnv('VITE_REVERB_APP_KEY', 'k');
+        vi.stubEnv('VITE_REVERB_HOST', 'h');
+        await room().connect();
+        expect(echoCalls.channel).toEqual(['chat.room.7']);
+        expect(echoCalls.join).toEqual(['chat.roster.7']);
+    });
+
+    it('send() includes room_id', async () => {
+        const meta = document.createElement('meta');
+        meta.name = 'csrf-token';
+        meta.content = 't';
+        document.head.appendChild(meta);
+        const fetchMock = vi.fn(async () => ({ ok: true, status: 200, json: async () => null }));
+        vi.stubGlobal('fetch', fetchMock);
+        const lobby = room();
+        lobby.draft = 'hello';
+        await lobby.send();
+        expect(JSON.parse((fetchMock.mock.calls[0] as any)[1].body)).toEqual({ body: 'hello', room_id: 7 });
+    });
+
+    it('onSanctioned leaves the per-room roster channel', () => {
+        const lobby = room();
+        const echo = { leave: vi.fn() };
+        lobby.onSanctioned({ uuid: 'me', action: 'ban' }, echo);
+        expect(echo.leave).toHaveBeenCalledWith('chat.roster.7');
+    });
+});
+
 describe('chat lobby rendering helpers', () => {
     it('keeps only allow-listed properties with safe values', () => {
         expect(
@@ -18,6 +84,16 @@ describe('chat lobby rendering helpers', () => {
         expect(safeStyle({ '--chat-name-color': 'red;background:url(//evil)' })).toEqual({});
         expect(safeStyle({ '--chat-name-color': '</style>' })).toEqual({});
         expect(safeStyle(null)).toEqual({});
+    });
+
+    it('keeps --chat-background for hex and gradient only', () => {
+        expect(safeStyle({ '--chat-background': '#112233' })).toEqual({ '--chat-background': '#112233' });
+        expect(safeStyle({ '--chat-background': 'linear-gradient(45deg, #ff0000, #0000ff)' })).toEqual({
+            '--chat-background': 'linear-gradient(45deg, #ff0000, #0000ff)',
+        });
+        expect(safeStyle({ '--chat-background': "url('/chat/backgrounds/x.webp')" })).toEqual({});
+        expect(safeStyle({ '--chat-background': 'red;background:url(//evil)' })).toEqual({});
+        expect(safeStyle({ '--chat-other': '#112233' })).toEqual({});
     });
 
     it('falls back to the body when a cached record has no parts', () => {

@@ -8,6 +8,7 @@ use App\Events\Chat\MessageSent;
 use App\Models\ChatMember;
 use App\Models\ChatMessage;
 use App\Models\ChatModerationLog;
+use App\Models\ChatRoom;
 use App\Models\Member;
 use App\Policies\ChatPolicy;
 use App\Rules\NoExternalLinks;
@@ -25,8 +26,12 @@ class ChatController extends Controller
         private readonly ChatPolicy $policy,
     ) {}
 
-    public function show(): View
+    public function show(?string $slug = null): View
     {
+        $room = $slug === null
+            ? ChatRoom::lobby()
+            : ChatRoom::query()->active()->where('slug', $slug)->firstOrFail();
+
         $member = Auth::guard('member')->user();
 
         // Fresh query, not derived from cached history. Null for guests;
@@ -36,8 +41,10 @@ class ChatController extends Controller
             : ChatMember::query()->whereKey($member->id)->first()?->rank->value ?? ChatRank::Member->value;
 
         return view('chat', [
-            'history' => $this->chat->history(),
+            'history' => $this->chat->history($room->id),
             'myRank' => $myRank,
+            'room' => $room,
+            'rooms' => ChatRoom::activeOrdered(),
         ]);
     }
 
@@ -47,7 +54,10 @@ class ChatController extends Controller
 
         $validated = $request->validate([
             'body' => ['required', 'string', 'min:1', 'max:500', new NoExternalLinks],
+            // Optional: a page left open across the deploy posts without it.
+            'room_id' => ['nullable', 'integer', 'exists:chat_rooms,id,active,1'],
         ]);
+        $roomId = isset($validated['room_id']) ? (int) $validated['room_id'] : ChatRoom::lobby()->id;
 
         $member = $this->member($request);
         $chatMember = $this->chatMember($member);
@@ -59,13 +69,14 @@ class ChatController extends Controller
         $message = ChatMessage::create([
             'member_id' => $member->id,
             'body' => $validated['body'],
+            'room_id' => $roomId,
         ]);
         $message->setRelation('member', $member);
 
         $record = $this->chat->record($message);
-        $this->chat->remember($record);
+        $this->chat->remember($roomId, $record);
 
-        MessageSent::dispatch($record);
+        MessageSent::dispatch($roomId, $record);
 
         return response()->json($record, 201);
     }
@@ -90,16 +101,17 @@ class ChatController extends Controller
         // Drop the whole cached list rather than surgically removing one blob:
         // the next read rebuilds 200 rows from MySQL, excluding soft-deleted
         // ones, so a deleted message cannot reappear.
-        $this->chat->forgetHistory();
+        $roomId = (int) $message->room_id;
+        $this->chat->forgetHistory($roomId);
 
         ChatModerationLog::create([
             'actor_member_id' => $member->id,
             'target_member_id' => $message->member_id,
             'action' => 'delete_message',
-            'meta' => ['message_id' => $message->id, 'own' => $message->member_id === $member->id],
+            'meta' => ['message_id' => $message->id, 'room_id' => $roomId, 'own' => $message->member_id === $member->id],
         ]);
 
-        MessageDeleted::dispatch($message->id);
+        MessageDeleted::dispatch($roomId, $message->id);
 
         return response()->json(['deleted' => true]);
     }

@@ -11,7 +11,7 @@ use Throwable;
 /**
  * The Redis-list implementation.
  *
- * One key, written through the facade so it carries the app prefix — the
+ * One key per room, written through the facade so it carries the app prefix — the
  * instance is shared with kurokami, lnw-anime and neko_miku, and this class
  * must never touch anything outside its own key.
  *
@@ -20,11 +20,15 @@ use Throwable;
  */
 class RedisChatHistory implements ChatHistory
 {
-    private const KEY = 'chat:lobby:history';
+    private static function key(int $roomId): string
+    {
+        return "chat:room:{$roomId}:history";
+    }
 
-    public function push(array $message): void
+    public function push(int $roomId, array $message): void
     {
         $json = json_encode($message);
+        $key = self::key($roomId);
 
         try {
             // LPUSHX, not LPUSH: it does nothing when the key is absent.
@@ -36,19 +40,19 @@ class RedisChatHistory implements ChatHistory
             // A pipeline batches the round trips; it is not MULTI/EXEC, so a
             // concurrent push can leave the list briefly over the cap. The
             // next push trims it back.
-            $this->connection()->pipeline(function ($pipe) use ($json): void {
-                $pipe->lpushx(self::KEY, $json);
-                $pipe->ltrim(self::KEY, 0, self::LIMIT - 1);
+            $this->connection()->pipeline(function ($pipe) use ($json, $key): void {
+                $pipe->lpushx($key, $json);
+                $pipe->ltrim($key, 0, self::LIMIT - 1);
             });
         } catch (Throwable $e) {
             Log::warning('Chat history push failed', ['error' => $e->getMessage()]);
         }
     }
 
-    public function recent(int $limit): ?array
+    public function recent(int $roomId, int $limit): ?array
     {
         try {
-            $raw = Redis::lrange(self::KEY, 0, $limit - 1);
+            $raw = Redis::lrange(self::key($roomId), 0, $limit - 1);
         } catch (Throwable $e) {
             Log::warning('Chat history read failed', ['error' => $e->getMessage()]);
 
@@ -72,25 +76,27 @@ class RedisChatHistory implements ChatHistory
         return $decoded === [] ? null : $decoded;
     }
 
-    public function replace(array $messages): void
+    public function replace(int $roomId, array $messages): void
     {
+        $key = self::key($roomId);
+
         try {
             // Pipelined for round trips only, not atomic: a concurrent push
             // may land between the del and the lpushes; the TTL below bounds
             // any resulting drift.
-            $this->connection()->pipeline(function ($pipe) use ($messages): void {
-                $pipe->del(self::KEY);
+            $this->connection()->pipeline(function ($pipe) use ($messages, $key): void {
+                $pipe->del($key);
 
                 // Oldest first, so the newest ends up at the head where
                 // recent() expects it.
                 foreach (array_slice($messages, -self::LIMIT) as $message) {
-                    $pipe->lpush(self::KEY, json_encode($message));
+                    $pipe->lpush($key, json_encode($message));
                 }
 
                 // A rebuild can race a concurrent delete and write the
                 // deleted row back. A TTL bounds how long a bad rebuild can
                 // survive; chat_messages stays the only authority.
-                $pipe->expire(self::KEY, 300);
+                $pipe->expire($key, 300);
             });
         } catch (Throwable $e) {
             Log::warning('Chat history rebuild failed', ['error' => $e->getMessage()]);
@@ -107,10 +113,10 @@ class RedisChatHistory implements ChatHistory
         return $connection;
     }
 
-    public function forget(): void
+    public function forget(int $roomId): void
     {
         try {
-            Redis::del(self::KEY);
+            Redis::del(self::key($roomId));
         } catch (Throwable $e) {
             Log::warning('Chat history clear failed', ['error' => $e->getMessage()]);
         }

@@ -27,10 +27,10 @@ class ChatStoreController extends Controller
         /** @var Collection<int, ChatCosmeticMember> $inventory */
         $inventory = ChatCosmeticMember::query()->where('member_id', $member->id)->get()->keyBy('cosmetic_id');
 
-        // Pawns and backgrounds have no store UI in v1.
+        // Pawns have no store UI in v1.
         $items = ChatCosmetic::query()
             ->where('active', true)
-            ->whereNotIn('type', [CosmeticType::Pawn->value, CosmeticType::Background->value])
+            ->where('type', '!=', CosmeticType::Pawn->value)
             ->orderBy('sort')
             ->get()
             ->map(fn (ChatCosmetic $cosmetic): array => [

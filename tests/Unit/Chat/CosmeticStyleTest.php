@@ -63,6 +63,50 @@ class CosmeticStyleTest extends TestCase
         $this->assertSame('/chat/pawns/default.svg', CosmeticStyle::assetUrl(CosmeticType::Pawn, 'default'));
     }
 
+    public function test_background_hex_payload(): void
+    {
+        $this->assertSame(
+            ['--chat-background' => '#112233'],
+            CosmeticStyle::for($this->cosmetic(CosmeticType::Background, ['color' => '#112233'])),
+        );
+    }
+
+    public function test_background_gradient_payload(): void
+    {
+        $this->assertSame(
+            ['--chat-background' => 'linear-gradient(45deg, #ff0000, #0000ff)'],
+            CosmeticStyle::for($this->cosmetic(CosmeticType::Background, [
+                'from' => '#ff0000', 'to' => '#0000ff', 'angle' => 45,
+            ])),
+        );
+    }
+
+    /** Review Focus #3. */
+    public function test_background_rejects_css_injection(): void
+    {
+        $this->assertSame([], CosmeticStyle::for($this->cosmetic(CosmeticType::Background, [
+            'color' => 'red; background:url(x)',
+        ])));
+        $this->assertSame([], CosmeticStyle::for($this->cosmetic(CosmeticType::Background, [
+            'from' => '#ff0000', 'to' => '#0000ff', 'angle' => 999,
+        ])));
+    }
+
+    public function test_background_with_asset_payload_yields_nothing(): void
+    {
+        $this->assertSame([], CosmeticStyle::for($this->cosmetic(CosmeticType::Background, ['asset' => 'default'])));
+    }
+
+    public function test_name_gradient_unchanged(): void
+    {
+        $this->assertSame(
+            ['--chat-name-gradient' => 'linear-gradient(10deg, #ff0000, #0000ff)'],
+            CosmeticStyle::for($this->cosmetic(CosmeticType::NameGradient, [
+                'from' => '#ff0000', 'to' => '#0000ff', 'angle' => 10,
+            ])),
+        );
+    }
+
     public function test_a_smiley_code_must_look_like_a_code(): void
     {
         $this->assertTrue(CosmeticStyle::isValidSmileyCode('(akuma)'));

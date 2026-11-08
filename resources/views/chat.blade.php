@@ -16,6 +16,8 @@
     // only; members.id is never exposed.
     $bootstrap = json_encode([
         'history' => $history,
+        'room' => ['id' => $room->id, 'slug' => $room->slug, 'name' => $room->name],
+        'rooms' => $rooms->map(fn ($r) => ['id' => $r->id, 'slug' => $r->slug, 'name' => $r->name, 'topic' => $r->topic])->values()->all(),
         'me' => $member?->uuid,
         'canPost' => $canPost,
         // Null for guests; 'member' when there is no chat_members row.
@@ -28,15 +30,16 @@
 
 @section('content')
     <x-chat.name-styles />
-    <main class="mx-auto flex w-full max-w-5xl gap-4 px-4 py-6" x-data="chatLobby" x-init="start()">
-        <section class="flex min-h-[60vh] flex-1 flex-col rounded-xl border border-white/10">
-            @if ($member !== null)
-                <p class="border-b border-white/10 px-3 py-2 text-xs">
-                    <a href="{{ route('chat.store') }}" class="underline">Store</a>
-                </p>
-            @endif
+    <main class="mx-auto w-full max-w-5xl px-4 py-6" x-data="chatLobby" x-init="start()">
+        <x-chat.tabs active="chat" />
 
-            <ul class="flex-1 space-y-1 overflow-y-auto p-3" x-ref="list">
+        <div class="mt-4 flex flex-col gap-4 lg:flex-row">
+        <x-chat.sidebar :rooms="$rooms" :room="$room" />
+
+        <section class="flex min-h-[60vh] min-w-0 flex-1 flex-col rounded-xl border border-white/10">
+            <p class="border-b border-white/10 px-3 py-2 text-sm font-medium"># {{ $room->name }}</p>
+
+            <ul class="max-h-[70vh] flex-1 space-y-1 overflow-y-auto p-3" x-ref="list">
                 <template x-for="line in messages" :key="line.id">
                     <x-chat.message />
                 </template>
@@ -50,9 +53,9 @@
                         class="flex-1 rounded-md bg-black/20 px-3 py-2 text-sm"
                         x-model="draft"
                         maxlength="500"
-                        placeholder="Say something"
+                        placeholder="Message #{{ $room->name }}"
                     >
-                    <button class="rounded-md px-3 py-2 text-sm font-medium" :disabled="sending">Send</button>
+                    <button class="rounded-md px-3 py-2 text-sm font-medium" :disabled="!!sending">Send</button>
                 </form>
                 <p class="px-3 pb-3 text-xs text-red-400" x-show="error" x-text="error"></p>
             @elseif ($member !== null)
@@ -65,8 +68,7 @@
                 </p>
             @endif
         </section>
-
-        <x-chat.roster />
+        </div>
     </main>
 
     <script type="application/json" id="chat-bootstrap">{!! $bootstrap !!}</script>
