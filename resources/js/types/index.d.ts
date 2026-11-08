@@ -15,6 +15,12 @@ export interface NavItem {
     href: NonNullable<InertiaLinkProps['href']>;
     icon?: LucideIcon;
     isActive?: boolean;
+    badge?: number;
+}
+
+export interface NavGroup {
+    title: string;
+    items: NavItem[];
 }
 
 export type AppPageProps<

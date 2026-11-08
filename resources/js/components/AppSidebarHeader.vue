@@ -23,5 +23,20 @@ withDefaults(
                 <Breadcrumbs :breadcrumbs="breadcrumbs" />
             </template>
         </div>
+        <!-- Plain GET form: filters the Members list by name or email. -->
+        <form
+            method="get"
+            action="/dashboard/members"
+            role="search"
+            class="ml-auto w-full max-w-xs"
+        >
+            <input
+                type="search"
+                name="search"
+                aria-label="Search members"
+                placeholder="Search members…"
+                class="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            />
+        </form>
     </header>
 </template>

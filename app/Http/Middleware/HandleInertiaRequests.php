@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Support\AdsNavbar;
+use App\Support\OpenReports;
 use App\Support\SiteSettings;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Http\Request;
@@ -70,6 +71,8 @@ class HandleInertiaRequests extends Middleware
                 // bottom strip render exclusively on /anime/{id} and the
                 // watch page (matches v1 placement).
             ],
+            // Admin sidebar badge. Uncached on purpose: it must drop the moment a report is resolved.
+            'openReports' => $request->user() ? OpenReports::count() : 0,
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
         ];
     }
