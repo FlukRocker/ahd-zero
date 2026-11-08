@@ -17,6 +17,15 @@ interface CosmeticRow {
     active: boolean;
 }
 
+interface RoomRow {
+    id: number;
+    slug: string;
+    name: string;
+    topic: string | null;
+    sort: number;
+    active: boolean;
+}
+
 interface ParticipantRow {
     member_id: number;
     rank: string;
@@ -48,6 +57,7 @@ interface LogRow {
 
 const props = defineProps<{
     cosmetics: CosmeticRow[];
+    rooms: RoomRow[];
     participants: { data: ParticipantRow[]; links?: PageLink[] };
     messages: MessageRow[];
     log: LogRow[];
@@ -284,6 +294,63 @@ function toggleBan(row: ParticipantRow) {
     );
 }
 
+const roomForm = reactive({ name: '', slug: '', topic: '', sort: 0 });
+const roomEdits = reactive<
+    Record<number, { name: string; topic: string; sort: number }>
+>({});
+
+function roomEdit(room: RoomRow) {
+    roomEdits[room.id] ??= {
+        name: room.name,
+        topic: room.topic ?? '',
+        sort: room.sort,
+    };
+
+    return roomEdits[room.id];
+}
+
+function createRoom() {
+    void guarded(async () => {
+        const { ok } = await send('POST', '/dashboard/chat/rooms', {
+            name: roomForm.name,
+            slug: roomForm.slug,
+            topic: roomForm.topic === '' ? null : roomForm.topic,
+            sort: Number(roomForm.sort),
+        });
+
+        if (ok) {
+            roomForm.name = '';
+            roomForm.slug = '';
+            roomForm.topic = '';
+            roomForm.sort = 0;
+        }
+    });
+}
+
+function saveRoom(room: RoomRow) {
+    const edit = roomEdit(room);
+
+    void guarded(async () => {
+        const { ok } = await send('PATCH', `/dashboard/chat/rooms/${room.id}`, {
+            name: edit.name,
+            topic: edit.topic === '' ? null : edit.topic,
+            sort: Number(edit.sort),
+        });
+
+        if (ok) {
+            delete roomEdits[room.id];
+        }
+    });
+}
+
+function toggleRoom(room: RoomRow) {
+    void guarded(async () => {
+        await send('PATCH', `/dashboard/chat/rooms/${room.id}`, {
+            active: !room.active,
+        });
+    });
+}
+
 function deactivate(id: number) {
     void send('DELETE', `/dashboard/chat/cosmetics/${id}`);
 }
@@ -397,6 +464,99 @@ function deactivate(id: number) {
                         }}</span>
                     </template>
                 </nav>
+            </div>
+
+            <div>
+                <h2 class="text-lg font-semibold">Rooms</h2>
+                <ul class="mt-2 space-y-2 text-sm">
+                    <li
+                        v-for="room in rooms"
+                        :key="room.id"
+                        class="flex flex-wrap items-center gap-2"
+                    >
+                        <code>{{ room.slug }}</code>
+                        <input
+                            v-model="roomEdit(room).name"
+                            maxlength="60"
+                            aria-label="Room name"
+                        />
+                        <input
+                            v-model="roomEdit(room).topic"
+                            maxlength="160"
+                            placeholder="Topic"
+                            aria-label="Room topic"
+                        />
+                        <input
+                            v-model="roomEdit(room).sort"
+                            type="number"
+                            class="w-20"
+                            aria-label="Room sort order"
+                        />
+                        <button
+                            type="button"
+                            class="underline"
+                            :disabled="busy"
+                            @click="saveRoom(room)"
+                        >
+                            Save
+                        </button>
+                        <span v-if="!room.active" class="opacity-60"
+                            >(inactive)</span
+                        >
+                        <button
+                            v-if="room.slug !== 'lobby'"
+                            type="button"
+                            class="underline"
+                            :disabled="busy"
+                            @click="toggleRoom(room)"
+                        >
+                            {{ room.active ? 'Deactivate' : 'Activate' }}
+                        </button>
+                    </li>
+                </ul>
+
+                <h3 class="mt-4 font-semibold">New room</h3>
+                <form
+                    class="mt-2 grid max-w-xl gap-2 text-sm"
+                    @submit.prevent="createRoom"
+                >
+                    <label>
+                        Name
+                        <input
+                            v-model="roomForm.name"
+                            maxlength="60"
+                            required
+                        />
+                        <span v-if="fieldError('name')" class="text-xs">{{
+                            fieldError('name')
+                        }}</span>
+                    </label>
+                    <label>
+                        Slug (fixed once created)
+                        <input
+                            v-model="roomForm.slug"
+                            maxlength="40"
+                            pattern="[a-z0-9\-]{2,40}"
+                            required
+                        />
+                        <span v-if="fieldError('slug')" class="text-xs">{{
+                            fieldError('slug')
+                        }}</span>
+                    </label>
+                    <label>
+                        Topic
+                        <input v-model="roomForm.topic" maxlength="160" />
+                    </label>
+                    <label>
+                        Sort
+                        <input v-model="roomForm.sort" type="number" />
+                    </label>
+                    <div>
+                        <button type="submit" :disabled="busy">
+                            Create room
+                        </button>
+                    </div>
+                </form>
             </div>
 
             <div>

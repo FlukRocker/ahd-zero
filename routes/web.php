@@ -159,6 +159,8 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::post('dashboard/comments/{commentId}/delete-and-ban', [CommentManagementController::class, 'destroyAndBan'])->name('admin.comments.destroyAndBan');
 
     Route::get('dashboard/chat', [ChatManagementController::class, 'index'])->name('admin.chat');
+    Route::post('dashboard/chat/rooms', [ChatManagementController::class, 'storeRoom'])->name('admin.chat.rooms.store');
+    Route::patch('dashboard/chat/rooms/{room}', [ChatManagementController::class, 'updateRoom'])->whereNumber('room')->name('admin.chat.rooms.update');
     Route::post('dashboard/chat/cosmetics', [ChatManagementController::class, 'storeCosmetic'])->name('admin.chat.cosmetics.store');
     Route::patch('dashboard/chat/cosmetics/{cosmetic}', [ChatManagementController::class, 'updateCosmetic'])->whereNumber('cosmetic')->name('admin.chat.cosmetics.update');
     Route::delete('dashboard/chat/cosmetics/{cosmetic}', [ChatManagementController::class, 'destroyCosmetic'])->whereNumber('cosmetic')->name('admin.chat.cosmetics.destroy');

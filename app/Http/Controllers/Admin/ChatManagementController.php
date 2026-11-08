@@ -10,6 +10,7 @@ use App\Models\ChatCosmetic;
 use App\Models\ChatMember;
 use App\Models\ChatMessage;
 use App\Models\ChatModerationLog;
+use App\Models\ChatRoom;
 use App\Models\Member;
 use App\Rules\CosmeticPayload;
 use App\Services\Chat\ChatService;
@@ -40,6 +41,10 @@ class ChatManagementController extends Controller
     {
         return Inertia::render('admin/Chat', [
             'cosmetics' => ChatCosmetic::query()->orderBy('sort')->get(),
+            'rooms' => ChatRoom::query()
+                ->orderBy('sort')
+                ->orderBy('id')
+                ->get(['id', 'slug', 'name', 'topic', 'sort', 'active']),
             'participants' => ChatMember::query()->with('member:id,uuid,name')->latest('updated_at')->paginate(20),
             'log' => ChatModerationLog::query()->latest('created_at')->limit(50)->get(),
             'messages' => ChatMessage::query()
@@ -59,6 +64,48 @@ class ChatManagementController extends Controller
                 ->values()
                 ->all(),
         ]);
+    }
+
+    public function storeRoom(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:60'],
+            'slug' => ['required', 'string', 'regex:/^[a-z0-9-]{2,40}$/D', 'unique:chat_rooms,slug'],
+            'topic' => ['nullable', 'string', 'max:160'],
+            'sort' => ['nullable', 'integer', 'min:-32768', 'max:32767'],
+        ]);
+
+        ChatRoom::create([
+            'name' => $validated['name'],
+            'slug' => $validated['slug'],
+            'topic' => $validated['topic'] ?? null,
+            'sort' => $validated['sort'] ?? 0,
+            'active' => true,
+        ]);
+
+        return response()->json(['ok' => true]);
+    }
+
+    /** The slug is fixed at creation so links keep working; only display fields change. */
+    public function updateRoom(Request $request, ChatRoom $room): JsonResponse
+    {
+        $validated = $request->validate([
+            'name' => ['sometimes', 'string', 'max:60'],
+            'topic' => ['sometimes', 'nullable', 'string', 'max:160'],
+            'sort' => ['sometimes', 'integer', 'min:-32768', 'max:32767'],
+            'active' => ['sometimes', 'boolean'],
+        ]);
+
+        if ($room->slug === ChatRoom::LOBBY_SLUG && array_key_exists('active', $validated) && ! $validated['active']) {
+            return response()->json([
+                'message' => 'The lobby cannot be deactivated.',
+                'errors' => ['active' => ['The lobby cannot be deactivated.']],
+            ], 422);
+        }
+
+        $room->update($validated);
+
+        return response()->json(['ok' => true]);
     }
 
     public function storeCosmetic(Request $request): JsonResponse
