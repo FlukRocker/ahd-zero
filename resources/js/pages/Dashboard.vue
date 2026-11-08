@@ -2,7 +2,7 @@
 import AppLayout from '@/layouts/AppLayout.vue';
 import { dashboard } from '@/routes';
 import { type BreadcrumbItem } from '@/types';
-import { Head, Link } from '@inertiajs/vue3';
+import { Head, Link, router } from '@inertiajs/vue3';
 import { computed } from 'vue';
 
 interface AnimeRow {
@@ -39,6 +39,28 @@ interface ViewsPoint {
     views: number;
 }
 
+interface CommentRow {
+    id: string;
+    user_name: string;
+    body: string;
+    created_at: string | null;
+    deleted: boolean;
+}
+
+interface ChatRow {
+    id: number;
+    room: string | null;
+    member_name: string | null;
+    body: string;
+    created_at: string | null;
+}
+
+interface ModRow {
+    action: string;
+    target_member_name: string | null;
+    created_at: string | null;
+}
+
 const props = defineProps<{
     stats: {
         totalAnime: number;
@@ -52,7 +74,43 @@ const props = defineProps<{
     trendingAnime: TrendingRow[];
     topReferrers: ReferrerRow[];
     viewsOverTime: ViewsPoint[];
+    latestComments: CommentRow[] | null;
+    recentChat: ChatRow[];
+    modLog: ModRow[];
+    openReports: number;
 }>();
+
+function csrf(): string {
+    const match = document.cookie.match(/XSRF-TOKEN=([^;]+)/);
+    return match ? decodeURIComponent(match[1]) : '';
+}
+
+// Inline moderation on the latest-comments block. Same endpoints the
+// Comments page uses; reload afterwards so the row shows as deleted.
+async function moderateComment(id: string, ban: boolean) {
+    if (ban && !window.confirm('Delete this comment and ban its author?')) {
+        return;
+    }
+
+    await fetch(
+        ban
+            ? `/dashboard/comments/${id}/delete-and-ban`
+            : `/dashboard/comments/${id}`,
+        {
+            method: ban ? 'POST' : 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-XSRF-TOKEN': csrf(),
+                Accept: 'application/json',
+            },
+            credentials: 'same-origin',
+            body: ban
+                ? JSON.stringify({ ban_reason: '', delete_all: false })
+                : undefined,
+        },
+    );
+    router.reload();
+}
 
 // Sparkline scaling — viewsOverTime is up to 31 daily points; normalize
 // against the largest day so a tiny range still produces visible bars.
@@ -218,10 +276,7 @@ const breadcrumbs: BreadcrumbItem[] = [
                         peak {{ maxDailyViews.toLocaleString() }}/day
                     </span>
                 </div>
-                <div
-                    class="flex items-end gap-1"
-                    style="height: 100px"
-                >
+                <div class="flex items-end gap-1" style="height: 100px">
                     <div
                         v-for="p in viewsOverTime"
                         :key="p.date"
@@ -234,6 +289,134 @@ const breadcrumbs: BreadcrumbItem[] = [
                     />
                 </div>
             </section>
+
+            <section
+                class="flex items-center justify-between rounded-xl p-5"
+                style="
+                    background: hsl(var(--bg-elev));
+                    border: 1px solid hsl(var(--border-ahd));
+                "
+            >
+                <div>
+                    <h2 class="font-display text-[22px] italic">
+                        Needs attention
+                    </h2>
+                    <p
+                        class="text-sm"
+                        style="color: hsl(var(--fg-faint))"
+                        data-open-reports
+                    >
+                        {{ openReports }} open
+                        {{ openReports === 1 ? 'report' : 'reports' }}
+                    </p>
+                </div>
+                <Link href="/dashboard/reports" class="text-sm underline"
+                    >Open Reports</Link
+                >
+            </section>
+
+            <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                <section
+                    class="rounded-xl p-5"
+                    style="
+                        background: hsl(var(--bg-elev));
+                        border: 1px solid hsl(var(--border-ahd));
+                    "
+                >
+                    <h2 class="font-display mb-4 text-[22px] italic">
+                        Latest comments
+                    </h2>
+                    <p
+                        v-if="latestComments === null"
+                        class="text-sm"
+                        style="color: hsl(var(--fg-faint))"
+                    >
+                        Comments unavailable right now
+                    </p>
+                    <p
+                        v-else-if="!latestComments.length"
+                        class="text-sm"
+                        style="color: hsl(var(--fg-faint))"
+                    >
+                        No comments yet
+                    </p>
+                    <ul v-else class="space-y-3">
+                        <li
+                            v-for="c in latestComments"
+                            :key="c.id"
+                            class="flex items-start justify-between gap-3 text-sm"
+                        >
+                            <div class="min-w-0">
+                                <span class="font-medium">{{
+                                    c.user_name
+                                }}</span>
+                                <p class="break-words opacity-80">
+                                    {{ c.deleted ? '(deleted)' : c.body }}
+                                </p>
+                            </div>
+                            <div v-if="!c.deleted" class="flex shrink-0 gap-2">
+                                <button
+                                    type="button"
+                                    class="underline"
+                                    @click="moderateComment(c.id, false)"
+                                >
+                                    Delete
+                                </button>
+                                <button
+                                    type="button"
+                                    class="underline"
+                                    @click="moderateComment(c.id, true)"
+                                >
+                                    Ban
+                                </button>
+                            </div>
+                        </li>
+                    </ul>
+                </section>
+
+                <section
+                    class="rounded-xl p-5"
+                    style="
+                        background: hsl(var(--bg-elev));
+                        border: 1px solid hsl(var(--border-ahd));
+                    "
+                >
+                    <h2 class="font-display mb-4 text-[22px] italic">
+                        Chat activity
+                    </h2>
+                    <ul class="space-y-2 text-sm">
+                        <li v-for="m in recentChat" :key="m.id">
+                            <span class="font-medium">{{
+                                m.member_name ?? '—'
+                            }}</span>
+                            <span class="opacity-60">
+                                in #{{ m.room ?? '?' }}</span
+                            >
+                            <p class="break-words opacity-80">{{ m.body }}</p>
+                        </li>
+                        <li v-if="!recentChat.length" class="opacity-60">
+                            No chat messages yet
+                        </li>
+                    </ul>
+                    <h3
+                        class="mt-5 mb-2 font-mono text-[10px] tracking-widest uppercase"
+                        style="color: hsl(var(--fg-faint))"
+                    >
+                        Moderation log
+                    </h3>
+                    <ul class="space-y-1 text-sm">
+                        <li v-for="(l, i) in modLog" :key="i">
+                            {{ l.action }}
+                            <span class="opacity-60"
+                                >→ {{ l.target_member_name ?? '—' }}</span
+                            >
+                        </li>
+                        <li v-if="!modLog.length" class="opacity-60">
+                            No moderation actions yet
+                        </li>
+                    </ul>
+                </section>
+            </div>
 
             <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
                 <section
@@ -269,7 +452,9 @@ const breadcrumbs: BreadcrumbItem[] = [
                                     :alt="a.cat_title"
                                 />
                                 <div class="min-w-0 flex-1">
-                                    <div class="truncate">{{ a.cat_title }}</div>
+                                    <div class="truncate">
+                                        {{ a.cat_title }}
+                                    </div>
                                 </div>
                                 <span
                                     class="font-mono text-[12px]"
@@ -302,7 +487,9 @@ const breadcrumbs: BreadcrumbItem[] = [
                             class="flex items-center justify-between rounded-lg p-2 text-[13px]"
                             style="background: hsl(var(--bg-soft))"
                         >
-                            <span class="truncate font-mono text-[12px]">{{ r.domain }}</span>
+                            <span class="truncate font-mono text-[12px]">{{
+                                r.domain
+                            }}</span>
                             <span
                                 class="font-mono text-[12px]"
                                 style="color: hsl(var(--accent))"

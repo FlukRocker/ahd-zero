@@ -2,17 +2,19 @@
 
 namespace App\Http\Controllers;
 
+use App\Contracts\AdminFeed;
 use App\Models\Anime;
 use App\Models\Episode;
 use App\Models\Member;
 use App\Services\AnalyticsService;
+use App\Support\OpenReports;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class DashboardController extends Controller
 {
-    public function index(AnalyticsService $analytics): Response
+    public function index(AnalyticsService $analytics, AdminFeed $feed): Response
     {
         $totalAnime = Anime::query()->count();
         $totalEpisodes = Episode::query()->count();
@@ -59,6 +61,10 @@ class DashboardController extends Controller
             'trendingAnime' => $trendingAnime,
             'topReferrers' => $topReferrers,
             'viewsOverTime' => $viewsOverTime,
+            'latestComments' => $feed->latestComments(),
+            'recentChat' => $feed->recentChat(),
+            'modLog' => $feed->modLog(),
+            'openReports' => OpenReports::count(),
         ]);
     }
 }

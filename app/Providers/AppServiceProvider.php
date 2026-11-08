@@ -27,6 +27,7 @@ class AppServiceProvider extends ServiceProvider
             \App\Contracts\ChatHistory::class,
             \App\Support\RedisChatHistory::class,
         );
+        $this->app->bind(\App\Contracts\AdminFeed::class, \App\Services\AdminFeeds::class);
     }
 
     /**
