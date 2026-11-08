@@ -98,7 +98,9 @@ export default function chatLobby() {
                 enabledTransports: ['ws', 'wss'],
             });
 
-            echo.channel('chat.lobby')
+            const roomId = this.config.room.id;
+
+            echo.channel(`chat.room.${roomId}`)
                 .listen('.message.sent', (line) => this.append(line))
                 .listen('.message.deleted', ({ id }) => {
                     this.messages = this.messages.filter((line) => line.id !== id);
@@ -106,7 +108,7 @@ export default function chatLobby() {
                 .listen('.member.sanctioned', (event) => this.onSanctioned(event, echo));
 
             if (this.config.canPost) {
-                echo.join('chat.roster')
+                echo.join(`chat.roster.${roomId}`)
                     .here((people) => { this.roster = people; })
                     .joining((person) => { this.roster.push(person); })
                     .leaving((person) => {
@@ -129,13 +131,19 @@ export default function chatLobby() {
                 // their next subscribe. Leaving the roster on our own say-so
                 // just stops a banned name sitting in the online list until
                 // the socket drops.
-                echo.leave('chat.roster');
+                echo.leave('chat.roster.' + this.config.room.id);
                 this.roster = this.roster.filter((p) => p.uuid !== uuid);
             }
         },
 
         actionsFor(line) {
             return allowedActions(this.config?.myRank ?? null, this.config?.me ?? null, !!this.config?.canPost, line);
+        },
+
+        isLast(line) {
+            const last = this.messages[this.messages.length - 1];
+
+            return !!last && last.id === line.id;
         },
 
         toggleMenu(line) {
@@ -196,7 +204,7 @@ export default function chatLobby() {
                         Accept: 'application/json',
                         'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content ?? '',
                     },
-                    body: JSON.stringify({ body }),
+                    body: JSON.stringify({ body, room_id: this.config.room.id }),
                 });
 
                 if (!response.ok) {

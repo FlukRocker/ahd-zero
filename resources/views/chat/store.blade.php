@@ -28,7 +28,8 @@
         }
     </style>
     <main class="mx-auto w-full max-w-3xl px-4 py-6" x-data="chatStore">
-        <h1 class="text-xl font-semibold">Chat store</h1>
+        <x-chat.tabs active="store" />
+        <h1 class="mt-4 text-xl font-semibold">Chat store</h1>
         <p class="text-sm opacity-70">Balance: <span x-text="balance"></span> coins</p>
         <p class="mt-2 text-sm text-red-400" x-show="error" x-text="error"></p>
 
@@ -56,7 +57,7 @@
                         <button
                             type="button"
                             class="mt-2 block rounded-md px-3 py-1 text-sm font-medium disabled:opacity-50"
-                            :disabled="!canBuy(item)"
+                            :disabled="!!(!canBuy(item))"
                             @click="buy(item)"
                         >Buy</button>
                     </template>
@@ -64,7 +65,7 @@
                         <button
                             type="button"
                             class="mt-2 block rounded-md px-3 py-1 text-sm font-medium disabled:opacity-50"
-                            :disabled="busy !== null"
+                            :disabled="!!(busy !== null)"
                             @click="equip(item)"
                         >Equip</button>
                     </template>
