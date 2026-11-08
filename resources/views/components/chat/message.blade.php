@@ -40,7 +40,7 @@
                     type="button"
                     class="block w-full rounded px-2 py-1 text-left hover:bg-white/10 disabled:opacity-50"
                     @click="moderate(line, action)"
-                    :disabled="busy[String(line.id) + action]"
+                    :disabled="!!busy[String(line.id) + action]"
                     x-text="({ delete: 'Delete', gag: 'Gag 10 min', kick: 'Kick', ban: 'Ban 24 h' })[action]"
                 ></button>
             </li>
