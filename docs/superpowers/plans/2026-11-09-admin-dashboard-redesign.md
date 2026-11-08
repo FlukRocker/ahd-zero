@@ -10,7 +10,13 @@
 
 **Spec:** `docs/superpowers/specs/2026-11-09-admin-dashboard-redesign-design.md`
 
+## Execution
+
+Work on a feature branch `feat/admin-dashboard` cut from `main`, never on `main` directly.
+
 ## Global Constraints
+
+- **Code must be safe before the `reports` table exists on prod.** Every code path that touches `reports` outside the Reports page itself (`OpenReports::count()`, `ReportResolver::resolveTarget()`) is a no-op when the table is missing (`Schema::hasTable('reports')`), so any intermediate deploy keeps admin delete, comment delete and the dashboard working.
 
 - Do not create migration files in this repo. The `reports` migration goes in `../ahd-admin/database/migrations/`; here only add a `Schema::hasTable()`-guarded shim to `database/migrations/2024_01_01_000005_create_tag_shim_tables.php`.
 - Prod is MariaDB 10.1: no `json` type, no JSON functions; guard DDL with `hasTable`; `reports` columns use explicit lengths (`target_type` varchar(16), `target_id` varchar(32), `reason` varchar(16), `status` varchar(16), `note` varchar(500)); `member_id` is `unsignedBigInteger` FK to `members.id`.
@@ -52,13 +58,13 @@ Failure modes the spec implies but the obvious tests would miss. Each has a test
 
 **Files:**
 - Modify: `app/Http/Controllers/DashboardController.php`, `resources/js/pages/Dashboard.vue`
-- Create: `app/Services/AdminFeeds.php`
+- Create: `app/Services/AdminFeeds.php`, `app/Contracts/AdminFeed.php`
 - Test: `tests/Feature/DashboardTest.php` (extend), `tests/Unit/AdminFeedsTest.php`
 
 **Interfaces:**
-- Produces: `App\Services\AdminFeeds` with `latestComments(int $limit = 8): ?array` (rows `{id, user_name, body, created_at, deleted}` or `null` when Mongo throws), `recentChat(int $limit = 8): array` (rows `{id, room, member_name, body, created_at}` from non-deleted `ChatMessage`), `modLog(int $limit = 8): array` (rows `{action, target_member_name, created_at}` from `ChatModerationLog`). Inertia props added to `Dashboard`: `latestComments` (nullable), `recentChat`, `modLog`, `openReports`.
+- Produces: `App\Services\AdminFeeds` with `latestComments(int $limit = 8): ?array` (rows `{id, user_name, body, created_at, deleted}` or `null` when Mongo throws or the query exceeds a short `maxTimeMS`, e.g. 1500 ms), `recentChat(int $limit = 8): array` (rows `{id, room, member_name, body, created_at}` from non-deleted `ChatMessage`), `modLog(int $limit = 8): array` (rows `{action, target_member_name, created_at}` from `ChatModerationLog`). Inertia props added to `Dashboard`: `latestComments` (nullable), `recentChat`, `modLog`, `openReports`.
 
-- [ ] **Step 1: Failing tests.** `AdminFeedsTest`: `test_recent_chat_returns_newest_first_and_skips_deleted`; `test_mod_log_returns_newest_first`; `test_latest_comments_is_null_when_mongo_fails` (inject a closure/seam so the Mongo call throws; do not need a real Mongo). `DashboardTest`: props include `recentChat`, `modLog`, `openReports`, and a `latestComments` key that is `null` in the test environment (no Mongo) while the response is still 200 (Review Focus 5).
+- [ ] **Step 1: Failing tests.** `AdminFeedsTest`: `test_recent_chat_returns_newest_first_and_skips_deleted`; `test_mod_log_returns_newest_first`; `test_latest_comments_is_null_when_mongo_fails` (inject a closure/seam so the Mongo call throws; do not need a real Mongo). `DashboardTest`: props include `recentChat`, `modLog`, `openReports`, and bind a fake `AdminFeed` (a small contract implemented by `AdminFeeds`) whose `latestComments()` returns `null`, and assert the page still renders 200 with `latestComments === null` (Review Focus 5). Do not rely on Mongo being absent.
 - [ ] **Step 2: Run, confirm FAIL.**
 - [ ] **Step 3: Implement** `AdminFeeds` (wrap the comments query in try/catch, return null; truncate bodies to 140 chars server-side) and pass through `DashboardController::index`. Rewrite `Dashboard.vue` to the layout-A home: KPI cards row, 30-day views chart (reuse the existing sparkline data), "Needs attention" box (`openReports`, link to `/dashboard/reports`), latest comments with inline Delete / Ban buttons calling the existing `DELETE /dashboard/comments/{id}` and `POST /dashboard/comments/{id}/delete-and-ban`, recent chat + mod log, trending + top referrers. Empty state text "Comments unavailable right now" when `latestComments === null`.
 - [ ] **Step 4: Run tests, confirm PASS** (+ full suites).
@@ -68,20 +74,20 @@ Failure modes the spec implies but the obvious tests would miss. Each has a test
 
 **Files:**
 - Create: `../ahd-admin/database/migrations/2026_11_09_000001_create_reports.php`, `app/Models/Report.php`, `app/Services/Moderation/ChatMessageModerator.php`, `app/Services/Moderation/CommentModerator.php`, `app/Services/Moderation/ReportResolver.php`
-- Modify: `database/migrations/2024_01_01_000005_create_tag_shim_tables.php` (guarded `reports`), `app/Http/Controllers/Admin/ChatManagementController.php` (`destroyMessage` delegates), `app/Http/Controllers/Admin/CommentManagementController.php` (`destroy`, `destroyAndBan` delegate)
+- Modify: `database/migrations/2024_01_01_000005_create_tag_shim_tables.php` (guarded `reports`), `app/Http/Controllers/Admin/ChatManagementController.php` (`destroyMessage` delegates), `app/Http/Controllers/Admin/CommentManagementController.php` (`destroy`, `destroyAndBan` delegate), `app/Http/Controllers/ChatController.php` (`destroy`, the member/mod delete at `DELETE /chat/messages/{id}`, calls the resolver), `app/Http/Controllers/CommentController.php` (`destroy`, the author delete, calls the resolver)
 - Test: `tests/Unit/Moderation/ReportResolverTest.php`, `tests/Feature/Chat/AdminChatTest.php` (extend), `tests/Feature/Moderation/ReportSchemaTest.php`
 
 **Interfaces:**
 - Produces:
   - `App\Models\Report` (fillable `member_id,target_type,target_id,reason,note,status,resolved_by,resolved_at`; consts `TYPE_COMMENT='comment'`, `TYPE_CHAT='chat_message'`; `REASONS = ['spam','abuse','other']`; `STATUS_OPEN/ACTIONED/DISMISSED`).
-  - `ReportResolver::resolveTarget(string $type, string $id, string $status, ?int $adminId): int` (updates every open report on that target; returns rows changed).
+  - `ReportResolver::resolveTarget(string $type, string $id, string $status, ?int $adminId): int` (updates every open report on that target; returns rows changed; returns 0 and does nothing when the `reports` table does not exist).
   - `ChatMessageModerator::delete(ChatMessage $message, int $adminId): void` (exactly the body of `destroyMessage` today: set `deleted_by_admin_id`, soft delete, `ChatModerationLog` `delete_message`, `ChatService::forgetHistory`, `MessageDeleted::dispatch`, then `ReportResolver::resolveTarget('chat_message', (string) $id, 'actioned', $adminId)`).
   - `CommentModerator::delete(Comment $c, ?int $adminId): void`, `CommentModerator::deleteAndBan(Comment $c, ?string $reason, bool $deleteAll, ?int $adminId): void` (bodies moved from the controller; both call `resolveTarget('comment', $c->getKey(), 'actioned', $adminId)`).
 - Migration shape: `reports` per Global Constraints, `unique(['member_id','target_type','target_id'])`, `index(['status','created_at'])`, FK `member_id` → `members.id` cascadeOnDelete; whole create wrapped in `if (! Schema::hasTable('reports'))`.
 
-- [ ] **Step 1: Failing tests.** `ReportSchemaTest::test_reports_table_has_the_unique_member_target_key` (insert a duplicate, expect `QueryException`). `ReportResolverTest::test_resolve_target_closes_every_open_report_on_that_target_only` and `::test_already_resolved_reports_are_untouched`. `AdminChatTest::test_admin_delete_still_clears_history_and_broadcasts_and_closes_open_reports` (create an open report for the message first; assert `Event::assertDispatched(MessageDeleted::class)`, history cache cleared as the existing delete test asserts, report status `actioned`).
+- [ ] **Step 1: Failing tests.** `ReportSchemaTest::test_reports_table_has_the_unique_member_target_key` (insert a duplicate, expect `QueryException`). `ReportResolverTest::test_resolve_target_closes_every_open_report_on_that_target_only` and `::test_already_resolved_reports_are_untouched`; `::test_resolve_target_is_a_noop_when_the_table_is_missing`. `AdminChatTest::test_admin_delete_still_works_when_the_reports_table_is_missing` (drop `reports`, assert history cleared, `MessageDeleted` dispatched, 200). `Chat\SendMessageTest`-style feature test `test_author_and_mod_delete_close_open_reports` for `DELETE /chat/messages/{id}`. Comment paths: `tests/Feature/Moderation/CommentControllersTest.php` binds a mock `CommentModerator` and asserts `CommentManagementController::destroy` and `::destroyAndBan` delegate and return exactly `{"message":"Deleted"}` / `{"message":"Deleted and banned"}`, and that `CommentController::destroy` (author delete) calls the resolver for `comment:<id>` (use a fake `ReportTargetResolver`/mock; no Mongo). `AdminChatTest::test_admin_delete_still_clears_history_and_broadcasts_and_closes_open_reports` (create an open report for the message first; assert `Event::assertDispatched(MessageDeleted::class)`, history cache cleared as the existing delete test asserts, report status `actioned`).
 - [ ] **Step 2: Run, confirm FAIL.**
-- [ ] **Step 3: Implement** the shim, model, resolver and the two moderators; make the three controller methods thin callers with unchanged signatures, routes and JSON. Write the `ahd-admin` migration (guarded, explicit lengths); do not run it on prod here.
+- [ ] **Step 3: Implement** the shim, model, resolver and the two moderators; make the three controller methods thin callers with unchanged signatures, routes and JSON. Wire `ReportResolver::resolveTarget` into the four delete paths (admin chat, member/mod chat `ChatController::destroy`, admin comment, author comment `CommentController::destroy`). Write the `ahd-admin` migration (guarded, explicit lengths); do not run it on prod here.
 - [ ] **Step 4: Run tests, confirm PASS**; full `vendor/bin/phpunit` must stay green (existing admin chat tests prove nothing regressed).
 - [ ] **Step 5: Commit** in both repos: `feat(reports): reports table and shared moderation services` (ahd-v2) and `feat: create reports table` (ahd-admin).
 
@@ -97,7 +103,7 @@ Failure modes the spec implies but the obvious tests would miss. Each has a test
 
 - [ ] **Step 1: Failing tests** (bind a fake `ReportTargetResolver` for comment targets; chat targets use real `ChatMessage` rows): `test_a_verified_member_can_report_a_chat_message`; `test_reporting_twice_creates_one_row_and_still_succeeds`; `test_you_cannot_report_your_own_message`; `test_unknown_or_deleted_or_other_site_target_is_404_not_500`; `test_guest_and_unverified_member_are_rejected`; `test_invalid_reason_is_422`; `test_note_over_500_chars_is_422`; `test_reports_are_rate_limited_per_member`.
 - [ ] **Step 2: Run, confirm FAIL.**
-- [ ] **Step 3: Implement** controller + request + resolver (comment lookup is the only Mongo touch, behind the contract; inside it, reject `site !== config('app.site_key')` and `deleted_by !== null`). Rate limiter `reports`: 10/min per member. Use `firstOrCreate` on the unique key so the duplicate race is safe.
+- [ ] **Step 3: Implement** controller + request + resolver (comment lookup is the only Mongo touch, behind the contract; inside it, reject `site !== config('app.site_key')` and `deleted_by !== null`). Rate limiter `reports`: 10/min per member. Use `createOrFirst` on the unique key (not `firstOrCreate`), so a concurrent duplicate is safe.
 - [ ] **Step 4: Run tests, confirm PASS** (+ full suite).
 - [ ] **Step 5: Commit** `feat(reports): member report endpoint`.
 
@@ -110,7 +116,7 @@ Failure modes the spec implies but the obvious tests would miss. Each has a test
 
 **Interfaces:**
 - Consumes: Task 3 services/`Report`, Task 4 `ReportTargetResolver`.
-- Produces routes (all in the `auth, verified` admin group): `GET dashboard/reports` (`admin.reports`, query `status=open|actioned|dismissed`, default open), `POST dashboard/reports/{target}/delete` (`admin.reports.delete`), `POST dashboard/reports/{target}/ban-chat`, `POST .../ban-site`, `POST .../ban-comment`, `POST .../dismiss`; `{target}` is `"{type}:{id}"` so one action resolves every report on the item. Page props: `groups: [{type, id, excerpt, author: {name, memberId|null}, count, reasons: string[], notes: string[], status, available}]`, `filters.status`.
+- Produces routes (all in the `auth, verified` admin group): `GET dashboard/reports` (`admin.reports`, query `status=open|actioned|dismissed`, default open), `POST dashboard/reports/{target}/delete` (`admin.reports.delete`; every `{target}` route has `->where('target', '(comment|chat_message):[A-Za-z0-9]{1,32}')`), `POST dashboard/reports/{target}/ban-chat`, `POST .../ban-site`, `POST .../ban-comment`, `POST .../dismiss`; `{target}` is `"{type}:{id}"` so one action resolves every report on the item. Page props: `groups: [{type, id, excerpt, author: {name, memberId|null}, count, reasons: string[], notes: string[], status, available}]`, `filters.status`.
 - Behaviour: delete → `ChatMessageModerator::delete` / `CommentModerator::delete`; `ban-chat` → `ModerationService::ban($chatMember, null, reason, null, $adminId)` then `ReportResolver::resolveTarget(..., 'actioned')`; `ban-site` → `Member::update(['banned_at'=>now(),...])` then resolve; `ban-comment` → `CommentModerator::deleteAndBan`; dismiss → `resolveTarget(..., 'dismissed')`. Ban endpoints return 422 when the author is unknown (null member, Review Focus 4). An unavailable target only accepts dismiss.
 
 - [ ] **Step 1: Failing tests.** PHP: `test_queue_lists_open_reports_grouped_by_target_newest_first`; `test_delete_action_deletes_the_chat_message_and_closes_all_its_reports`; `test_ban_chat_and_ban_site_resolve_the_reports_and_apply_the_right_ban`; `test_ban_with_unknown_author_is_422_but_delete_and_dismiss_work`; `test_dismiss_marks_dismissed`; `test_unavailable_target_only_allows_dismiss`; `test_non_admin_cannot_reach_reports`; sidebar badge equals open count. Vitest `adminReports.test.ts`: mounts `Reports.vue`, shows Ban buttons only when `author.memberId` is set, shows both "Ban from chat" and "Ban from site" for chat items and "Delete and ban" for comment items, shows "deleted" + only Dismiss when `available` is false.
@@ -122,7 +128,7 @@ Failure modes the spec implies but the obvious tests would miss. Each has a test
 ### Task 6: Public Report UI (comments + chat)
 
 **Files:**
-- Modify: `resources/js/components/comments/CommentItem.vue` (+ `CommentSection.vue` if the emit chain needs it), `resources/js/chat/permissions.js`, `resources/js/chat/lobby.js`, `resources/views/components/chat/message.blade.php`, `resources/views/chat.blade.php` (modal markup)
+- Modify: `resources/js/components/comments/CommentItem.vue` (+ `CommentSection.vue` if the emit chain needs it), `resources/js/chat/permissions.js`, `resources/js/chat/lobby.js`, `resources/views/components/chat/message.blade.php`, `resources/views/chat.blade.php` (modal markup; confirmed path)
 - Create: `resources/js/components/comments/ReportModal.vue`, `resources/js/lib/reports.ts` (`submitReport(type, id, reason, note): Promise<'created'|'duplicate'>`)
 - Test: `tests/js/chatPermissions.test.ts` (extend), `tests/js/reports.test.ts`, `tests/Feature/Chat/ChatPageTest.php` (extend)
 
@@ -142,6 +148,6 @@ Failure modes the spec implies but the obvious tests would miss. Each has a test
 - Create: `docs/reports-deploy.md`
 - Test: manual smoke list inside the doc
 
-- [ ] **Step 1:** Write the runbook: back up prod DB; push `ahd-admin`; apply `2026_11_09_000001_create_reports.php` by explicit `--path` on prod (guarded, MariaDB 10.1 safe); then deploy ahd-v2 (`git pull --ff-only`, `pnpm build` using `/root/.local/share/pnpm` first in PATH, `artisan optimize`, `pm2 restart ahd-reverb`); rollback = previous SHA (the table is additive and can stay). Deploy order matters only for the Reports page; the shell and home work before the table exists because `OpenReports::count()` guards it.
+- [ ] **Step 1:** Write the runbook: back up prod DB; push `ahd-admin`; apply `2026_11_09_000001_create_reports.php` by explicit `--path` on prod (guarded, MariaDB 10.1 safe); then deploy ahd-v2 (`git pull --ff-only`, `pnpm build` with `/root/.local/share/pnpm` first in PATH, `artisan optimize`, `pm2 restart ahd-reverb` with `/root/.nvm/versions/node/v18.16.0/bin` on PATH); rollback = previous SHA (the table is additive and can stay). Any deploy order is safe: `OpenReports::count()` and `ReportResolver::resolveTarget()` no-op while the table is missing, so admin delete, comment delete and the dashboard keep working. Only the Reports page and the member Report action need the table, and they return a clear error (not a 500) until it exists.
 - [ ] **Step 2:** Run `vendor/bin/phpunit`, `pnpm test`, `pint`, `phpstan`; browser-smoke locally on the scratch sqlite env (never the prod `.env`): shell, home, `/settings/profile`, a report round trip on chat.
 - [ ] **Step 3: Commit** `docs: reports deploy runbook`. Pushing, applying the migration and deploying each wait for the owner's explicit go.
