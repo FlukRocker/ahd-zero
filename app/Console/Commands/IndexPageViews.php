@@ -26,28 +26,81 @@ class IndexPageViews extends Command
      */
     private const INDEXES = [
         // getTrendingAnime: match on site + page_type + created_at, group page_id.
-        'ahd_trending' => ['site' => 1, 'page_type' => 1, 'created_at' => -1],
+        // page_id is in the key so the aggregation is covered by the index —
+        // without it Mongo fetches every matching document just to read
+        // page_id, and the all-time window fetches every anime view ever.
+        'ahd_trending_covered' => ['site' => 1, 'page_type' => 1, 'created_at' => -1, 'page_id' => 1],
         // getViewStats / getViewsOverTime / getTopReferrers: site + created_at.
         'ahd_site_created' => ['site' => 1, 'created_at' => -1],
     ];
 
+    /**
+     * Indexes this command used to create and has since replaced. Dropped only
+     * after the replacements exist, so the queries are never left unindexed.
+     *
+     * @var list<string>
+     */
+    private const SUPERSEDED = [
+        // Uncovered: forced a document fetch per view (see ahd_trending_covered).
+        'ahd_trending',
+    ];
+
     public function handle(): int
     {
-        foreach (self::INDEXES as $name => $keys) {
+        $status = $this->option('drop') ? $this->dropManaged() : $this->createManaged();
+
+        if ($status !== self::SUCCESS) {
+            return $status;
+        }
+
+        return $this->dropSuperseded();
+    }
+
+    private function createManaged(): int
+    {
+        return $this->eachIndex(self::INDEXES, function (string $name, array $keys): void {
+            PageView::raw(fn ($collection) => $collection->createIndex($keys, [
+                'name' => $name,
+                // Keep the collection readable and writable while it builds.
+                'background' => true,
+            ]));
+            $this->info("created {$name}: ".json_encode($keys));
+        });
+    }
+
+    private function dropManaged(): int
+    {
+        return $this->eachIndex(self::INDEXES, fn (string $name) => $this->dropIfPresent($name));
+    }
+
+    private function dropSuperseded(): int
+    {
+        return $this->eachIndex(array_flip(self::SUPERSEDED), fn (string $name) => $this->dropIfPresent($name));
+    }
+
+    private function dropIfPresent(string $name): void
+    {
+        $existing = PageView::raw(fn ($collection) => iterator_to_array($collection->listIndexes()));
+
+        foreach ($existing as $index) {
+            if ($index->getName() === $name) {
+                PageView::raw(fn ($collection) => $collection->dropIndex($name));
+                $this->info("dropped {$name}");
+
+                return;
+            }
+        }
+    }
+
+    /**
+     * @param  array<string, mixed>  $indexes
+     * @param  callable(string, mixed): void  $fn
+     */
+    private function eachIndex(array $indexes, callable $fn): int
+    {
+        foreach ($indexes as $name => $keys) {
             try {
-                if ($this->option('drop')) {
-                    PageView::raw(fn ($collection) => $collection->dropIndex($name));
-                    $this->info("dropped {$name}");
-
-                    continue;
-                }
-
-                PageView::raw(fn ($collection) => $collection->createIndex($keys, [
-                    'name' => $name,
-                    // Keep the collection readable and writable while it builds.
-                    'background' => true,
-                ]));
-                $this->info("created {$name}: ".json_encode($keys));
+                $fn($name, $keys);
             } catch (Throwable $e) {
                 $this->error("{$name}: ".$e->getMessage());
 
