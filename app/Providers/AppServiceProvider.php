@@ -2,10 +2,13 @@
 
 namespace App\Providers;
 
+use App\Listeners\LinkAdminToMember;
 use App\View\Composers\GlobalComposer;
 use App\View\Composers\SidebarComposer;
+use Illuminate\Auth\Events\Login;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\View;
@@ -46,6 +49,9 @@ class AppServiceProvider extends ServiceProvider
         // so the stock `throttle:N,M` would key on IP and punish shared NATs.
         RateLimiter::for('chat-send', fn (Request $request): Limit => Limit::perMinute(20)
             ->by('chat-send:'.($request->user('member')?->getAuthIdentifier() ?? $request->ip())));
+
+        // Admin login at /login also signs the linked Member in.
+        Event::listen(Login::class, LinkAdminToMember::class);
 
         View::composer('*', GlobalComposer::class);
         // Scoped to the one component so admin/Inertia views never run the
