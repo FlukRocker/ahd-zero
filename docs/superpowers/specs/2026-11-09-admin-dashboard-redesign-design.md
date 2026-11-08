@@ -102,8 +102,8 @@ Rules:
   `user_id` (member uuid), which can be null or point at a deleted member: then
   Ban author is hidden and only Delete / Dismiss are offered.
 - Reporter identity is visible to admins only, never to the reported member.
-- Resolving: an admin chooses Delete item (marks the report `actioned`), Ban
-  author (marks `actioned`), or Dismiss (marks `dismissed`). Resolving one
+- Resolving: an admin chooses Delete item (marks the report `actioned`), a ban
+  (below, marks `actioned`), or Dismiss (marks `dismissed`). Resolving one
   report resolves all open reports on the same target.
 - Delete item and Ban author must reuse the existing behaviour, not raw row
   deletes: deleting a chat message must also clear the per-room Redis history
@@ -112,10 +112,11 @@ Rules:
   delete-and-ban semantics. The shared logic is extracted into services that
   both the current controllers and the Reports page call. Existing routes and
   responses stay unchanged.
-- "Ban author" depends on the target (owner's decision): for a chat report it is
-  the existing chat-only ban (`ChatManagementController::ban`); for a comment
-  report it is the existing delete-and-ban comment path. A site-wide ban stays
-  available from the Members page.
+- Banning (owner's decision): a chat report offers both "Ban from chat" (the
+  existing chat-only ban, `ChatManagementController::ban`) and "Ban from site"
+  (the existing member ban, `MemberManagementController::ban`). A comment report
+  offers the existing delete-and-ban comment path. Either ban marks the report
+  `actioned`.
 - The Reports queue is admin-only (the `auth` area). Chat moderators keep acting
   from the lobby menu.
 
