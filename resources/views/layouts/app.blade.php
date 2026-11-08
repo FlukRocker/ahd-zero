@@ -161,6 +161,7 @@
 
         <x-site-footer />
         <x-search-overlay />
+        <x-chat-bubble />
     </div>
 
     @stack('scripts')
