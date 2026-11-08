@@ -84,6 +84,43 @@ it if the tables are empty. Never drop anything that is not named `chat_*`.
 
 If ahd-v2 deploys before this runs, `/chat` 500s on first load.
 
+### 1d. Rooms migration (second `ahd-admin` migration)
+
+Rooms add one more `ahd-admin` migration,
+`database/migrations/2026_11_08_000001_create_chat_rooms.php` (commit
+`1425a61`). It needs the chat tables from 1c to exist, so run it second, again
+by explicit path, never a bare `migrate` (an older unrelated migration is
+pending in `ahd-admin`). Repeat the 1a check that the connection is the
+production database first.
+
+```bash
+php84 artisan migrate --force --path=database/migrations/2026_11_08_000001_create_chat_rooms.php
+```
+
+What it does: creates `chat_rooms` (`slug`, `name`, `topic`, `sort`, `active`),
+seeds a `lobby` row, and adds `chat_messages.room_id` as
+`NOT NULL DEFAULT <lobby id>` with an index and a foreign key. Existing
+messages take the default, so all history moves into `lobby` in its original
+order. Every step is guarded, so a re-run after a part-way failure skips what
+already exists (the recovery notes in 1c apply here too).
+
+**Table rebuild.** `ALTER TABLE ... ADD COLUMN` on MariaDB 10.1 rebuilds
+`chat_messages` and blocks writes while it runs. The table is small, but run
+the migration soon after the chat tables exist and not during peak traffic,
+since a post made during the rebuild waits or fails.
+
+**Why the default matters.** Because `room_id` has a default, the old ahd-v2
+code (which knows nothing about rooms) keeps inserting into `lobby` in the gap
+between this migration and the ahd-v2 deploy. The migration was tested on a
+throwaway `mariadb:10.1` container (up, backfill, rollback, re-run), not on
+production.
+
+**ahd-v2 does not create or seed the lobby and does not tolerate the schema
+being absent.** `ChatRoom::lobby()` is `firstOrFail`, so deploying ahd-v2
+before this migration makes `/chat` fail, as does deleting the `lobby` row.
+Deploy order is therefore: 1 (chat tables) then 1d (rooms) in `ahd-admin`,
+then steps 2 to 6 for ahd-v2.
+
 ## 2. ahd-v2 — env
 
 Set these in the production `.env` on the server:
@@ -210,6 +247,70 @@ from the shared-cache headers in `SecurityHeaders`. Do **not** purge the whole
 zone: on this shared host that empties the SEO cache for the entire site.
 `/chat` never existed before this release, so at most purge that single URL.
 
+## 7. Rooms: cutover, cache key and channels
+
+**Hard cutover.** Channel names change in this release (below). A page left
+open across the deploy keeps listening on the old channel names until it is
+reloaded, so it silently stops receiving anything new. People with `/chat` open
+must reload. This is accepted for a public, read-mostly chat; there is no
+shim for the old names.
+
+**Per-room names.** `{id}` is the `chat_rooms.id`; the history key is under the
+app's `CACHE_PREFIX` (the facade adds it).
+
+| What | Name |
+| --- | --- |
+| Public channel (messages, deletions, sanction notices) | `chat.room.{id}` |
+| Presence channel (online list) | `chat.roster.{room}` (presence, member guard) |
+| Redis history key | `chat:room:{id}:history` |
+| Pages | `/chat` (lobby), `/chat/room/{slug}` |
+
+Each page joins only its own room's channels. Switching room is a full page
+navigation. `chat.roster.{room}` is a presence channel, so a member with tabs
+in two rooms appears in both online lists; there is no site-wide roster.
+
+**Orphaned `chat:lobby:history`.** The old single-room history key is no
+longer read or written. Leaving it is harmless. If you want it gone, delete
+that exact key only:
+
+```bash
+redis-cli DEL <CACHE_PREFIX>chat:lobby:history   # verify the prefix first
+```
+
+Never delete by pattern (`KEYS`/`SCAN` + `DEL`, `FLUSHDB`): this Redis is
+shared with other apps. Each room's history key rebuilds from MariaDB on its
+first cache miss, so there is nothing to warm.
+
+**Sanctions are global.** A gag, kick, ban or rank change applies to the member
+in every room, as do the rate limit and the gag check on posting. A sanction
+notice (`member.sanctioned`) is broadcast on the public channel of **every
+active room**, so a sanctioned member's open tabs in any room react. Inactive
+rooms get no notice. This was a stated default, not something the user
+confirmed; per-room sanctions would be a change, not a config option.
+
+**Closing a room (setting `active = 0`).** The `lobby` room is never to be
+deactivated. For any other room, the server side is strict and the browser side
+is stale:
+
+- `/chat/room/{slug}` for an inactive room returns 404, and the room drops out
+  of the room list on the next page load.
+- A post to an inactive or nonexistent `room_id` is refused by validation
+  (422). A post with **no** `room_id` goes to the lobby.
+- The presence channel refuses to join an inactive room.
+- Its messages stay in the database and the history cache key is not touched.
+- A page already open on the room is **not** told: it stays on the dead
+  channel, keeps showing the old messages and its posts are rejected until the
+  member reloads. Nothing is broadcast on close.
+
+Authorisation runs at subscribe time only, so a ban or closing a room does not
+evict a connected socket. That is acceptable only because rooms are public.
+
+**MariaDB 10.1 limits (prod is 10.1.47).** Tests run on sqlite and do not catch
+violations. In anything touching the chat tables there must be no `json`
+columns (use `longText` plus an array cast), no JSON SQL functions
+(`JSON_*`, `->>`), no CTEs (`WITH`), no window functions (`OVER (`), and no
+`SKIP LOCKED` / `NOWAIT`.
+
 ## Smoke check
 
 1. Open `https://animehdzero.net/chat` in two browsers, one logged in, one not.
@@ -220,6 +321,9 @@ zone: on this shared host that empties the SEO cache for the entire site.
 3. `pm2 logs ahd-reverb` shows the connection, with no repeated reconnects
    (only if Reverb runs with `--debug`).
 4. Guest response headers for `/chat` contain no `s-maxage`.
+5. Open `/chat/room/<slug>` for a second room. It shows only that room's
+   messages; a post there does not appear in the lobby.
+6. `/chat/room/<inactive-slug>` returns 404.
 
 ## Known limitations
 
@@ -233,7 +337,7 @@ assume the opposite.
   only. Watch the logs for deadlock errors after launch.
 - **Channel authorisation is tested only against the null broadcaster.**
   Tests run with `BROADCAST_CONNECTION=null`, which never calls channel
-  callbacks. The `chat.roster` presence-channel check (`RosterChannel`) is
+  callbacks. The `chat.roster.{room}` presence-channel check (`RosterChannel`) is
   tested directly as a class, but the real Reverb subscribe path has not been
   exercised by an automated test.
 - **The presence roster does not yet show equipped cosmetics.** The roster
