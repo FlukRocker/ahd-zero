@@ -182,4 +182,27 @@ class ReportTest extends TestCase
 
         $this->postJson('/reports', $this->body((string) $this->message()->id))->assertStatus(429);
     }
+
+    public function test_a_failing_target_lookup_is_503_not_500(): void
+    {
+        $this->app->bind(ReportTargetResolver::class, fn () => new class implements ReportTargetResolver
+        {
+            public function find(string $type, string $id): ReportTarget
+            {
+                throw new \RuntimeException('mongo down');
+            }
+        });
+
+        $this->actingAs($this->reporter, 'member')
+            ->postJson('/reports', $this->body('abc', ['target_type' => 'comment']))
+            ->assertStatus(503);
+    }
+
+    public function test_the_default_mongo_connection_fails_fast_when_the_server_is_unreachable(): void
+    {
+        $options = config('database.connections.mongodb.options');
+
+        $this->assertLessThanOrEqual(5000, $options['serverSelectionTimeoutMS']);
+        $this->assertLessThanOrEqual(5000, $options['connectTimeoutMS']);
+    }
 }

@@ -98,6 +98,9 @@ class ReportManagementController extends Controller
         [$type, $id] = $this->split($target);
         $author = $this->requireAuthor($type, $id, Report::TYPE_CHAT);
 
+        // A message can outlive its member row; do not create an orphan wallet for it.
+        abort_unless(Member::query()->whereKey($author)->exists(), 422, 'The author of this item no longer exists.');
+
         $chatMember = ChatMember::query()->firstOrCreate(['member_id' => $author], ['rank' => 'member', 'balance' => 0]);
         $adminId = $this->adminId($request);
         $moderation->ban($chatMember, null, $this->reason($request, 255), null, $adminId);

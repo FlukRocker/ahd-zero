@@ -9,6 +9,7 @@ use App\Models\Report;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Schema;
+use Throwable;
 
 class ReportController extends Controller
 {
@@ -27,7 +28,11 @@ class ReportController extends Controller
         }
 
         $data = $request->validated();
-        $target = $targets->find($data['target_type'], $data['target_id']);
+        try {
+            $target = $targets->find($data['target_type'], $data['target_id']);
+        } catch (Throwable) {
+            return response()->json(['message' => 'Reporting is not available right now.'], 503);
+        }
 
         if ($target === null || ! $target->available) {
             return response()->json(['message' => 'That item no longer exists.'], 404);

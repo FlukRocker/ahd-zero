@@ -264,4 +264,14 @@ class ReportManagementTest extends TestCase
 
         $this->actingAs($this->admin)->get('/dashboard/reports')->assertInertia(fn ($p) => $p->where('openReports', 2));
     }
+
+    public function test_ban_chat_on_a_message_whose_member_row_is_gone_is_422_and_creates_no_wallet(): void
+    {
+        $ghost = ChatMessage::query()->create(['member_id' => 999999, 'body' => 'orphan']);
+        $this->report($this->kai, 'chat_message', (string) $ghost->id);
+
+        $this->actingAs($this->admin)->postJson("/dashboard/reports/chat_message:{$ghost->id}/ban-chat")->assertStatus(422);
+
+        $this->assertDatabaseMissing('chat_members', ['member_id' => 999999]);
+    }
 }

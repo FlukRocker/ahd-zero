@@ -38,6 +38,13 @@ return [
             // `page_views` collection. Per-site filtering is done via the
             // `site` field on each document, not by separate databases.
             'database' => env('MONGO_DATABASE', 'kurokami'),
+            // Fail fast: the driver otherwise waits thirty seconds for an
+            // unreachable server, which turns "Mongo is down" into a hung
+            // admin dashboard instead of a degraded one.
+            'options' => [
+                'serverSelectionTimeoutMS' => (int) env('MONGO_TIMEOUT_MS', 2000),
+                'connectTimeoutMS' => (int) env('MONGO_TIMEOUT_MS', 2000),
+            ],
         ],
 
         /**
