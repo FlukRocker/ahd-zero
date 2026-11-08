@@ -74,8 +74,21 @@ class SendMessageTest extends TestCase
             sort($keys);
 
             return $event->broadcastOn()->name === 'chat.lobby'
-                && $keys === ['at', 'body', 'id', 'name', 'parts', 'style', 'uuid'];
+                && $keys === ['at', 'body', 'id', 'name', 'parts', 'rank', 'style', 'uuid'];
         });
+    }
+
+    public function test_record_rank_is_the_authors_current_rank(): void
+    {
+        $message = ChatMessage::create(['member_id' => $this->member->id, 'body' => 'hi']);
+        $chat = $this->app->make(\App\Services\Chat\ChatService::class);
+
+        $this->assertSame('member', $chat->record($message)['rank']);
+
+        ChatMember::updateOrCreate(['member_id' => $this->member->id], ['rank' => \App\Enums\ChatRank::Owner]);
+
+        $fresh = $this->app->make(\App\Services\Chat\ChatService::class);
+        $this->assertSame('owner', $fresh->record($message->fresh())['rank']);
     }
 
     public function test_a_gagged_member_is_refused(): void

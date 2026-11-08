@@ -40,7 +40,7 @@ class ChatService
             ->reverse()
             ->values();
 
-        // Two queries for every author at once, not two per message.
+        // Three queries for every author at once (cosmetic ownership, cosmetics, rank), not per message.
         $this->renderer->preload($rebuilt->pluck('member_id')->unique()->map(fn ($id): int => (int) $id)->all());
 
         $rebuilt = $rebuilt->map(fn (ChatMessage $message): array => $this->record($message))
@@ -71,6 +71,7 @@ class ChatService
             'parts' => $this->renderer->parts($message->body, $this->renderer->smiliesFor($memberId)),
             'style' => $this->renderer->styleFor($memberId),
             'at' => $message->created_at?->toIso8601String(),
+            'rank' => $this->renderer->rankFor($memberId),
         ];
     }
 

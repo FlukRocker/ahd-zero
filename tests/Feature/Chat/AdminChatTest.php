@@ -77,6 +77,34 @@ class AdminChatTest extends TestCase
         $this->actingAs($this->admin)->get('/dashboard/chat')->assertOk();
     }
 
+    public function test_index_lists_recent_messages_without_deleted_ones(): void
+    {
+        $kept = ChatMessage::create(['member_id' => $this->member->id, 'body' => 'kept']);
+        $gone = ChatMessage::create(['member_id' => $this->member->id, 'body' => 'gone']);
+        $gone->delete();
+
+        $this->actingAs($this->admin)->get('/dashboard/chat')->assertInertia(
+            fn ($page) => $page->has('messages', 1)
+                ->where('messages.0.id', $kept->id)
+                ->where('messages.0.body', 'kept')
+                ->where('messages.0.member.id', $this->member->id)
+                ->where('messages.0.member.name', 'Rin')
+                ->has('messages.0.created_at')
+        );
+    }
+
+    public function test_a_message_with_a_missing_member_row_does_not_break_the_console(): void
+    {
+        $message = ChatMessage::create(['member_id' => $this->member->id, 'body' => 'orphan']);
+        DB::table('members')->where('id', $this->member->id)->delete();
+
+        $this->actingAs($this->admin)->get('/dashboard/chat')->assertOk()->assertInertia(
+            fn ($page) => $page->has('messages', 1)
+                ->where('messages.0.id', $message->id)
+                ->where('messages.0.member', null)
+        );
+    }
+
     public function test_an_admin_grants_coins_and_the_ledger_matches(): void
     {
         $this->actingAs($this->admin)
@@ -316,6 +344,35 @@ class AdminChatTest extends TestCase
             ->assertOk();
 
         $this->assertDatabaseHas('chat_cosmetics', ['slug' => 'sunset', 'active' => true]);
+    }
+
+    public function test_create_cosmetic_422_returns_field_errors_for_a_bad_colour_and_duplicate_slug(): void
+    {
+        ChatCosmetic::create([
+            'type' => CosmeticType::NameColor,
+            'name' => 'Existing',
+            'slug' => 'taken',
+            'payload' => ['color' => '#ff0000'],
+            'price' => 5,
+            'active' => true,
+        ]);
+
+        $response = $this->actingAs($this->admin)
+            ->postJson('/dashboard/chat/cosmetics', [
+                'type' => 'name_color',
+                'name' => 'Dupe',
+                'slug' => 'taken',
+                'payload' => ['color' => 'red;background:url(//evil)'],
+                'price' => 10,
+                'sort' => 0,
+            ])
+            ->assertStatus(422);
+
+        $errors = array_keys($response->json('errors'));
+        $this->assertContains('slug', $errors);
+        $this->assertNotEmpty(array_filter($errors, fn ($k) => str_starts_with($k, 'payload')));
+        $this->assertDatabaseCount('chat_cosmetics', 1);
+        $this->assertDatabaseMissing('chat_cosmetics', ['name' => 'Dupe']);
     }
 
     public function test_updating_a_cosmetic_with_a_bad_payload_is_rejected(): void

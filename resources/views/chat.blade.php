@@ -18,6 +18,8 @@
         'history' => $history,
         'me' => $member?->uuid,
         'canPost' => $canPost,
+        // Null for guests; 'member' when there is no chat_members row.
+        'myRank' => $myRank,
         // No socket config here on purpose: after `artisan optimize` env()
         // returns null outside config files. The browser values are compiled
         // into the bundle by Vite instead; see lobby.js.
@@ -25,25 +27,22 @@
 @endphp
 
 @section('content')
-    <style>
-        .chat-name {
-            color: var(--chat-name-color, inherit);
-            text-shadow: var(--chat-glow, none);
-        }
-        .chat-name.chat-name-gradient {
-            background: var(--chat-name-gradient);
-            -webkit-background-clip: text;
-            background-clip: text;
-            color: transparent;
-        }
-    </style>
+    <x-chat.name-styles />
     <main class="mx-auto flex w-full max-w-5xl gap-4 px-4 py-6" x-data="chatLobby" x-init="start()">
         <section class="flex min-h-[60vh] flex-1 flex-col rounded-xl border border-white/10">
+            @if ($member !== null)
+                <p class="border-b border-white/10 px-3 py-2 text-xs">
+                    <a href="{{ route('chat.store') }}" class="underline">Store</a>
+                </p>
+            @endif
+
             <ul class="flex-1 space-y-1 overflow-y-auto p-3" x-ref="list">
                 <template x-for="line in messages" :key="line.id">
                     <x-chat.message />
                 </template>
             </ul>
+
+            <p class="px-3 pb-2 text-xs text-amber-400" x-show="notice" x-text="notice"></p>
 
             @if ($canPost)
                 <form class="flex gap-2 border-t border-white/10 p-3" @submit.prevent="send()">

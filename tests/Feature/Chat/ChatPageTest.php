@@ -39,6 +39,31 @@ class ChatPageTest extends TestCase
         return json_decode($m[1], true, 512, JSON_THROW_ON_ERROR);
     }
 
+    public function test_bootstrap_carries_my_rank_and_null_for_guests(): void
+    {
+        $mod = $this->member('mod@example.test');
+        \App\Models\ChatMember::create(['member_id' => $mod->id, 'rank' => \App\Enums\ChatRank::Mod]);
+        $plain = $this->member('plain@example.test');
+
+        $this->assertSame('mod', $this->bootstrap($this->actingAs($mod, 'member')->get('/chat')->getContent())['myRank']);
+        $this->assertSame('member', $this->bootstrap($this->actingAs($plain, 'member')->get('/chat')->getContent())['myRank']);
+
+        $this->app['auth']->guard('member')->logout();
+        $this->assertNull($this->bootstrap($this->get('/chat')->getContent())['myRank']);
+    }
+
+    public function test_header_links_to_chat_for_everyone_and_store_for_members(): void
+    {
+        $guest = $this->get('/')->getContent();
+        $this->assertStringContainsString('href="'.route('chat.show', [], false).'"', $guest);
+        $this->assertStringNotContainsString('href="'.route('chat.store', [], false).'"', $guest);
+
+        $member = $this->member();
+        $html = $this->actingAs($member, 'member')->get('/')->getContent();
+        $this->assertStringContainsString('href="'.route('chat.show', [], false).'"', $html);
+        $this->assertStringContainsString('href="'.route('chat.store', [], false).'"', $html);
+    }
+
     public function test_a_hostile_message_body_cannot_break_out_of_the_bootstrap(): void
     {
         $member = $this->member();
@@ -107,6 +132,16 @@ class ChatPageTest extends TestCase
         $this->assertTrue($data['canPost']);
         $this->assertArrayNotHasKey('member_id', $data['history'][0]);
         $this->assertArrayNotHasKey('echo', $data);
+    }
+
+    public function test_lobby_markup_has_moderation_hooks_and_no_x_html(): void
+    {
+        $html = $this->get('/chat')->assertOk()->getContent();
+
+        $this->assertStringContainsString('actionsFor(line)', $html);
+        $this->assertStringContainsString('moderate(', $html);
+        $this->assertStringNotContainsString('x-html', $html);
+        $this->assertStringNotContainsString('innerHTML', $html);
     }
 
     public function test_a_guest_sees_the_room_read_only(): void

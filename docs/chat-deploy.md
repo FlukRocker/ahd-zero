@@ -243,12 +243,32 @@ assume the opposite.
   The recent-history list is cached in Redis for 300 seconds. A message served
   from that cache can show the sender's style from before a cosmetic change
   until the cache entry expires or is rebuilt.
-- **The member-facing store and in-room moderation have no UI.** Only JSON
-  endpoints exist. The store page is a read-only list, and the lobby has no
-  delete or moderate controls. The admin page has no create-cosmetic form, no
-  grant-cosmetic form, no message list, and no pagination beyond 20 members.
-  There are no nav links to `/chat` or `/dashboard/chat`. This must be built
-  before a public launch.
+- **What the UI covers now.** The site header links to `/chat` (everyone) and
+  `/chat/store` (logged-in members only). The store page buys and equips
+  cosmetics. Lobby messages carry delete, gag, kick and ban controls. The admin
+  page has a create-cosmetic form, grants, a message list with removal, and
+  paginated members.
+- **Lobby moderation is deliberately narrow.** A lobby ban is a fixed 24 hour
+  timed ban after a confirm; permanent bans are site-admin only. Deleting
+  someone else's message asks for confirmation. Gag is 10 minutes and kick is
+  60 seconds (`ModerationService::kick`). There is no ungag control anywhere;
+  gags expire after 10 minutes.
+- **"Admin-page only" means the site-admin dashboard.** That is the web-guard
+  dashboard at `/dashboard/chat`. A chat owner or main owner is a member and
+  cannot reach it, so owners have no in-room UI for unban, permanent ban or
+  rank changes. Only a site admin can do those.
+- **No unequip in the store.** The store only equips; equipping another item
+  in the same slot replaces it.
+- **The controls shown can be stale.** `myRank` is a fresh `ChatMember` query
+  at page load, but each history line's author `rank` comes from the Redis
+  history (up to 300 seconds old) and live lines never refresh it. The UI may
+  offer or hide a control that the server then accepts or refuses. The server
+  is the authority, and its message is shown inline.
+- **Pawn and background types are hidden in the UI only.** They are hidden from
+  the store and from the admin create-cosmetic form, but `buy` does not filter
+  by type at the API level, so keep such cosmetics inactive.
+- **The lobby message menu opens downward** and may be clipped on the bottom
+  line. This is unverified in a browser.
 - **Pawn and background cosmetics have no visible effect yet.** The server emits
   `--chat-pawn` and `--chat-background`, but the client and CSS do not use them,
   and no `public/chat/backgrounds/` assets exist, so backgrounds cannot be

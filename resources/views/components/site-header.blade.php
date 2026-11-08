@@ -5,6 +5,8 @@
         ['label' => 'พากย์ไทย', 'href' => '/category/2'],
         ['label' => 'เดอะมูฟวี่', 'href' => '/category/3'],
         ['label' => 'สตูดิโอ', 'href' => '/studios'],
+        ['label' => 'แชท', 'href' => route('chat.show', [], false)],
+        ...($memberAuth ? [['label' => 'ร้านค้า', 'href' => route('chat.store', [], false)]] : []),
         ['label' => 'แจ้งปัญหา', 'href' => 'https://www.facebook.com/animehdzeroo.v2'],
         ['label' => 'ติดต่อโฆษณา', 'href' => 'https://t.me/ahdzero'],
     ];

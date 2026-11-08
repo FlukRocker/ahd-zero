@@ -2,9 +2,11 @@
 
 namespace App\Services\Chat;
 
+use App\Enums\ChatRank;
 use App\Enums\CosmeticType;
 use App\Models\ChatCosmetic;
 use App\Models\ChatCosmeticMember;
+use App\Models\ChatMember;
 use App\Support\CosmeticStyle;
 use Illuminate\Support\Collection;
 
@@ -34,6 +36,9 @@ class MessageRenderer
 
     /** @var array<int, array<string, string>> */
     private array $styleCache = [];
+
+    /** @var array<int, string> */
+    private array $rankCache = [];
 
     /**
      * @param  array<string, string>  $smilies  code => asset url, for codes the sender owns
@@ -90,7 +95,16 @@ class MessageRenderer
             ->get()
             ->groupBy('member_id');
 
+        // Ranks ride the same preload so a history rebuild stays one extra
+        // query for all authors; a member with no chat_members row is a plain
+        // member.
+        $ranks = ChatMember::query()
+            ->whereIn('member_id', $missing)
+            ->get(['member_id', 'rank'])
+            ->mapWithKeys(fn (ChatMember $row): array => [(int) $row->member_id => $row->rank->value]);
+
         foreach ($missing as $id) {
+            $this->rankCache[$id] = $ranks->get($id, ChatRank::Member->value);
             $this->fill($id, $rows->get($id, new Collection));
         }
     }
@@ -107,6 +121,13 @@ class MessageRenderer
         $this->preload([$memberId]);
 
         return $this->smileyCache[$memberId];
+    }
+
+    public function rankFor(int $memberId): string
+    {
+        $this->preload([$memberId]);
+
+        return $this->rankCache[$memberId];
     }
 
     /**

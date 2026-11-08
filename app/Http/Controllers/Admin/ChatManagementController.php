@@ -42,6 +42,22 @@ class ChatManagementController extends Controller
             'cosmetics' => ChatCosmetic::query()->orderBy('sort')->get(),
             'participants' => ChatMember::query()->with('member:id,uuid,name')->latest('updated_at')->paginate(20),
             'log' => ChatModerationLog::query()->latest('created_at')->limit(50)->get(),
+            'messages' => ChatMessage::query()
+                ->with('member:id,name')
+                ->orderByDesc('created_at')
+                ->orderByDesc('id')
+                ->limit(50)
+                ->get()
+                ->map(fn (ChatMessage $message): array => [
+                    'id' => $message->id,
+                    'body' => $message->body,
+                    'created_at' => (string) $message->created_at?->toIso8601String(),
+                    'member' => $message->member === null
+                        ? null
+                        : ['id' => (int) $message->member_id, 'name' => $message->member->name],
+                ])
+                ->values()
+                ->all(),
         ]);
     }
 
