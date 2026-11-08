@@ -4,7 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Comment;
-use App\Models\Member;
+use App\Services\Moderation\CommentModerator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -49,16 +49,9 @@ class CommentManagementController extends Controller
     /**
      * Soft-delete a single comment.
      */
-    public function destroy(string $commentId): JsonResponse
+    public function destroy(Request $request, string $commentId, CommentModerator $moderator): JsonResponse
     {
-        $comment = Comment::query()->findOrFail($commentId);
-
-        $comment->update([
-            'body' => '',
-            'deleted_by' => 'admin',
-            'deleted_at' => now()->toISOString(),
-            'reactions' => [],
-        ]);
+        $moderator->delete($moderator->find($commentId), (int) $request->user()->id);
 
         return response()->json(['message' => 'Deleted']);
     }
@@ -97,43 +90,19 @@ class CommentManagementController extends Controller
      * Soft-delete the offending comment, optionally wipe everything else by
      * the same user, then ban them.
      */
-    public function destroyAndBan(Request $request, string $commentId): JsonResponse
+    public function destroyAndBan(Request $request, string $commentId, CommentModerator $moderator): JsonResponse
     {
         $validated = $request->validate([
             'ban_reason' => ['nullable', 'string', 'max:500'],
             'delete_all' => ['nullable', 'boolean'],
         ]);
 
-        $comment = Comment::query()->findOrFail($commentId);
-        $site = (string) config('app.site_key');
-
-        $comment->update([
-            'body' => '',
-            'deleted_by' => 'admin',
-            'deleted_at' => now()->toISOString(),
-            'reactions' => [],
-        ]);
-
-        if ($request->boolean('delete_all') && $comment->user_id !== null) {
-            Comment::query()
-                ->where('site', $site)
-                ->where('user_id', $comment->user_id)
-                ->whereNull('deleted_by')
-                ->update([
-                    'body' => '',
-                    'deleted_by' => 'admin',
-                    'deleted_at' => now()->toISOString(),
-                    'reactions' => [],
-                ]);
-        }
-
-        if ($comment->user_id !== null) {
-            $member = Member::query()->where('uuid', $comment->user_id)->first();
-            $member?->update([
-                'banned_at' => now(),
-                'ban_reason' => $validated['ban_reason'] ?? 'ถูกแบนจากระบบความคิดเห็น',
-            ]);
-        }
+        $moderator->deleteAndBan(
+            $moderator->find($commentId),
+            $validated['ban_reason'] ?? null,
+            $request->boolean('delete_all'),
+            (int) $request->user()->id,
+        );
 
         return response()->json(['message' => 'Deleted and banned']);
     }

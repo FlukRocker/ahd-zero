@@ -524,4 +524,36 @@ class AdminChatTest extends TestCase
         );
         Event::assertNotDispatched(MessageDeleted::class, fn (MessageDeleted $e): bool => $e->broadcastOn()->name === 'chat.room.1');
     }
+
+    public function test_admin_delete_still_works_when_the_reports_table_is_missing(): void
+    {
+        Event::fake([MessageDeleted::class]);
+        \Illuminate\Support\Facades\Schema::dropIfExists('reports');
+        $message = ChatMessage::create(['member_id' => $this->member->id, 'body' => 'rude']);
+
+        $this->actingAs($this->admin)->deleteJson("/dashboard/chat/messages/{$message->id}")->assertOk();
+
+        $this->assertSoftDeleted('chat_messages', ['id' => $message->id]);
+        Event::assertDispatched(MessageDeleted::class);
+    }
+
+    public function test_admin_delete_still_clears_history_and_broadcasts_and_closes_open_reports(): void
+    {
+        Event::fake([MessageDeleted::class]);
+        $history = app(\App\Contracts\ChatHistory::class);
+        $message = ChatMessage::create(['member_id' => $this->member->id, 'body' => 'rude']);
+        $history->replace(ChatRoom::lobby()->id, [['id' => $message->id, 'name' => 'Rin', 'body' => 'rude']]);
+        $reporter = Member::create(['name' => 'Kai', 'email' => 'kai@example.test', 'password' => 'password123!', 'email_verified_at' => now()]);
+        $report = \App\Models\Report::create([
+            'member_id' => $reporter->id, 'target_type' => 'chat_message', 'target_id' => (string) $message->id,
+            'reason' => 'abuse', 'status' => 'open',
+        ]);
+
+        $this->actingAs($this->admin)->deleteJson("/dashboard/chat/messages/{$message->id}")->assertOk();
+
+        $this->assertNull($history->recent(ChatRoom::lobby()->id, 10));
+        Event::assertDispatched(MessageDeleted::class);
+        $this->assertSame('actioned', $report->fresh()->status);
+        $this->assertSame($this->admin->id, (int) $report->fresh()->resolved_by);
+    }
 }

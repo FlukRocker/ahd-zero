@@ -161,10 +161,29 @@ return new class extends Migration
                 $table->unsignedBigInteger('room_id')->default(1)->index();
             });
         }
+
+        // Member reports (the real table is ahd-admin 2026_11_09_000001_create_reports).
+        if (! Schema::hasTable('reports')) {
+            Schema::create('reports', function (Blueprint $table): void {
+                $table->id();
+                $table->unsignedBigInteger('member_id');
+                $table->string('target_type', 16);
+                $table->string('target_id', 32);
+                $table->string('reason', 16);
+                $table->string('note', 500)->nullable();
+                $table->string('status', 16)->default('open');
+                $table->unsignedBigInteger('resolved_by')->nullable();
+                $table->timestamp('resolved_at')->nullable();
+                $table->timestamps();
+                $table->unique(['member_id', 'target_type', 'target_id']);
+                $table->index(['status', 'created_at']);
+            });
+        }
     }
 
     public function down(): void
     {
+        Schema::dropIfExists('reports');
         Schema::dropIfExists('chat_moderation_log');
         Schema::dropIfExists('chat_transactions');
         Schema::dropIfExists('chat_cosmetic_member');

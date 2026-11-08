@@ -13,6 +13,7 @@ use App\Models\Member;
 use App\Policies\ChatPolicy;
 use App\Rules\NoExternalLinks;
 use App\Services\Chat\ChatService;
+use App\Services\Moderation\ReportResolver;
 use App\Support\ChatText;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -24,6 +25,7 @@ class ChatController extends Controller
     public function __construct(
         private readonly ChatService $chat,
         private readonly ChatPolicy $policy,
+        private readonly ReportResolver $reports,
     ) {}
 
     public function show(?string $slug = null): View
@@ -112,6 +114,8 @@ class ChatController extends Controller
         ]);
 
         MessageDeleted::dispatch($roomId, $message->id);
+
+        $this->reports->resolveTarget('chat_message', (string) $message->id, 'actioned', null);
 
         return response()->json(['deleted' => true]);
     }

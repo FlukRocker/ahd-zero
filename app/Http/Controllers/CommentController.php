@@ -6,6 +6,7 @@ use App\Models\Comment;
 use App\Models\CommentNotification;
 use App\Rules\NoExternalLinks;
 use App\Rules\TurnstileToken;
+use App\Services\Moderation\CommentModerator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -17,7 +18,6 @@ use function array_values;
 use function config;
 use function in_array;
 use function mb_substr;
-use function now;
 use function response;
 
 class CommentController extends Controller
@@ -131,9 +131,9 @@ class CommentController extends Controller
         return response()->json($comment);
     }
 
-    public function destroy(Request $request, string $commentId): JsonResponse
+    public function destroy(Request $request, string $commentId, CommentModerator $moderator): JsonResponse
     {
-        $comment = Comment::query()->findOrFail($commentId);
+        $comment = $moderator->find($commentId);
         $user = $this->getAuthUser($request);
 
         $isOwner = $comment->user_id === $user['id'];
@@ -144,12 +144,7 @@ class CommentController extends Controller
         }
 
         // Soft delete: keep the comment but clear body and mark who deleted it
-        $comment->update([
-            'body' => '',
-            'deleted_by' => $isOwner ? 'author' : 'admin',
-            'deleted_at' => now()->toISOString(),
-            'reactions' => [],
-        ]);
+        $moderator->delete($comment, null, $isOwner ? 'author' : 'admin');
 
         return response()->json($comment);
     }

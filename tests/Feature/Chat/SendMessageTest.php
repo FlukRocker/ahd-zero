@@ -280,4 +280,23 @@ class SendMessageTest extends TestCase
             ->deleteJson("/chat/messages/{$message->id}")
             ->assertForbidden();
     }
+
+    public function test_author_and_mod_delete_close_open_reports(): void
+    {
+        $reporter = Member::create(['name' => 'Kai', 'email' => 'kai@example.test', 'password' => 'password123!', 'email_verified_at' => now()]);
+        $mod = Member::create(['name' => 'Mod', 'email' => 'mod@example.test', 'password' => 'password123!', 'email_verified_at' => now()]);
+        ChatMember::create(['member_id' => $mod->id, 'rank' => 'mod', 'balance' => 0]);
+
+        foreach (['author' => $this->member, 'mod' => $mod] as $who => $actor) {
+            $message = ChatMessage::create(['member_id' => $this->member->id, 'body' => "oops $who"]);
+            $report = \App\Models\Report::create([
+                'member_id' => $reporter->id, 'target_type' => 'chat_message', 'target_id' => (string) $message->id,
+                'reason' => 'spam', 'status' => 'open',
+            ]);
+
+            $this->actingAs($actor, 'member')->deleteJson("/chat/messages/{$message->id}")->assertOk();
+
+            $this->assertSame('actioned', $report->fresh()->status, $who);
+        }
+    }
 }
