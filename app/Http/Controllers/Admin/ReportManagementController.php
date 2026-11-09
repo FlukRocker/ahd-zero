@@ -59,6 +59,7 @@ class ReportManagementController extends Controller
                     'type' => $info->type,
                     'id' => $info->id,
                     'excerpt' => $info->excerpt,
+                    'image' => $info->image,
                     'author' => [
                         'name' => $info->authorMemberId === null ? null : ($names[$info->authorMemberId] ?? null),
                         'memberId' => $info->authorMemberId,

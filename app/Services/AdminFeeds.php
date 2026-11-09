@@ -7,6 +7,7 @@ use App\Models\ChatMessage;
 use App\Models\ChatModerationLog;
 use App\Models\Comment;
 use App\Models\Member;
+use App\Services\Chat\ChatImage;
 use Illuminate\Support\Str;
 use Throwable;
 
@@ -46,7 +47,8 @@ class AdminFeeds implements AdminFeed
                 'id' => (int) $m->id,
                 'room' => $m->room?->name,
                 'member_name' => $m->member?->name,
-                'body' => Str::limit((string) $m->body, self::BODY_LIMIT, ''),
+                'body' => Str::limit(ChatImage::split((string) $m->body)[0], self::BODY_LIMIT, ''),
+                'image' => ($file = ChatImage::split((string) $m->body)[1]) === null ? null : ChatImage::url($file),
                 'created_at' => $m->created_at?->toIso8601String(),
             ])
             ->all();

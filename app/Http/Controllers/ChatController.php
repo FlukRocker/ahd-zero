@@ -11,13 +11,16 @@ use App\Models\ChatModerationLog;
 use App\Models\ChatRoom;
 use App\Models\Member;
 use App\Policies\ChatPolicy;
-use App\Rules\NoExternalLinks;
+use App\Rules\NoLinks;
+use App\Services\Chat\ChatImage;
 use App\Services\Chat\ChatService;
 use App\Services\Moderation\ReportResolver;
+use App\Support\Chat\Bbcode;
 use App\Support\ChatText;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\View\View;
 
 class ChatController extends Controller
@@ -48,7 +51,7 @@ class ChatController extends Controller
             'history' => $state['history'],
             'room' => ['id' => $room->id, 'slug' => $room->slug, 'name' => $room->name],
             'me' => $member?->uuid,
-            'canPost' => $member !== null && $member->hasVerifiedEmail(),
+            'canPost' => $member !== null,
             'myRank' => $state['myRank'],
         ])->header('Cache-Control', 'no-store, private');
     }
@@ -73,12 +76,30 @@ class ChatController extends Controller
         ];
     }
 
-    public function store(Request $request): JsonResponse
+    public function store(Request $request, ChatImage $images): JsonResponse
     {
         $request->merge(['body' => ChatText::clean((string) $request->input('body', ''))]);
 
+        $hasImage = $request->hasFile('image');
+
         $validated = $request->validate([
-            'body' => ['required', 'string', 'min:1', 'max:500', new NoExternalLinks],
+            // Text may be empty only when a picture is attached. 450 leaves room
+            // for the appended image token inside a 500-char body.
+            'body' => [$hasImage ? 'nullable' : 'required', 'string', $hasImage ? 'max:450' : 'max:500', new NoLinks,
+                // BBCode tags can split a link ("evil[b][/b].com"), so check the rendered text too.
+                function (string $attribute, mixed $value, \Closure $fail): void {
+                    if (is_string($value)) {
+                        (new NoLinks)->validate($attribute, implode('', array_column(Bbcode::parse($value), 'v')), $fail);
+                    }
+                },
+                // Only the server writes [img]; a typed one could not point at anyone's file anyway, but keep the invariant.
+                function (string $attribute, mixed $value, \Closure $fail): void {
+                    if (is_string($value) && stripos($value, '[img') !== false) {
+                        $fail('ไม่สามารถใช้แท็ก [img] ได้ — กดปุ่มแนบรูปแทน');
+                    }
+                },
+            ],
+            'image' => ['nullable', 'file', 'max:3072'],
             // Optional: a page left open across the deploy posts without it.
             'room_id' => ['nullable', 'integer', 'exists:chat_rooms,id,active,1'],
         ]);
@@ -91,9 +112,30 @@ class ChatController extends Controller
             return response()->json(['message' => $this->refusal($chatMember)], 403);
         }
 
+        $body = (string) ($validated['body'] ?? '');
+
+        if ($hasImage) {
+            // Images cost GD time and disk, so they get a tighter limit than text.
+            $key = 'chat-image:'.$member->id;
+
+            if (RateLimiter::tooManyAttempts($key, 5)) {
+                return response()->json(['message' => 'ส่งรูปเร็วเกินไป รอสักครู่'], 429);
+            }
+
+            RateLimiter::hit($key, 60);
+
+            try {
+                $name = $images->store($request->file('image'));
+            } catch (\InvalidArgumentException $e) {
+                return response()->json(['message' => $e->getMessage(), 'errors' => ['image' => [$e->getMessage()]]], 422);
+            }
+
+            $body = trim($body.' '.ChatImage::token($name));
+        }
+
         $message = ChatMessage::create([
             'member_id' => $member->id,
-            'body' => $validated['body'],
+            'body' => $body,
             'room_id' => $roomId,
         ]);
         $message->setRelation('member', $member);

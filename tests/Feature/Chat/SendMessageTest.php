@@ -44,7 +44,7 @@ class SendMessageTest extends TestCase
         $this->postJson('/chat/messages', ['body' => 'hello'])->assertUnauthorized();
     }
 
-    public function test_an_unverified_member_may_not_post(): void
+    public function test_an_unverified_member_can_post(): void
     {
         $unverified = Member::create([
             'name' => 'Nobu',
@@ -54,7 +54,7 @@ class SendMessageTest extends TestCase
 
         $this->actingAs($unverified, 'member')
             ->postJson('/chat/messages', ['body' => 'hello'])
-            ->assertForbidden();
+            ->assertSuccessful();
     }
 
     public function test_a_verified_member_can_post_and_it_broadcasts(): void

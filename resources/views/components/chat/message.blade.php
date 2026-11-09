@@ -5,32 +5,49 @@
      built style string. --}}
 <li class="chat-row relative flex items-start gap-3 rounded-lg px-3 py-2 text-sm" :class="{ 'z-20': menuOpen === line.id }" :style="styleOf(line)">
     <span
-        class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/10 text-xs font-semibold uppercase"
+        class="chat-avatar flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-semibold uppercase"
+        :data-rank="line.rank"
         aria-hidden="true"
         x-text="(line.name || '?').charAt(0)"
     ></span>
     <div class="min-w-0 flex-1">
-        <div class="flex items-baseline gap-2">
+        <div class="flex flex-wrap items-center gap-x-2 gap-y-0.5">
             <span
-                class="chat-name font-medium"
+                class="chat-badge"
+                :data-rank="line.rank"
+                x-show="rankLabel(line)"
+                x-text="rankLabel(line)"
+            ></span>
+            <span
+                class="chat-name text-[15px]"
                 :class="{ 'chat-name-gradient': hasGradient(line) }"
                 x-text="line.name"
             ></span>
-            <span
-                class="text-[10px] uppercase opacity-60"
-                x-show="line.rank && line.rank !== 'member'"
-                x-text="line.rank"
-            ></span>
+            <time class="text-[11px] opacity-50" x-text="timeOf(line)"></time>
         </div>
-        <p class="break-words">
+        <p class="break-words leading-relaxed opacity-90">
             <template x-for="(part, index) in partsOf(line)" :key="index">
                 <span>
-                    <span x-show="part.t === 'text'" x-text="part.v"></span>
+                    <span
+                        x-show="part.t === 'text'"
+                        :class="{ 'font-bold': part.b, 'italic': part.i, 'underline': part.u, 'line-through': part.s, 'chat-spoiler': part.sp && !spoiled[line.id + '-' + index] }"
+                        :style="textStyle(part)"
+                        @click="part.sp && (spoiled[line.id + '-' + index] = true)"
+                        x-text="part.v"
+                    ></span>
                     <img
                         x-show="part.t === 'img'"
                         :src="imageSrc(part)"
                         alt=""
                         class="inline h-4 w-4 align-text-bottom"
+                    >
+                    <img
+                        x-show="part.t === 'upload'"
+                        :src="uploadSrc(part)"
+                        alt="รูปที่แนบ"
+                        loading="lazy"
+                        referrerpolicy="no-referrer"
+                        class="mt-1 block max-h-64 max-w-full rounded-lg border border-white/10"
                     >
                 </span>
             </template>

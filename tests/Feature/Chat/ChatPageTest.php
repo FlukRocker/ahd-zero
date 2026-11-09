@@ -194,14 +194,14 @@ class ChatPageTest extends TestCase
         $this->assertNull($this->bootstrap($response->getContent())['me']);
     }
 
-    public function test_an_unverified_member_is_read_only(): void
+    public function test_an_unverified_member_can_post(): void
     {
         $member = $this->member('new@example.test', verified: false);
 
         $response = $this->actingAs($member, 'member')->get('/chat');
 
-        $response->assertOk()->assertDontSee('Message #');
-        $this->assertFalse($this->bootstrap($response->getContent())['canPost']);
+        $response->assertOk()->assertSee('Message #');
+        $this->assertTrue($this->bootstrap($response->getContent())['canPost']);
     }
 
     /**

@@ -12,6 +12,7 @@ use App\Models\ChatModerationLog;
 use App\Models\ChatRoom;
 use App\Models\Member;
 use App\Rules\CosmeticPayload;
+use App\Services\Chat\ChatImage;
 use App\Services\Chat\ModerationService;
 use App\Services\Chat\StoreService;
 use App\Services\Moderation\ChatMessageModerator;
@@ -54,7 +55,8 @@ class ChatManagementController extends Controller
                 ->get()
                 ->map(fn (ChatMessage $message): array => [
                     'id' => $message->id,
-                    'body' => $message->body,
+                    'body' => ChatImage::split((string) $message->body)[0],
+                    'image' => ($file = ChatImage::split((string) $message->body)[1]) === null ? null : ChatImage::url($file),
                     'created_at' => (string) $message->created_at?->toIso8601String(),
                     'member' => $message->member === null
                         ? null

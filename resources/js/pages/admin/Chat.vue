@@ -38,6 +38,7 @@ interface ParticipantRow {
 interface MessageRow {
     id: number;
     body: string;
+    image: string | null;
     created_at: string;
     member: { id: number; name: string } | null;
 }
@@ -1001,6 +1002,7 @@ function deactivate(id: number) {
                                 }}</span>
                             </p>
                             <p class="mt-0.5 break-words">{{ m.body }}</p>
+                            <a v-if="m.image" :href="m.image" target="_blank" rel="noopener"><img :src="m.image" alt="Attached image" loading="lazy" class="mt-1 max-h-40 rounded-md border" /></a>
                         </div>
                         <button
                             type="button"

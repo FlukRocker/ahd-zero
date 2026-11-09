@@ -7,6 +7,7 @@ use App\Enums\CosmeticType;
 use App\Models\ChatCosmetic;
 use App\Models\ChatCosmeticMember;
 use App\Models\ChatMember;
+use App\Support\Chat\Bbcode;
 use App\Support\CosmeticStyle;
 use Illuminate\Support\Collection;
 
@@ -42,12 +43,37 @@ class MessageRenderer
 
     /**
      * @param  array<string, string>  $smilies  code => asset url, for codes the sender owns
-     * @return array<int, array{t: string, v: string}>
+     * @return array<int, array<string, mixed>>
      */
     public function parts(string $body, array $smilies): array
     {
+        [$text, $image] = ChatImage::split($body);
+
+        $parts = [];
+
+        foreach (Bbcode::parse($text) as $segment) {
+            foreach ($this->smileySplit((string) $segment['v'], $smilies) as $piece) {
+                $parts[] = $piece['t'] === 'img'
+                    ? $piece
+                    : array_merge($segment, ['v' => $piece['v']]);
+            }
+        }
+
+        if ($image !== null) {
+            $parts[] = ['t' => 'upload', 'v' => ChatImage::url($image)];
+        }
+
+        return $parts === [] ? [['t' => 'text', 'v' => '']] : $parts;
+    }
+
+    /**
+     * @param  array<string, string>  $smilies
+     * @return array<int, array{t: string, v: string}>
+     */
+    private function smileySplit(string $text, array $smilies): array
+    {
         if ($smilies === []) {
-            return [['t' => 'text', 'v' => $body]];
+            return [['t' => 'text', 'v' => $text]];
         }
 
         $codes = array_map(
@@ -57,10 +83,10 @@ class MessageRenderer
 
         $pieces = preg_split(
             '/('.implode('|', $codes).')/',
-            $body,
+            $text,
             -1,
             PREG_SPLIT_DELIM_CAPTURE | PREG_SPLIT_NO_EMPTY,
-        ) ?: [$body];
+        ) ?: [$text];
 
         $parts = [];
 

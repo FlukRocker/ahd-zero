@@ -15,6 +15,11 @@ import { allowedActions, canReport } from './permissions';
 export const STYLE_KEYS = ['--chat-name-color', '--chat-name-gradient', '--chat-glow', '--chat-background'];
 const SAFE_VALUE = /^[#a-z0-9 .,()%-]+$/i;
 const SAFE_IMAGE = /^\/chat-assets\/pawns\/[a-z0-9-]{1,32}\.svg$/;
+// A member upload: server-random name, served by ChatUploadController.
+const SAFE_UPLOAD = /^\/chat-uploads\/[a-f0-9]{32}\.(?:webp|jpg)$/;
+const SAFE_COLOR = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
+const MAX_UPLOAD_BYTES = 3 * 1024 * 1024;
+const FLAGS = ['b', 'i', 'u', 's', 'sp'];
 
 export function safeStyle(style) {
     const out = {};
@@ -39,11 +44,47 @@ export function safeParts(line) {
         return [{ t: 'text', v: String(line.body ?? '') }];
     }
 
-    return line.parts.filter((part) => part && (part.t === 'text' || part.t === 'img'));
+    const out = [];
+
+    for (const part of line.parts) {
+        if (!part || typeof part !== 'object') {
+            continue;
+        }
+
+        if (part.t === 'img') {
+            out.push({ t: 'img', v: part.v });
+        } else if (part.t === 'upload') {
+            // Only the exact upload path survives; anything else is dropped.
+            if (typeof part.v === 'string' && SAFE_UPLOAD.test(part.v)) {
+                out.push({ t: 'upload', v: part.v });
+            }
+        } else if (part.t === 'text') {
+            // Copy known flags only; a missing flag (old cached record) is false.
+            const clean = { t: 'text', v: String(part.v ?? '') };
+
+            for (const flag of FLAGS) {
+                if (part[flag] === true) {
+                    clean[flag] = true;
+                }
+            }
+
+            if (typeof part.c === 'string' && SAFE_COLOR.test(part.c)) {
+                clean.c = part.c;
+            }
+
+            out.push(clean);
+        }
+    }
+
+    return out;
 }
 
 export function safeImage(part) {
     return part.t === 'img' && typeof part.v === 'string' && SAFE_IMAGE.test(part.v) ? part.v : null;
+}
+
+export function safeUpload(part) {
+    return part.t === 'upload' && typeof part.v === 'string' && SAFE_UPLOAD.test(part.v) ? part.v : null;
 }
 
 export default function chatLobby() {
@@ -51,6 +92,9 @@ export default function chatLobby() {
         messages: [],
         roster: [],
         draft: '',
+        image: null,
+        preview: '',
+        spoiled: {},
         sending: false,
         error: '',
         notice: '',
@@ -235,8 +279,75 @@ export default function chatLobby() {
             return safeParts(line);
         },
 
+        /** HH:MM from the ISO timestamp; empty when absent or unparsable. */
+        timeOf(line) {
+            const date = new Date(line.at);
+
+            return Number.isNaN(date.getTime())
+                ? ''
+                : date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        },
+
+        rankLabel(line) {
+            return { main_owner: 'Owner', owner: 'Admin', mod: 'Mod' }[line.rank] ?? '';
+        },
+
         imageSrc(part) {
             return safeImage(part);
+        },
+
+        uploadSrc(part) {
+            return safeUpload(part);
+        },
+
+        /** Inline style for a text segment: only a validated hex colour. */
+        textStyle(part) {
+            return part.c ? { color: part.c } : {};
+        },
+
+        pickImage(event) {
+            const file = event.target.files?.[0] ?? null;
+            event.target.value = '';
+
+            if (file === null) {
+                return;
+            }
+
+            if (!/^image\/(jpeg|png|gif|webp)$/.test(file.type)) {
+                this.error = 'รองรับเฉพาะรูป JPG, PNG, GIF, WebP';
+
+                return;
+            }
+
+            if (file.size > MAX_UPLOAD_BYTES) {
+                this.error = 'รูปใหญ่เกินไป (สูงสุด 3 MB)';
+
+                return;
+            }
+
+            this.error = '';
+            this.clearImage();
+            this.image = file;
+            this.preview = URL.createObjectURL(file);
+        },
+
+        clearImage() {
+            if (this.preview) {
+                URL.revokeObjectURL(this.preview);
+            }
+
+            this.image = null;
+            this.preview = '';
+        },
+
+        /** Wrap the draft selection in a BBCode tag (the toolbar buttons). */
+        wrap(open, close) {
+            const input = this.$refs.draftInput;
+            const start = input?.selectionStart ?? this.draft.length;
+            const end = input?.selectionEnd ?? this.draft.length;
+
+            this.draft = this.draft.slice(0, start) + open + this.draft.slice(start, end) + close + this.draft.slice(end);
+            this.$nextTick(() => input?.focus());
         },
 
         append(line) {
@@ -260,7 +371,7 @@ export default function chatLobby() {
         async send() {
             const body = this.draft.trim();
 
-            if (body === '' || this.sending) {
+            if ((body === '' && this.image === null) || this.sending) {
                 return;
             }
 
@@ -269,25 +380,36 @@ export default function chatLobby() {
             this.notice = '';
 
             try {
-                const response = await fetch('/chat/messages', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        Accept: 'application/json',
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content ?? '',
-                    },
-                    body: JSON.stringify({ body, room_id: this.config.room.id }),
-                });
+                const headers = {
+                    Accept: 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content ?? '',
+                };
+                let payload;
+
+                if (this.image !== null) {
+                    // Multipart: the browser sets the boundary, so no Content-Type here.
+                    payload = new FormData();
+                    payload.append('body', body);
+                    payload.append('room_id', String(this.config.room.id));
+                    payload.append('image', this.image);
+                } else {
+                    headers['Content-Type'] = 'application/json';
+                    payload = JSON.stringify({ body, room_id: this.config.room.id });
+                }
+
+                const response = await fetch('/chat/messages', { method: 'POST', headers, body: payload });
 
                 if (!response.ok) {
                     const payload = await response.json().catch(() => ({}));
-                    this.error = payload.message
+                    const firstError = payload.errors ? Object.values(payload.errors).flat()[0] : null;
+                    this.error = firstError ?? payload.message
                         ?? (response.status === 429 ? 'Slow down a moment.' : 'That message was not sent.');
 
                     return;
                 }
 
                 this.draft = '';
+                this.clearImage();
 
                 // Show the sender's own line now; if the socket is down it is the only copy they get,
                 // and when the socket echo arrives append() skips it by id.

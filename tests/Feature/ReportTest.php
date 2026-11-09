@@ -133,16 +133,16 @@ class ReportTest extends TestCase
         $this->assertDatabaseHas('reports', ['target_type' => 'comment', 'target_id' => '64b7f0c2e4b0a1a2b3c4d5e6']);
     }
 
-    public function test_guest_and_unverified_member_are_rejected(): void
+    public function test_guest_is_rejected_but_an_unverified_member_may_report(): void
     {
         $message = $this->message();
 
         $this->postJson('/reports', $this->body((string) $message->id))->assertUnauthorized();
+        $this->assertSame(0, Report::query()->count());
+
         $this->actingAs($this->member('Nobu', false), 'member')
             ->postJson('/reports', $this->body((string) $message->id))
-            ->assertForbidden();
-
-        $this->assertSame(0, Report::query()->count());
+            ->assertCreated();
     }
 
     public function test_a_banned_member_cannot_report(): void

@@ -8,6 +8,7 @@ interface Group {
     type: 'chat_message' | 'comment';
     id: string;
     excerpt: string;
+    image?: string | null;
     author: { name: string | null; memberId: number | null };
     count: number;
     reasons: string[];
@@ -134,6 +135,8 @@ function filter(status: string) {
                     <p v-if="g.available" class="break-words">
                         {{ g.excerpt }}
                     </p>
+                    <a v-if="g.image" :href="g.image" target="_blank" rel="noopener"><img :src="g.image" alt="Attached image" loading="lazy" class="mt-1 max-h-40 rounded-md border" /></a>
+
                     <p v-else class="italic opacity-60">
                         This item was deleted.
                     </p>

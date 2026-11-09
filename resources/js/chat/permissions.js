@@ -5,7 +5,7 @@
 export const RANK_LEVEL = { member: 1, mod: 2, owner: 3, main_owner: 4 };
 
 export function allowedActions(myRank, myUuid, canPost, line) {
-    // Every moderation route needs a verified member.
+    // Every moderation route needs a logged-in member.
     if (!canPost || !myUuid || !Object.hasOwn(RANK_LEVEL, myRank ?? '')) {
         return [];
     }
@@ -38,7 +38,7 @@ export function allowedActions(myRank, myUuid, canPost, line) {
     return actions;
 }
 
-/** A verified poster may report anyone's line but their own. Server re-checks. */
+/** A logged-in poster may report anyone's line but their own. Server re-checks. */
 export function canReport(myUuid, canPost, line) {
     return !!canPost && !!myUuid && !!line.uuid && line.uuid !== myUuid;
 }

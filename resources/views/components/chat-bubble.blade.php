@@ -38,20 +38,12 @@
             <p class="px-3 pb-2 text-xs text-amber-400" x-show="notice" x-text="notice"></p>
 
             <template x-if="config !== null && config.canPost">
-                <form class="flex gap-2 border-t border-white/10 p-2" @submit.prevent="send()">
-                    <input class="min-w-0 flex-1 rounded-md bg-black/20 px-3 py-2 text-sm" x-model="draft" maxlength="500" placeholder="พิมพ์ข้อความ">
-                    <button class="rounded-md px-3 py-2 text-sm font-medium" :disabled="!!sending">ส่ง</button>
-                </form>
+                <x-chat.composer compact placeholder="พิมพ์ข้อความ" send="ส่ง" />
             </template>
             <p class="px-3 pb-2 text-xs text-red-400" x-show="error" x-text="error"></p>
             <template x-if="config !== null && !config.canPost">
                 <p class="border-t border-white/10 p-3 text-sm opacity-70">
-                    <template x-if="config.me === null">
-                        <a href="{{ route('member.login') }}" class="underline">เข้าสู่ระบบเพื่อร่วมสนทนา</a>
-                    </template>
-                    <template x-if="config.me !== null">
-                        <a href="{{ route('member.verification.notice') }}" class="underline">ยืนยันอีเมลเพื่อร่วมสนทนา</a>
-                    </template>
+                    <a href="{{ route('member.login') }}" class="underline">เข้าสู่ระบบเพื่อร่วมสนทนา</a>
                 </p>
             </template>
         </section>

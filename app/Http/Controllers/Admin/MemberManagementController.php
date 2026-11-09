@@ -71,6 +71,13 @@ class MemberManagementController extends Controller
     public function destroy(int $id): JsonResponse
     {
         $member = Member::findOrFail($id);
+
+        // A DB cascade removes the member's messages without model events, so
+        // clear their pictures first or the files stay reachable.
+        $images = app(\App\Services\Chat\ChatImage::class);
+        \App\Models\ChatMessage::withTrashed()->where('member_id', $member->id)
+            ->each(fn (\App\Models\ChatMessage $m) => $images->delete($m->body));
+
         $member->delete();
 
         return response()->json(['message' => 'Deleted']);

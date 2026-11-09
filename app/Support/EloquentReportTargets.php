@@ -7,6 +7,7 @@ use App\Models\ChatMessage;
 use App\Models\Comment;
 use App\Models\Member;
 use App\Models\Report;
+use App\Services\Chat\ChatImage;
 use Illuminate\Support\Str;
 
 class EloquentReportTargets implements ReportTargetResolver
@@ -33,12 +34,15 @@ class EloquentReportTargets implements ReportTargetResolver
             return null;
         }
 
+        [$text, $image] = ChatImage::split((string) $message->body);
+
         return new ReportTarget(
             Report::TYPE_CHAT,
             (string) $message->id,
             (int) $message->member_id,
-            Str::limit((string) $message->body, 140, ''),
+            Str::limit($text, 140, ''),
             ! $message->trashed(),
+            $image === null || $message->trashed() ? null : ChatImage::url($image),
         );
     }
 

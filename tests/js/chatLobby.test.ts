@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import chatLobby, { safeImage, safeParts, safeStyle } from '../../resources/js/chat/lobby';
+import chatLobby, { safeImage, safeParts, safeStyle, safeUpload } from '../../resources/js/chat/lobby';
 
 const echoCalls = vi.hoisted(() => ({ channel: [] as string[], join: [] as string[], leave: [] as string[] }));
 
@@ -293,5 +293,34 @@ describe('chat lobby moderation', () => {
         expect(lobby.notice).toBe('');
         lobby.onSanctioned({ uuid: 'other', action: 'gag' }, { leave: vi.fn() });
         expect(lobby.notice).toBe('');
+    });
+});
+
+describe('rich chat parts', () => {
+    it('keeps only known flags and a strict hex colour', () => {
+        const parts = safeParts({
+            parts: [
+                { t: 'text', v: 'a', b: true, evil: 'x', c: '#F00' },
+                { t: 'text', v: 'b', c: 'red;background:url(x)' },
+                { t: 'text', v: 'c', i: 'yes' },
+            ],
+        });
+
+        expect(parts[0]).toEqual({ t: 'text', v: 'a', b: true, c: '#F00' });
+        expect(parts[1]).toEqual({ t: 'text', v: 'b' });
+        expect(parts[2]).toEqual({ t: 'text', v: 'c' });
+    });
+
+    it('only passes the exact upload path', () => {
+        const parts = safeParts({
+            parts: [
+                { t: 'upload', v: '/chat-uploads/' + 'a'.repeat(32) + '.webp' },
+                { t: 'upload', v: 'https://evil.test/x.png' },
+                { t: 'upload', v: '/chat-uploads/../../.env' },
+            ],
+        });
+
+        expect(parts).toHaveLength(1);
+        expect(safeUpload(parts[0])).toBe('/chat-uploads/' + 'a'.repeat(32) + '.webp');
     });
 });
