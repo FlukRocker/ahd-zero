@@ -98,6 +98,7 @@ export default function chatLobby() {
         notice: '',
         busy: {},
         menuOpen: null,
+        menuUp: false,
         config: null,
         // Report modal state (one shared modal in the page).
         reportLine: null,
@@ -260,8 +261,32 @@ export default function chatLobby() {
             return !!last && last.id === line.id;
         },
 
-        toggleMenu(line) {
-            this.menuOpen = this.menuOpen === line.id ? null : line.id;
+        /**
+         * Open the row menu, upward only when the list has room above the button
+         * and not enough below. A one-message list has no room above, and the
+         * scrolling list would clip the menu.
+         */
+        toggleMenu(line, event) {
+            if (this.menuOpen === line.id) {
+                this.menuOpen = null;
+
+                return;
+            }
+
+            const button = event?.currentTarget;
+            const list = this.$refs.list;
+
+            if (button && list) {
+                const b = button.getBoundingClientRect();
+                const l = list.getBoundingClientRect();
+                const need = 170;
+
+                this.menuUp = l.bottom - b.bottom < need && b.top - l.top >= need;
+            } else {
+                this.menuUp = false;
+            }
+
+            this.menuOpen = line.id;
         },
 
         /** An object of validated custom properties, applied via style.setProperty. */

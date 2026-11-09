@@ -57,18 +57,18 @@
         </p>
     </div>
     {{-- The wrapper is the positioning context, so the menu is anchored to its
-         button. It opens upward on the last row so it is not cut off by the
-         scrolling list. --}}
+         button. It opens upward only when the list has room above and too
+         little below, so the scrolling list never clips it. --}}
     <div class="relative shrink-0" x-show="actionsFor(line).length">
         <button
             type="button"
             class="px-1 text-xs opacity-60 hover:opacity-100"
-            @click="toggleMenu(line)"
+            @click="toggleMenu(line, $event)"
             aria-label="Message actions"
         >&#8943;</button>
         <ul
             class="absolute right-0 z-10 rounded-md border border-white/10 bg-neutral-900 p-1 text-xs"
-            :class="isLast(line) ? 'bottom-full mb-1' : 'top-full mt-1'"
+            :class="menuUp ? 'bottom-full mb-1' : 'top-full mt-1'"
             x-show="menuOpen === line.id"
             @click.outside="menuOpen = null"
         >
