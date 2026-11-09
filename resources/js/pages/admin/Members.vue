@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import Pagination from '@/components/Pagination.vue';
-import AhdIcon from '@/components/ahd/AhdIcon.vue';
+import AdminPagination from '@/components/AdminPagination.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
 import { Head, router } from '@inertiajs/vue3';
@@ -97,6 +96,25 @@ async function destroy(id: number) {
     router.reload({ only: ['members'] });
 }
 
+const field =
+    'h-9 rounded-md border border-input bg-background px-3 text-sm shadow-xs outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50';
+const btn =
+    'inline-flex h-8 items-center justify-center rounded-md border border-input bg-background px-3 text-xs font-medium hover:bg-accent';
+const btnDanger =
+    'inline-flex h-8 items-center justify-center rounded-md border border-destructive/40 px-3 text-xs font-medium text-destructive hover:bg-destructive/10';
+const th =
+    'px-4 py-2.5 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground';
+
+function joined(date: string | null): string {
+    return date
+        ? new Date(date).toLocaleDateString('en-GB', {
+              day: 'numeric',
+              month: 'short',
+              year: 'numeric',
+          })
+        : '—';
+}
+
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Dashboard', href: '/dashboard' },
     { title: 'Members', href: '/dashboard/members' },
@@ -107,135 +125,144 @@ const breadcrumbs: BreadcrumbItem[] = [
     <Head title="Members" />
 
     <AppLayout :breadcrumbs="breadcrumbs">
-        <div class="space-y-6 p-4">
-            <div class="flex flex-wrap items-center gap-3">
-                <div
-                    class="flex min-w-[240px] flex-1 items-center gap-3 rounded-full px-4 py-2"
-                    style="
-                        background: hsl(var(--bg-soft));
-                        border: 1px solid hsl(var(--border-ahd));
-                    "
-                >
-                    <AhdIcon name="search" :size="16" />
+        <section class="mx-auto w-full max-w-6xl space-y-5 p-4 sm:p-6">
+            <div class="flex flex-wrap items-end justify-between gap-3">
+                <div>
+                    <h1 class="text-xl font-semibold">Members</h1>
+                    <p class="text-sm text-muted-foreground">
+                        {{ members.total ?? members.data.length }} accounts.
+                        Search by name or email.
+                    </p>
+                </div>
+                <div class="flex flex-wrap gap-2">
                     <input
                         v-model="search"
-                        type="text"
+                        type="search"
                         placeholder="Search name or email…"
-                        class="flex-1 bg-transparent text-[14px] outline-none"
+                        aria-label="Search members"
+                        :class="[field, 'w-64']"
                     />
+                    <select
+                        v-model="status"
+                        :class="field"
+                        aria-label="Filter by status"
+                        @change="apply"
+                    >
+                        <option value="all">All</option>
+                        <option value="active">Active</option>
+                        <option value="banned">Banned</option>
+                    </select>
                 </div>
-                <select
-                    v-model="status"
-                    class="rounded-full px-3 py-2 text-[13px] outline-none"
-                    style="
-                        background: hsl(var(--bg-soft));
-                        border: 1px solid hsl(var(--border-ahd));
-                    "
-                    @change="apply"
-                >
-                    <option value="all">All</option>
-                    <option value="active">Active</option>
-                    <option value="banned">Banned</option>
-                </select>
             </div>
 
             <div
-                class="overflow-hidden rounded-xl"
-                style="border: 1px solid hsl(var(--border-ahd))"
+                class="rounded-xl border bg-card text-card-foreground shadow-sm"
             >
-                <table class="w-full text-[13px]">
-                    <thead>
-                        <tr style="background: hsl(var(--bg-soft))">
-                            <th
-                                class="p-3 text-left font-mono text-[10px] tracking-widest uppercase"
-                            >
-                                Name
-                            </th>
-                            <th
-                                class="p-3 text-left font-mono text-[10px] tracking-widest uppercase"
-                            >
-                                Email
-                            </th>
-                            <th
-                                class="p-3 text-left font-mono text-[10px] tracking-widest uppercase"
-                            >
-                                Status
-                            </th>
-                            <th
-                                class="p-3 text-right font-mono text-[10px] tracking-widest uppercase"
-                            >
-                                Actions
-                            </th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr
-                            v-for="m in members.data"
-                            :key="m.id"
-                            style="border-top: 1px solid hsl(var(--border-ahd))"
-                        >
-                            <td class="p-3">{{ m.name }}</td>
-                            <td
-                                class="p-3 font-mono text-[12px]"
-                                style="color: hsl(var(--fg-muted))"
-                            >
-                                {{ m.email }}
-                            </td>
-                            <td class="p-3">
-                                <span
-                                    v-if="m.banned_at"
-                                    class="chip font-mono"
-                                    style="
-                                        background: hsl(0 84% 60% / 0.12);
-                                        color: hsl(0 84% 60%);
-                                        border-color: hsl(0 84% 60% / 0.3);
-                                    "
-                                    >BANNED</span
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead class="border-b bg-muted/40">
+                            <tr>
+                                <th :class="th">Member</th>
+                                <th :class="th">Status</th>
+                                <th :class="th">Joined</th>
+                                <th :class="[th, 'text-right']">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y">
+                            <tr v-if="!members.data.length">
+                                <td
+                                    colspan="4"
+                                    class="px-4 py-10 text-center text-muted-foreground"
                                 >
-                                <span v-else class="chip font-mono"
-                                    >Active</span
+                                    No members match.
+                                </td>
+                            </tr>
+                            <tr v-for="m in members.data" :key="m.id">
+                                <td class="px-4 py-3">
+                                    <div class="flex items-center gap-3">
+                                        <div
+                                            class="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold uppercase"
+                                            aria-hidden="true"
+                                        >
+                                            {{ (m.name || '?').charAt(0) }}
+                                        </div>
+                                        <div class="min-w-0">
+                                            <p class="truncate font-medium">
+                                                {{ m.name }}
+                                            </p>
+                                            <p
+                                                class="truncate text-xs text-muted-foreground"
+                                            >
+                                                {{ m.email }}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="px-4 py-3">
+                                    <div class="flex flex-wrap gap-1.5">
+                                        <span
+                                            v-if="m.banned_at"
+                                            class="rounded-full bg-destructive/15 px-2 py-0.5 text-xs font-medium text-destructive"
+                                            :title="m.ban_reason ?? ''"
+                                            >Banned</span
+                                        >
+                                        <span
+                                            v-else
+                                            class="rounded-full bg-emerald-500/15 px-2 py-0.5 text-xs font-medium text-emerald-600 dark:text-emerald-400"
+                                            >Active</span
+                                        >
+                                        <span
+                                            v-if="!m.email_verified_at"
+                                            class="rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-600 dark:text-amber-400"
+                                            >Unverified</span
+                                        >
+                                    </div>
+                                    <p
+                                        v-if="m.banned_at && m.ban_reason"
+                                        class="mt-1 max-w-xs truncate text-xs text-muted-foreground"
+                                    >
+                                        {{ m.ban_reason }}
+                                    </p>
+                                </td>
+                                <td
+                                    class="px-4 py-3 text-xs text-muted-foreground"
                                 >
-                            </td>
-                            <td class="space-x-2 p-3 text-right">
-                                <button
-                                    v-if="!m.banned_at"
-                                    type="button"
-                                    class="u-grow text-[12px]"
-                                    @click="ban(m.id)"
-                                >
-                                    Ban
-                                </button>
-                                <button
-                                    v-else
-                                    type="button"
-                                    class="u-grow text-[12px]"
-                                    @click="unban(m.id)"
-                                >
-                                    Unban
-                                </button>
-                                <button
-                                    type="button"
-                                    class="u-grow text-[12px]"
-                                    style="color: hsl(0 84% 60%)"
-                                    @click="destroy(m.id)"
-                                >
-                                    Delete
-                                </button>
-                            </td>
-                        </tr>
-                        <tr v-if="!members.data.length">
-                            <td
-                                colspan="4"
-                                class="p-8 text-center font-mono text-[12px] opacity-60"
-                            >
-                                No members.
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
+                                    {{ joined(m.created_at) }}
+                                </td>
+                                <td class="px-4 py-3">
+                                    <div class="flex justify-end gap-2">
+                                        <button
+                                            v-if="!m.banned_at"
+                                            type="button"
+                                            :class="btn"
+                                            @click="ban(m.id)"
+                                        >
+                                            Ban
+                                        </button>
+                                        <button
+                                            v-else
+                                            type="button"
+                                            :class="btn"
+                                            @click="unban(m.id)"
+                                        >
+                                            Unban
+                                        </button>
+                                        <button
+                                            type="button"
+                                            :class="btnDanger"
+                                            @click="destroy(m.id)"
+                                        >
+                                            Delete
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
 
-            <Pagination :links="members.links" />
-        </div>
+            <AdminPagination :links="members.links" />
+        </section>
     </AppLayout>
 </template>

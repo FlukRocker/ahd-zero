@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import Pagination from '@/components/Pagination.vue';
+import AdminPagination from '@/components/AdminPagination.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
 import { Head, router } from '@inertiajs/vue3';
@@ -112,19 +112,61 @@ function getCsrf(): string {
 }
 
 function typeLabel(type: string): string {
-    if (type.includes('Anime')) return 'อนิเมะ';
-    if (type.includes('Episode')) return 'ตอน';
+    if (type.includes('Anime')) return 'Anime';
+    if (type.includes('Episode')) return 'Episode';
     return type;
 }
 
 const formatDate = (date: string) =>
-    new Date(date).toLocaleDateString('th-TH', {
+    new Date(date).toLocaleDateString('en-GB', {
         day: 'numeric',
         month: 'short',
         year: 'numeric',
         hour: '2-digit',
         minute: '2-digit',
     });
+
+const field =
+    'h-9 rounded-md border border-input bg-background px-3 text-sm shadow-xs outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50';
+const btn =
+    'inline-flex h-8 items-center justify-center rounded-md border border-input bg-background px-3 text-xs font-medium hover:bg-accent';
+
+const choices = [
+    {
+        value: 'delete',
+        title: 'Delete this comment only',
+        hint: 'Removes just the selected comment.',
+        tone: '',
+    },
+    {
+        value: 'delete-all',
+        title: "Delete all of this member's comments",
+        hint: 'Removes every comment they have written.',
+        tone: 'amber',
+    },
+    {
+        value: 'delete-ban',
+        title: 'Delete and ban member',
+        hint: 'Removes the comment and bans the account.',
+        tone: 'red',
+    },
+] as const;
+
+function choiceVisible(value: string): boolean {
+    const t = actionTarget.value;
+
+    if (value === 'delete') return true;
+    if (value === 'delete-all') return Boolean(t?.user_id);
+
+    return Boolean(t?.user_id && !t?.is_admin);
+}
+
+const confirmLabel = () =>
+    actionType.value === 'delete-ban'
+        ? 'Delete and ban'
+        : actionType.value === 'delete-all'
+          ? 'Delete all'
+          : 'Delete comment';
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Dashboard', href: '/dashboard' },
@@ -136,318 +178,206 @@ const breadcrumbs: BreadcrumbItem[] = [
     <Head title="Comments" />
 
     <AppLayout :breadcrumbs="breadcrumbs">
-        <div class="flex h-full flex-1 flex-col gap-4 p-4">
-            <div class="flex flex-wrap items-center gap-3">
-                <input
-                    v-model="search"
-                    type="search"
-                    placeholder="ค้นหาความคิดเห็น..."
-                    class="min-w-64 rounded-lg px-3 py-2 text-[13px] outline-none"
-                    style="
-                        background: hsl(var(--bg-elev));
-                        border: 1px solid hsl(var(--border-ahd));
-                    "
-                />
-                <select
-                    v-model="status"
-                    class="rounded-lg px-3 py-2 text-[13px] outline-none"
-                    style="
-                        background: hsl(var(--bg-elev));
-                        border: 1px solid hsl(var(--border-ahd));
-                    "
-                    @change="apply"
-                >
-                    <option value="all">ทั้งหมด</option>
-                    <option value="active">ปกติ</option>
-                    <option value="deleted">ถูกลบ</option>
-                </select>
-                <span
-                    class="ml-auto font-mono text-[12px]"
-                    style="color: hsl(var(--fg-muted))"
-                >
-                    ทั้งหมด {{ comments.total }} ข้อความ
-                </span>
+        <section class="mx-auto w-full max-w-6xl space-y-5 p-4 sm:p-6">
+            <div class="flex flex-wrap items-end justify-between gap-3">
+                <div>
+                    <h1 class="text-xl font-semibold">Comments</h1>
+                    <p class="text-sm text-muted-foreground">
+                        {{ comments.total }} comments. Delete, bulk delete or
+                        ban from the Manage button.
+                    </p>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                    <input
+                        v-model="search"
+                        type="search"
+                        placeholder="Search comments…"
+                        aria-label="Search comments"
+                        :class="[field, 'w-64']"
+                    />
+                    <select
+                        v-model="status"
+                        :class="field"
+                        aria-label="Filter by status"
+                        @change="apply"
+                    >
+                        <option value="all">All</option>
+                        <option value="active">Visible</option>
+                        <option value="deleted">Deleted</option>
+                    </select>
+                </div>
             </div>
 
             <div
-                class="overflow-hidden rounded-xl"
-                style="
-                    background: hsl(var(--bg-elev));
-                    border: 1px solid hsl(var(--border-ahd));
-                "
+                class="rounded-xl border bg-card text-card-foreground shadow-sm"
             >
-                <ul class="divide-y" style="border-color: hsl(var(--border-ahd))">
+                <ul class="divide-y">
+                    <li
+                        v-if="comments.data.length === 0"
+                        class="px-4 py-10 text-center text-sm text-muted-foreground"
+                    >
+                        No comments found.
+                    </li>
                     <li
                         v-for="c in comments.data"
                         :key="c.id"
-                        class="flex items-start gap-3 p-4"
-                        :class="c.deleted_by ? 'opacity-50' : ''"
+                        class="flex items-start gap-3 px-4 py-3"
+                        :class="c.deleted_by ? 'opacity-60' : ''"
                     >
                         <div
-                            class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[12px] font-bold"
-                            style="
-                                background: hsl(var(--accent) / 0.12);
-                                color: hsl(var(--accent));
-                            "
+                            class="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold uppercase"
+                            aria-hidden="true"
                         >
-                            {{ c.user_name.charAt(0).toUpperCase() }}
+                            {{ c.user_name.charAt(0) }}
                         </div>
-                        <div class="min-w-0 flex-1">
-                            <div class="mb-1 flex flex-wrap items-center gap-2">
-                                <span
-                                    class="text-[13px] font-medium"
-                                    style="color: hsl(var(--fg))"
-                                >
-                                    {{ c.user_name }}
-                                </span>
+                        <div class="min-w-0 flex-1 text-sm">
+                            <div
+                                class="flex flex-wrap items-center gap-x-2 gap-y-1"
+                            >
+                                <span class="font-medium">{{
+                                    c.user_name
+                                }}</span>
                                 <span
                                     v-if="c.is_admin"
-                                    class="rounded px-1.5 py-0.5 text-[10px] font-bold uppercase"
-                                    style="
-                                        background: hsl(var(--accent));
-                                        color: hsl(var(--accent-fg));
-                                    "
+                                    class="rounded bg-primary px-1.5 py-0.5 text-[10px] font-semibold text-primary-foreground uppercase"
+                                    >Admin</span
                                 >
-                                    Admin
-                                </span>
                                 <span
                                     v-if="c.deleted_by"
-                                    class="rounded px-1.5 py-0.5 text-[10px] font-mono"
-                                    style="
-                                        background: hsl(var(--bg-soft));
-                                        color: hsl(var(--fg-muted));
-                                    "
+                                    class="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground"
+                                    >Deleted by {{ c.deleted_by }}</span
                                 >
-                                    ถูกลบ ({{ c.deleted_by }})
-                                </span>
+                                <span class="text-xs text-muted-foreground">{{
+                                    formatDate(c.created_at)
+                                }}</span>
                                 <span
-                                    class="font-mono text-[11px]"
-                                    style="color: hsl(var(--fg-faint))"
+                                    class="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground"
+                                    >{{ typeLabel(c.commentable_type) }} #{{
+                                        c.commentable_id
+                                    }}</span
                                 >
-                                    {{ formatDate(c.created_at) }}
-                                </span>
                             </div>
                             <p
                                 v-if="!c.deleted_by"
-                                class="line-clamp-2 text-[13px]"
-                                style="color: hsl(var(--fg-muted))"
+                                class="mt-1 line-clamp-3 break-words text-muted-foreground"
                             >
                                 {{ c.body }}
                             </p>
-                            <p
-                                v-else
-                                class="text-[13px] italic"
-                                style="color: hsl(var(--fg-faint))"
-                            >
-                                ข้อความถูกลบ
+                            <p v-else class="mt-1 text-muted-foreground italic">
+                                Comment removed.
                             </p>
-                            <div class="mt-1 flex items-center gap-2">
-                                <span
-                                    class="rounded px-1.5 py-0.5 font-mono text-[10px]"
-                                    style="
-                                        background: hsl(var(--bg-soft));
-                                        color: hsl(var(--fg-muted));
-                                    "
-                                >
-                                    {{ typeLabel(c.commentable_type) }} #{{ c.commentable_id }}
-                                </span>
-                            </div>
                         </div>
                         <button
                             v-if="!c.deleted_by"
                             type="button"
-                            class="btn btn-ghost text-[12px]"
+                            :class="btn"
                             @click="openAction(c)"
                         >
-                            จัดการ
+                            Manage
                         </button>
                     </li>
                 </ul>
-                <div
-                    v-if="comments.data.length === 0"
-                    class="py-12 text-center text-[13px]"
-                    style="color: hsl(var(--fg-muted))"
-                >
-                    ไม่พบความคิดเห็น
-                </div>
             </div>
 
-            <Pagination
-                :links="comments.links"
-                :last-page="comments.last_page"
-            />
-        </div>
+            <AdminPagination :links="comments.links" />
+        </section>
 
         <Teleport to="body">
             <div
                 v-if="actionModal"
-                class="fixed inset-0 z-50 flex items-center justify-center"
-                style="background: rgba(0, 0, 0, 0.55); backdrop-filter: blur(4px)"
+                class="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm"
                 @click.self="actionModal = false"
+                @keydown.escape="actionModal = false"
             >
                 <div
-                    class="mx-4 w-full max-w-md rounded-2xl p-6 shadow-2xl"
-                    style="
-                        background: hsl(var(--bg-elev));
-                        border: 1px solid hsl(var(--border-strong));
-                    "
+                    class="w-full max-w-md rounded-xl border bg-card p-6 text-card-foreground shadow-2xl"
+                    role="dialog"
+                    aria-label="Manage comment"
                 >
-                    <h3 class="font-display mb-1 text-[20px] italic">
-                        จัดการความคิดเห็น
-                    </h3>
-                    <p
-                        class="mb-5 text-[13px]"
-                        style="color: hsl(var(--fg-muted))"
-                    >
-                        โดย <strong>{{ actionTarget?.user_name }}</strong>
+                    <h3 class="text-lg font-semibold">Manage comment</h3>
+                    <p class="mb-4 text-sm text-muted-foreground">
+                        By <strong>{{ actionTarget?.user_name }}</strong>
                     </p>
 
-                    <div class="mb-5 space-y-2">
-                        <label
-                            class="flex cursor-pointer items-start gap-3 rounded-xl p-3"
-                            :style="
-                                actionType === 'delete'
-                                    ? 'border: 1px solid hsl(var(--accent)); background: hsl(var(--accent) / 0.06)'
-                                    : 'border: 1px solid hsl(var(--border-ahd))'
-                            "
-                        >
-                            <input
-                                v-model="actionType"
-                                type="radio"
-                                value="delete"
-                                class="mt-0.5"
-                            />
-                            <div>
-                                <p
-                                    class="text-[13px] font-medium"
-                                    style="color: hsl(var(--fg))"
-                                >
-                                    ลบเฉพาะข้อความนี้
-                                </p>
-                                <p
-                                    class="text-[11px]"
-                                    style="color: hsl(var(--fg-muted))"
-                                >
-                                    ลบเฉพาะข้อความที่เลือก
-                                </p>
-                            </div>
-                        </label>
-
-                        <label
-                            v-if="actionTarget?.user_id"
-                            class="flex cursor-pointer items-start gap-3 rounded-xl p-3"
-                            :style="
-                                actionType === 'delete-all'
-                                    ? 'border: 1px solid hsl(40 80% 50%); background: hsl(40 80% 50% / 0.08)'
-                                    : 'border: 1px solid hsl(var(--border-ahd))'
-                            "
-                        >
-                            <input
-                                v-model="actionType"
-                                type="radio"
-                                value="delete-all"
-                                class="mt-0.5"
-                            />
-                            <div>
-                                <p
-                                    class="text-[13px] font-medium"
-                                    style="color: hsl(var(--fg))"
-                                >
-                                    ลบข้อความทั้งหมดของผู้ใช้นี้
-                                </p>
-                                <p
-                                    class="text-[11px]"
-                                    style="color: hsl(var(--fg-muted))"
-                                >
-                                    ลบทุกข้อความที่ {{ actionTarget?.user_name }} เคยเขียน
-                                </p>
-                            </div>
-                        </label>
-
-                        <label
-                            v-if="actionTarget?.user_id && !actionTarget?.is_admin"
-                            class="flex cursor-pointer items-start gap-3 rounded-xl p-3"
-                            :style="
-                                actionType === 'delete-ban'
-                                    ? 'border: 1px solid hsl(0 78% 56%); background: hsl(0 78% 56% / 0.08)'
-                                    : 'border: 1px solid hsl(var(--border-ahd))'
-                            "
-                        >
-                            <input
-                                v-model="actionType"
-                                type="radio"
-                                value="delete-ban"
-                                class="mt-0.5"
-                            />
-                            <div>
-                                <p
-                                    class="text-[13px] font-medium"
-                                    style="color: hsl(0 78% 56%)"
-                                >
-                                    ลบและแบนผู้ใช้
-                                </p>
-                                <p
-                                    class="text-[11px]"
-                                    style="color: hsl(var(--fg-muted))"
-                                >
-                                    ลบข้อความ + แบนบัญชี {{ actionTarget?.user_name }}
-                                </p>
-                            </div>
-                        </label>
+                    <div class="mb-4 space-y-2">
+                        <template v-for="ch in choices" :key="ch.value">
+                            <label
+                                v-if="choiceVisible(ch.value)"
+                                class="flex cursor-pointer items-start gap-3 rounded-lg border p-3 text-sm"
+                                :class="
+                                    actionType === ch.value
+                                        ? ch.tone === 'red'
+                                            ? 'border-destructive bg-destructive/10'
+                                            : ch.tone === 'amber'
+                                              ? 'border-amber-500 bg-amber-500/10'
+                                              : 'border-primary bg-accent'
+                                        : ''
+                                "
+                            >
+                                <input
+                                    v-model="actionType"
+                                    type="radio"
+                                    :value="ch.value"
+                                    class="mt-1"
+                                />
+                                <span>
+                                    <span
+                                        class="block font-medium"
+                                        :class="
+                                            ch.tone === 'red'
+                                                ? 'text-destructive'
+                                                : ''
+                                        "
+                                        >{{ ch.title }}</span
+                                    >
+                                    <span
+                                        class="block text-xs text-muted-foreground"
+                                        >{{ ch.hint }}</span
+                                    >
+                                </span>
+                            </label>
+                        </template>
                     </div>
 
                     <div
                         v-if="actionType === 'delete-ban'"
-                        class="mb-5 space-y-3 rounded-xl p-4"
-                        style="
-                            border: 1px solid hsl(0 78% 56% / 0.4);
-                            background: hsl(0 78% 56% / 0.05);
-                        "
+                        class="mb-4 space-y-3 rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm"
                     >
-                        <div>
-                            <label
-                                class="mb-1 block text-[11px] font-mono"
-                                style="color: hsl(var(--fg-muted))"
-                            >
-                                เหตุผลในการแบน
-                            </label>
+                        <label class="grid gap-1 font-medium">
+                            Ban reason (optional)
                             <input
                                 v-model="banReason"
                                 type="text"
-                                placeholder="เหตุผล (ไม่บังคับ)"
-                                class="w-full rounded-lg px-3 py-2 text-[13px] outline-none"
-                                style="
-                                    background: hsl(var(--bg-elev));
-                                    border: 1px solid hsl(var(--border-ahd));
-                                "
+                                :class="[field, 'w-full font-normal']"
                             />
-                        </div>
+                        </label>
                         <label
-                            class="flex cursor-pointer items-center gap-2 text-[13px]"
-                            style="color: hsl(var(--fg-muted))"
+                            class="flex items-center gap-2 text-muted-foreground"
                         >
-                            <input
-                                v-model="deleteAllOnBan"
-                                type="checkbox"
-                            />
-                            ลบข้อความทั้งหมดของผู้ใช้นี้ด้วย
+                            <input v-model="deleteAllOnBan" type="checkbox" />
+                            Also delete all of their comments
                         </label>
                     </div>
 
-                    <div class="flex justify-end gap-3">
+                    <div class="flex justify-end gap-2">
                         <button
                             type="button"
-                            class="btn btn-ghost"
+                            :class="btn"
                             @click="actionModal = false"
                         >
-                            ยกเลิก
+                            Cancel
                         </button>
                         <button
                             type="button"
-                            class="btn btn-primary"
+                            class="inline-flex h-8 items-center justify-center rounded-md px-3 text-xs font-medium text-white"
+                            :class="
+                                actionType === 'delete-ban'
+                                    ? 'bg-destructive hover:bg-destructive/90'
+                                    : 'bg-primary text-primary-foreground hover:bg-primary/90'
+                            "
                             @click="confirmAction"
                         >
-                            {{ actionType === 'delete-ban' ? 'ลบและแบน' : actionType === 'delete-all' ? 'ลบทั้งหมด' : 'ลบข้อความ' }}
+                            {{ confirmLabel() }}
                         </button>
                     </div>
                 </div>
