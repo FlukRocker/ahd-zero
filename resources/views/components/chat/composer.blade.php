@@ -3,6 +3,8 @@
      Everything is Alpine state from chatLobby/chatMini. --}}
 {{-- Rules gate: shown instead of the form until this browser has accepted the
      current rules text (kept in localStorage, keyed by a hash of the text). --}}
+{{-- One root element: this component is used inside <template x-if>, which only renders a single root. --}}
+<div>
 <div class="border-t border-white/10 {{ $compact ? 'p-2' : 'p-3' }}" x-show="rulesPending()" x-cloak>
     <p class="mb-1 text-sm font-semibold">กติกาการใช้แชท</p>
     <p class="mb-2 max-h-40 overflow-y-auto whitespace-pre-line text-xs leading-relaxed opacity-80" x-text="config?.rules?.text"></p>
@@ -55,3 +57,4 @@
     </div>
     <p class="mt-1 text-[11px] opacity-50">ห้ามแนบลิงก์ · ใช้ [b] [i] [u] [s] [spoiler] และ [img]ลิงก์รูป https[/img] ได้ · พิมพ์ @ เพื่อแท็กคนออนไลน์</p>
 </form>
+</div>

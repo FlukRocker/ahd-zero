@@ -37,6 +37,25 @@ class ChatBubbleTest extends TestCase
         $this->assertStringNotContainsString('x-html', $html);
     }
 
+    /**
+     * The composer is mounted inside <template x-if>, and Alpine only renders a
+     * template's FIRST root element. A second top-level element (the rules gate
+     * once sat beside the form) silently drops the message box.
+     */
+    public function test_the_composer_renders_as_a_single_root_element(): void
+    {
+        $html = \Illuminate\Support\Facades\Blade::render('<x-chat.composer compact />');
+
+        $doc = new \DOMDocument;
+        @$doc->loadHTML('<?xml encoding="utf-8"?><body>'.$html.'</body>');
+        $body = $doc->getElementsByTagName('body')->item(0);
+        $roots = array_filter(iterator_to_array($body->childNodes), fn ($n) => $n instanceof \DOMElement);
+
+        $this->assertCount(1, $roots);
+        $this->assertStringContainsString('<form', $html);
+        $this->assertStringContainsString('acceptRules()', $html);
+    }
+
     public function test_mini_endpoint_returns_lobby_state_uncached_for_a_guest(): void
     {
         $response = $this->getJson('/chat/mini')->assertOk()->assertJson([
