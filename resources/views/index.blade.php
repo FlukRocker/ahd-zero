@@ -37,6 +37,8 @@
         </section>
     @endif
 
+    <x-chat-inline />
+
     <x-content-with-sidebar class="mt-24">
         <x-section-header eyebrow="อัปเดตล่าสุด" title="ตอนใหม่ล่าสุด" />
         <x-card-grid class="!grid-cols-2 sm:!grid-cols-3 lg:!grid-cols-4">

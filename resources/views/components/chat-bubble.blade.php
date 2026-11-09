@@ -1,7 +1,7 @@
 {{-- Floating mini chat. Closed, it is a button and nothing else: no fetch, no
      socket. The first open loads the lobby from /chat/mini and connects the
      socket (see chatMini in chat/lobby.js). Not shown on chat pages. --}}
-@unless (request()->routeIs('chat.*'))
+@unless (request()->routeIs('chat.*', 'home'))
     <div
         data-chat-bubble
         x-data="chatMini"

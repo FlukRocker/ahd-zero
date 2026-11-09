@@ -19,12 +19,22 @@ class ChatBubbleTest extends TestCase
 
     public function test_public_pages_have_a_bubble_that_opens_the_mini_chat(): void
     {
-        $html = $this->get('/')->assertOk()->getContent();
+        $html = $this->get('/studios')->assertOk()->getContent();
 
         $this->assertStringContainsString('data-chat-bubble', $html);
         $this->assertStringContainsString('x-data="chatMini"', $html);
         // The panel carries a way out to the full lobby.
         $this->assertStringContainsString('href="'.route('chat.show', [], false).'"', $html);
+    }
+
+    public function test_the_homepage_embeds_the_chat_instead_of_the_bubble(): void
+    {
+        $html = $this->get('/')->assertOk()->getContent();
+
+        $this->assertStringContainsString('data-chat-inline', $html);
+        $this->assertStringContainsString('x-data="chatMini"', $html);
+        $this->assertStringNotContainsString('data-chat-bubble', $html);
+        $this->assertStringNotContainsString('x-html', $html);
     }
 
     public function test_mini_endpoint_returns_lobby_state_uncached_for_a_guest(): void
