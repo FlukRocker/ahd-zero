@@ -14,6 +14,5 @@ final readonly class ReportTarget
         public ?int $authorMemberId,
         public string $excerpt,
         public bool $available,
-        public ?string $image = null,
     ) {}
 }

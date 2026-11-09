@@ -118,9 +118,6 @@ Route::prefix('api')->group(function (): void {
 // Live chat lobby. Guests read; any logged-in member posts — email
 // verification is not required (it is informational, see MemberAuthController).
 Route::get('/chat', [ChatController::class, 'show'])->name('chat.show');
-Route::get('/chat-uploads/{file}', [\App\Http\Controllers\ChatUploadController::class, 'show'])
-    ->where('file', '[a-f0-9]{32}\.(webp|jpg)')
-    ->name('chat.upload');
 Route::get('/chat/mini', [ChatController::class, 'mini'])->name('chat.mini');
 Route::get('/chat/room/{slug}', [ChatController::class, 'show'])->name('chat.room');
 

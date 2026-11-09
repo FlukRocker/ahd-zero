@@ -64,5 +64,6 @@
     }
 
     /* [spoiler]: hidden until clicked. */
+    .chat-spoiler-img { filter: blur(18px); cursor: pointer; }
     .chat-spoiler { background: currentColor; color: transparent !important; border-radius: 3px; cursor: pointer; user-select: none; }
 </style>

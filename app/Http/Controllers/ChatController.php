@@ -12,7 +12,6 @@ use App\Models\ChatRoom;
 use App\Models\Member;
 use App\Policies\ChatPolicy;
 use App\Rules\NoLinks;
-use App\Services\Chat\ChatImage;
 use App\Services\Chat\ChatService;
 use App\Services\Moderation\ReportResolver;
 use App\Support\Chat\Bbcode;
@@ -20,7 +19,6 @@ use App\Support\ChatText;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\View\View;
 
 class ChatController extends Controller
@@ -76,30 +74,32 @@ class ChatController extends Controller
         ];
     }
 
-    public function store(Request $request, ChatImage $images): JsonResponse
+    public function store(Request $request): JsonResponse
     {
         $request->merge(['body' => ChatText::clean((string) $request->input('body', ''))]);
 
-        $hasImage = $request->hasFile('image');
-
         $validated = $request->validate([
-            // Text may be empty only when a picture is attached. 450 leaves room
-            // for the appended image token inside a 500-char body.
-            'body' => [$hasImage ? 'nullable' : 'required', 'string', $hasImage ? 'max:450' : 'max:500', new NoLinks,
-                // BBCode tags can split a link ("evil[b][/b].com"), so check the rendered text too.
+            'body' => ['required', 'string', 'max:500',
+                // Links are blocked everywhere except a vetted [img] embed. Screen
+                // only the text a reader sees outside embeds; BBCode tags and
+                // images can split a link ("evil[b][/b].com"), so the pieces are
+                // joined before the check.
                 function (string $attribute, mixed $value, \Closure $fail): void {
-                    if (is_string($value)) {
-                        (new NoLinks)->validate($attribute, implode('', array_column(Bbcode::parse($value), 'v')), $fail);
+                    if (! is_string($value)) {
+                        return;
                     }
-                },
-                // Only the server writes [img]; a typed one could not point at anyone's file anyway, but keep the invariant.
-                function (string $attribute, mixed $value, \Closure $fail): void {
-                    if (is_string($value) && stripos($value, '[img') !== false) {
-                        $fail('ไม่สามารถใช้แท็ก [img] ได้ — กดปุ่มแนบรูปแทน');
+
+                    $segments = Bbcode::parse($value);
+
+                    if (Bbcode::imageCount($segments) > Bbcode::MAX_IMAGES) {
+                        $fail('ใส่รูปได้ไม่เกิน '.Bbcode::MAX_IMAGES.' รูปต่อข้อความ');
+
+                        return;
                     }
+
+                    (new NoLinks)->validate($attribute, Bbcode::plainText($segments), $fail);
                 },
             ],
-            'image' => ['nullable', 'file', 'max:3072'],
             // Optional: a page left open across the deploy posts without it.
             'room_id' => ['nullable', 'integer', 'exists:chat_rooms,id,active,1'],
         ]);
@@ -112,26 +112,7 @@ class ChatController extends Controller
             return response()->json(['message' => $this->refusal($chatMember)], 403);
         }
 
-        $body = (string) ($validated['body'] ?? '');
-
-        if ($hasImage) {
-            // Images cost GD time and disk, so they get a tighter limit than text.
-            $key = 'chat-image:'.$member->id;
-
-            if (RateLimiter::tooManyAttempts($key, 5)) {
-                return response()->json(['message' => 'ส่งรูปเร็วเกินไป รอสักครู่'], 429);
-            }
-
-            RateLimiter::hit($key, 60);
-
-            try {
-                $name = $images->store($request->file('image'));
-            } catch (\InvalidArgumentException $e) {
-                return response()->json(['message' => $e->getMessage(), 'errors' => ['image' => [$e->getMessage()]]], 422);
-            }
-
-            $body = trim($body.' '.ChatImage::token($name));
-        }
+        $body = (string) $validated['body'];
 
         $message = ChatMessage::create([
             'member_id' => $member->id,

@@ -47,20 +47,20 @@ class MessageRenderer
      */
     public function parts(string $body, array $smilies): array
     {
-        [$text, $image] = ChatImage::split($body);
-
         $parts = [];
 
-        foreach (Bbcode::parse($text) as $segment) {
+        foreach (Bbcode::parse($body) as $segment) {
+            if ($segment['t'] === 'image') {
+                $parts[] = $segment;
+
+                continue;
+            }
+
             foreach ($this->smileySplit((string) $segment['v'], $smilies) as $piece) {
                 $parts[] = $piece['t'] === 'img'
                     ? $piece
                     : array_merge($segment, ['v' => $piece['v']]);
             }
-        }
-
-        if ($image !== null) {
-            $parts[] = ['t' => 'upload', 'v' => ChatImage::url($image)];
         }
 
         return $parts === [] ? [['t' => 'text', 'v' => '']] : $parts;

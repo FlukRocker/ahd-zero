@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import chatLobby, { safeImage, safeParts, safeStyle, safeUpload } from '../../resources/js/chat/lobby';
+import chatLobby, { safeEmbed, safeImage, safeParts, safeStyle } from '../../resources/js/chat/lobby';
 
 const echoCalls = vi.hoisted(() => ({ channel: [] as string[], join: [] as string[], leave: [] as string[] }));
 
@@ -311,16 +311,21 @@ describe('rich chat parts', () => {
         expect(parts[2]).toEqual({ t: 'text', v: 'c' });
     });
 
-    it('only passes the exact upload path', () => {
+    it('only passes a vetted https image url', () => {
+        const ok = 'https://i.example.test/a/cat.png?x=1';
         const parts = safeParts({
             parts: [
-                { t: 'upload', v: '/chat-uploads/' + 'a'.repeat(32) + '.webp' },
-                { t: 'upload', v: 'https://evil.test/x.png' },
-                { t: 'upload', v: '/chat-uploads/../../.env' },
+                { t: 'image', v: ok, sp: true },
+                { t: 'image', v: 'http://i.example.test/a.png' },
+                { t: 'image', v: 'javascript:alert(1)' },
+                { t: 'image', v: 'https://i.example.test/a.png" onerror="x' },
+                { t: 'image', v: 'https://i.example.test/a.svg' },
+                { t: 'image', v: '/chat-uploads/' + 'a'.repeat(32) + '.webp' },
+                { t: 'upload', v: ok },
             ],
         });
 
-        expect(parts).toHaveLength(1);
-        expect(safeUpload(parts[0])).toBe('/chat-uploads/' + 'a'.repeat(32) + '.webp');
+        expect(parts).toEqual([{ t: 'image', v: ok, sp: true }]);
+        expect(safeEmbed(parts[0])).toBe(ok);
     });
 });

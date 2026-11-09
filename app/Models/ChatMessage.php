@@ -29,14 +29,6 @@ class ChatMessage extends Model
 
     protected $fillable = ['member_id', 'body', 'room_id'];
 
-    protected static function booted(): void
-    {
-        // A removed message must not leave its picture reachable at a known URL.
-        static::deleted(function (ChatMessage $message): void {
-            app(\App\Services\Chat\ChatImage::class)->delete($message->body);
-        });
-    }
-
     /**
      * @return BelongsTo<ChatRoom, $this>
      */

@@ -5,12 +5,9 @@ namespace Tests\Feature\Chat;
 use App\Events\Chat\MessageSent;
 use App\Models\ChatMessage;
 use App\Models\Member;
-use App\Services\Chat\ChatImage;
 use App\Support\Chat\Bbcode;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Event;
-use Illuminate\Support\Facades\Storage;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
@@ -24,7 +21,6 @@ class RichMessageTest extends TestCase
     {
         parent::setUp();
         $this->withoutVite();
-        Storage::fake('local');
         Event::fake([MessageSent::class]);
 
         $this->member = Member::create([
@@ -97,71 +93,83 @@ class RichMessageTest extends TestCase
         }
     }
 
-    public function test_typed_img_tag_is_rejected(): void
+    public function test_an_https_image_url_becomes_an_image_segment(): void
     {
-        $this->send(['body' => '[img]'.str_repeat('a', 32).'.webp[/img]'])->assertStatus(422);
+        $record = $this->send(['body' => 'look [img]https://i.example.test/a/cat.PNG?x=1[/img] nice'])
+            ->assertCreated()->json();
+
+        $this->assertSame(
+            [['t' => 'text', 'v' => 'look '], ['t' => 'image', 'v' => 'https://i.example.test/a/cat.PNG?x=1'], ['t' => 'text', 'v' => ' nice']],
+            $record['parts'],
+        );
     }
 
-    public function test_image_is_reencoded_stored_and_served(): void
+    public function test_an_image_inside_a_spoiler_carries_the_flag(): void
     {
-        $file = UploadedFile::fake()->image('cat.png', 800, 600);
+        $parts = Bbcode::parse('[spoiler][img]https://i.example.test/a.jpg[/img][/spoiler]');
 
-        $record = $this->send(['body' => 'look [b]this[/b]', 'image' => $file])->assertCreated()->json();
-
-        $upload = collect($record['parts'])->firstWhere('t', 'upload');
-        $this->assertNotNull($upload);
-        $this->assertMatchesRegularExpression('~^/chat-uploads/[a-f0-9]{32}\.(webp|jpg)$~', $upload['v']);
-        Storage::disk('local')->assertExists('chat-uploads/'.basename($upload['v']));
-
-        $this->get($upload['v'])->assertOk()->assertHeader('X-Content-Type-Options', 'nosniff')
-            ->assertHeader('Cache-Control');
-        $this->assertStringContainsString('private', $this->get($upload['v'])->headers->get('Cache-Control'));
+        $this->assertSame([['t' => 'image', 'v' => 'https://i.example.test/a.jpg', 'sp' => true]], $parts);
     }
 
-    public function test_image_only_message_is_allowed(): void
+    public function test_an_image_inside_bold_does_not_split_the_formatting(): void
     {
-        $this->send(['body' => '', 'image' => UploadedFile::fake()->image('a.jpg', 50, 50)])->assertCreated();
+        $parts = Bbcode::parse('[b]x [img]https://i.example.test/a.gif[/img] y[/b]');
+
+        $this->assertSame(['t' => 'text', 'v' => 'x ', 'b' => true], $parts[0]);
+        $this->assertSame('image', $parts[1]['t']);
+        $this->assertSame(['t' => 'text', 'v' => ' y', 'b' => true], $parts[2]);
     }
 
-    public function test_non_images_are_rejected(): void
+    /** @return array<string, array{0: string}> */
+    public static function badImages(): array
     {
-        $php = UploadedFile::fake()->createWithContent('x.png', '<?php echo 1;');
-        $svg = UploadedFile::fake()->createWithContent('x.svg', '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>');
+        return [
+            'http' => ['[img]http://i.example.test/a.png[/img]'],
+            'javascript' => ['[img]javascript:alert(1)[/img]'],
+            'data' => ['[img]data:image/png;base64,AAAA[/img]'],
+            'no extension' => ['[img]https://i.example.test/a[/img]'],
+            'wrong extension' => ['[img]https://i.example.test/a.svg[/img]'],
+            'extension only in query' => ['[img]https://i.example.test/a?x=.png[/img]'],
+            'ip host' => ['[img]https://127.0.0.1/a.png[/img]'],
+            'localhost' => ['[img]https://localhost/a.png[/img]'],
+            'credentials' => ['[img]https://good.example.test@evil.test/a.png[/img]'],
+            'port' => ['[img]https://i.example.test:8443/a.png[/img]'],
+            'quote' => ['[img]https://i.example.test/a".png[/img]'],
+            'space' => ['[img]https://i.example.test/a b.png[/img]'],
+            'angle' => ['[img]https://i.example.test/a<b>.png[/img]'],
+            'nested tag' => ['[img]https://i.example.test/[b]a[/b].png[/img]'],
+            'unclosed' => ['[img]https://i.example.test/a.png'],
+            'too long' => ['[img]https://i.example.test/'.'a'.str_repeat('a', 400).'.png[/img]'],
+        ];
+    }
 
-        $this->send(['body' => 'hi', 'image' => $php])->assertStatus(422);
-        $this->send(['body' => 'hi', 'image' => $svg])->assertStatus(422);
+    #[DataProvider('badImages')]
+    public function test_bad_image_embeds_are_rejected(string $body): void
+    {
+        $this->send(['body' => $body])->assertStatus(422)->assertJsonValidationErrors('body');
         $this->assertSame(0, ChatMessage::count());
     }
 
-    public function test_oversized_dimensions_are_rejected(): void
+    public function test_a_malformed_embed_that_is_not_a_link_posts_as_plain_text(): void
     {
-        $this->send(['body' => 'big', 'image' => UploadedFile::fake()->image('big.png', ChatImage::MAX_SIDE + 1, 10)])
-            ->assertStatus(422);
-    }
+        foreach (['[img]//i.example.test/a.png[/img]', '[img]a1b2c3d4e5f60718293a4b5c6d7e8f90.webp[/img]'] as $body) {
+            $record = $this->send(['body' => $body])->assertCreated()->json();
 
-    public function test_deleting_a_message_removes_its_image(): void
-    {
-        $record = $this->send(['body' => 'x', 'image' => UploadedFile::fake()->image('a.png', 40, 40)])->assertCreated()->json();
-        $file = basename(collect($record['parts'])->firstWhere('t', 'upload')['v']);
-
-        ChatMessage::query()->findOrFail($record['id'])->delete();
-
-        Storage::disk('local')->assertMissing('chat-uploads/'.$file);
-        $this->get('/chat-uploads/'.$file)->assertNotFound();
-    }
-
-    public function test_upload_route_rejects_other_names(): void
-    {
-        $this->get('/chat-uploads/..%2F.env')->assertNotFound();
-        $this->get('/chat-uploads/evil.php')->assertNotFound();
-    }
-
-    public function test_image_uploads_are_rate_limited(): void
-    {
-        for ($i = 0; $i < 5; $i++) {
-            $this->send(['body' => 'x', 'image' => UploadedFile::fake()->image('a.png', 20, 20)])->assertCreated();
+            $this->assertSame([['t' => 'text', 'v' => $body]], $record['parts']);
         }
+    }
 
-        $this->send(['body' => 'x', 'image' => UploadedFile::fake()->image('a.png', 20, 20)])->assertStatus(429);
+    public function test_a_link_outside_the_embed_is_still_blocked(): void
+    {
+        $this->send(['body' => 'https://evil.test [img]https://i.example.test/a.png[/img]'])->assertStatus(422);
+        $this->send(['body' => 'evil[img]https://i.example.test/a.png[/img].com'])->assertStatus(422);
+    }
+
+    public function test_at_most_three_images_per_message(): void
+    {
+        $one = '[img]https://i.example.test/a.png[/img]';
+
+        $this->send(['body' => $one.$one.$one])->assertCreated();
+        $this->send(['body' => $one.$one.$one.$one])->assertStatus(422)->assertJsonValidationErrors('body');
     }
 }

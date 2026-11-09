@@ -52,7 +52,6 @@ interface ChatRow {
     room: string | null;
     member_name: string | null;
     body: string;
-    image?: string | null;
     created_at: string | null;
 }
 
@@ -394,7 +393,6 @@ const breadcrumbs: BreadcrumbItem[] = [
                                 in #{{ m.room ?? '?' }}</span
                             >
                             <p class="break-words opacity-80">{{ m.body }}</p>
-                            <a v-if="m.image" :href="m.image" target="_blank" rel="noopener"><img :src="m.image" alt="Attached image" loading="lazy" class="mt-1 max-h-40 rounded-md border" /></a>
                         </li>
                         <li v-if="!recentChat.length" class="opacity-60">
                             No chat messages yet

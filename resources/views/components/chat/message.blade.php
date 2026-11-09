@@ -42,11 +42,14 @@
                         class="inline h-4 w-4 align-text-bottom"
                     >
                     <img
-                        x-show="part.t === 'upload'"
-                        :src="uploadSrc(part)"
-                        alt="รูปที่แนบ"
+                        x-show="part.t === 'image'"
+                        :src="embedSrc(part)"
+                        alt="รูปในแชท"
                         loading="lazy"
                         referrerpolicy="no-referrer"
+                        :class="{ 'chat-spoiler-img': part.sp && !spoiled[line.id + '-' + index] }"
+                        @click="part.sp && (spoiled[line.id + '-' + index] = true)"
+                        x-on:error="$el.style.display = 'none'"
                         class="mt-1 block max-h-64 max-w-full rounded-lg border border-white/10"
                     >
                 </span>

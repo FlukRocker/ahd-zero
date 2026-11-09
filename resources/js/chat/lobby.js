@@ -15,10 +15,10 @@ import { allowedActions, canReport } from './permissions';
 export const STYLE_KEYS = ['--chat-name-color', '--chat-name-gradient', '--chat-glow', '--chat-background'];
 const SAFE_VALUE = /^[#a-z0-9 .,()%-]+$/i;
 const SAFE_IMAGE = /^\/chat-assets\/pawns\/[a-z0-9-]{1,32}\.svg$/;
-// A member upload: server-random name, served by ChatUploadController.
-const SAFE_UPLOAD = /^\/chat-uploads\/[a-f0-9]{32}\.(?:webp|jpg)$/;
+// A member-embedded picture: https, no quote/space/bracket/angle/backslash, an
+// image extension. The server vetted it (Bbcode::imageUrl); this is the second gate.
+const SAFE_EMBED = /^https:\/\/[^\s[\]"'<>\\]{4,400}\.(?:jpe?g|png|gif|webp)(?:[?#][^\s[\]"'<>\\]*)?$/i;
 const SAFE_COLOR = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
-const MAX_UPLOAD_BYTES = 3 * 1024 * 1024;
 const FLAGS = ['b', 'i', 'u', 's', 'sp'];
 
 export function safeStyle(style) {
@@ -53,10 +53,10 @@ export function safeParts(line) {
 
         if (part.t === 'img') {
             out.push({ t: 'img', v: part.v });
-        } else if (part.t === 'upload') {
-            // Only the exact upload path survives; anything else is dropped.
-            if (typeof part.v === 'string' && SAFE_UPLOAD.test(part.v)) {
-                out.push({ t: 'upload', v: part.v });
+        } else if (part.t === 'image') {
+            // Only a vetted https image URL survives; anything else is dropped.
+            if (typeof part.v === 'string' && SAFE_EMBED.test(part.v)) {
+                out.push(part.sp === true ? { t: 'image', v: part.v, sp: true } : { t: 'image', v: part.v });
             }
         } else if (part.t === 'text') {
             // Copy known flags only; a missing flag (old cached record) is false.
@@ -83,8 +83,8 @@ export function safeImage(part) {
     return part.t === 'img' && typeof part.v === 'string' && SAFE_IMAGE.test(part.v) ? part.v : null;
 }
 
-export function safeUpload(part) {
-    return part.t === 'upload' && typeof part.v === 'string' && SAFE_UPLOAD.test(part.v) ? part.v : null;
+export function safeEmbed(part) {
+    return part.t === 'image' && typeof part.v === 'string' && SAFE_EMBED.test(part.v) ? part.v : null;
 }
 
 export default function chatLobby() {
@@ -92,8 +92,6 @@ export default function chatLobby() {
         messages: [],
         roster: [],
         draft: '',
-        image: null,
-        preview: '',
         spoiled: {},
         sending: false,
         error: '',
@@ -296,48 +294,13 @@ export default function chatLobby() {
             return safeImage(part);
         },
 
-        uploadSrc(part) {
-            return safeUpload(part);
+        embedSrc(part) {
+            return safeEmbed(part);
         },
 
         /** Inline style for a text segment: only a validated hex colour. */
         textStyle(part) {
             return part.c ? { color: part.c } : {};
-        },
-
-        pickImage(event) {
-            const file = event.target.files?.[0] ?? null;
-            event.target.value = '';
-
-            if (file === null) {
-                return;
-            }
-
-            if (!/^image\/(jpeg|png|gif|webp)$/.test(file.type)) {
-                this.error = 'รองรับเฉพาะรูป JPG, PNG, GIF, WebP';
-
-                return;
-            }
-
-            if (file.size > MAX_UPLOAD_BYTES) {
-                this.error = 'รูปใหญ่เกินไป (สูงสุด 3 MB)';
-
-                return;
-            }
-
-            this.error = '';
-            this.clearImage();
-            this.image = file;
-            this.preview = URL.createObjectURL(file);
-        },
-
-        clearImage() {
-            if (this.preview) {
-                URL.revokeObjectURL(this.preview);
-            }
-
-            this.image = null;
-            this.preview = '';
         },
 
         /** Wrap the draft selection in a BBCode tag (the toolbar buttons). */
@@ -371,7 +334,7 @@ export default function chatLobby() {
         async send() {
             const body = this.draft.trim();
 
-            if ((body === '' && this.image === null) || this.sending) {
+            if (body === '' || this.sending) {
                 return;
             }
 
@@ -382,20 +345,10 @@ export default function chatLobby() {
             try {
                 const headers = {
                     Accept: 'application/json',
+                    'Content-Type': 'application/json',
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content ?? '',
                 };
-                let payload;
-
-                if (this.image !== null) {
-                    // Multipart: the browser sets the boundary, so no Content-Type here.
-                    payload = new FormData();
-                    payload.append('body', body);
-                    payload.append('room_id', String(this.config.room.id));
-                    payload.append('image', this.image);
-                } else {
-                    headers['Content-Type'] = 'application/json';
-                    payload = JSON.stringify({ body, room_id: this.config.room.id });
-                }
+                const payload = JSON.stringify({ body, room_id: this.config.room.id });
 
                 const response = await fetch('/chat/messages', { method: 'POST', headers, body: payload });
 
@@ -409,7 +362,6 @@ export default function chatLobby() {
                 }
 
                 this.draft = '';
-                this.clearImage();
 
                 // Show the sender's own line now; if the socket is down it is the only copy they get,
                 // and when the socket echo arrives append() skips it by id.
