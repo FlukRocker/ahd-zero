@@ -15,6 +15,8 @@ const props = defineProps<{
 const maintenance = ref(props.settings.maintenance);
 const registration = ref(props.settings.registration);
 const flash = ref<string | null>(null);
+const failed = ref(false);
+const busy = ref(false);
 const registrationLocked = props.settings.registrationLockedByEnv === true;
 
 function csrf(): string {
@@ -26,28 +28,61 @@ function csrf(): string {
 }
 
 async function post(url: string, body: Record<string, unknown>) {
-    const res = await fetch(url, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRF-TOKEN': csrf(),
-            Accept: 'application/json',
-        },
-        credentials: 'same-origin',
-        body: JSON.stringify(body),
-    });
+    if (busy.value) {
+        return null;
+    }
+
+    busy.value = true;
+    failed.value = false;
+    let res: Response;
+
+    try {
+        res = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': csrf(),
+                Accept: 'application/json',
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify(body),
+        });
+    } catch {
+        busy.value = false;
+        failed.value = true;
+        flash.value = 'Network error — please retry.';
+
+        return null;
+    }
+
+    busy.value = false;
+
     if (res.ok) {
         const data = await res.json();
         flash.value = data.message ?? 'Saved';
         setTimeout(() => (flash.value = null), 2500);
+
         return data;
     }
-    flash.value = 'Error';
+
+    failed.value = true;
+    flash.value = `Request failed (${res.status})`;
+
     return null;
 }
 
 async function toggleMaintenance() {
     const next = !maintenance.value;
+
+    if (
+        next &&
+        !window.confirm(
+            'Turn maintenance mode ON? The public site will return 503 until you turn it off.',
+        )
+    ) {
+        return;
+    }
+
     const data = await post('/dashboard/site-settings/maintenance', {
         enable: next,
     });
@@ -63,6 +98,10 @@ async function toggleRegistration() {
 }
 
 async function clearCache() {
+    if (!window.confirm("Clear this site's cache?")) {
+        return;
+    }
+
     await post('/dashboard/site-settings/clear-cache', {});
 }
 
@@ -76,117 +115,119 @@ const breadcrumbs: BreadcrumbItem[] = [
     <Head title="Site settings" />
 
     <AppLayout :breadcrumbs="breadcrumbs">
-        <div class="max-w-2xl space-y-6 p-4">
+        <section class="mx-auto w-full max-w-3xl space-y-5 p-4 sm:p-6">
+            <div>
+                <h1 class="text-xl font-semibold">Site settings</h1>
+                <p class="text-sm text-muted-foreground">
+                    Switches that affect the whole public site.
+                </p>
+            </div>
+
             <Transition name="fade">
-                <div
+                <p
                     v-if="flash"
-                    class="rounded-lg px-4 py-2 text-[13px]"
-                    style="
-                        background: hsl(var(--accent) / 0.15);
-                        border: 1px solid hsl(var(--accent) / 0.4);
+                    role="status"
+                    class="rounded-md border px-3 py-2 text-sm"
+                    :class="
+                        failed
+                            ? 'border-destructive/40 bg-destructive/10 text-destructive'
+                            : 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
                     "
                 >
                     {{ flash }}
-                </div>
+                </p>
             </Transition>
 
             <div
-                class="rounded-xl p-5"
-                style="
-                    background: hsl(var(--bg-elev));
-                    border: 1px solid hsl(var(--border-ahd));
-                "
+                class="divide-y rounded-xl border bg-card text-card-foreground shadow-sm"
             >
-                <div class="flex items-center justify-between gap-4">
+                <div class="flex items-center justify-between gap-4 p-5">
                     <div>
-                        <div class="font-display text-[20px] italic">
-                            Maintenance mode
-                        </div>
-                        <div
-                            class="text-[12px]"
-                            style="color: hsl(var(--fg-muted))"
-                        >
+                        <h2 class="font-semibold">Maintenance mode</h2>
+                        <p class="text-sm text-muted-foreground">
                             Public site returns 503. Admin dashboard stays open.
-                        </div>
+                        </p>
+                        <p
+                            v-if="maintenance"
+                            class="mt-1 text-xs font-medium text-destructive"
+                        >
+                            The public site is currently down.
+                        </p>
                     </div>
                     <button
                         type="button"
-                        class="btn"
-                        :class="maintenance ? 'btn-primary' : 'btn-ghost'"
+                        role="switch"
+                        :aria-checked="maintenance"
+                        aria-label="Maintenance mode"
+                        :disabled="busy"
+                        class="relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:opacity-50"
+                        :class="maintenance ? 'bg-destructive' : 'bg-muted'"
                         @click="toggleMaintenance"
                     >
-                        {{ maintenance ? 'ON' : 'OFF' }}
+                        <span
+                            class="inline-block size-5 rounded-full bg-white shadow transition-transform"
+                            :class="
+                                maintenance
+                                    ? 'translate-x-[22px]'
+                                    : 'translate-x-0.5'
+                            "
+                        />
                     </button>
                 </div>
-            </div>
 
-            <div
-                class="rounded-xl p-5"
-                style="
-                    background: hsl(var(--bg-elev));
-                    border: 1px solid hsl(var(--border-ahd));
-                "
-            >
-                <div class="flex items-center justify-between gap-4">
+                <div class="flex items-center justify-between gap-4 p-5">
                     <div>
-                        <div class="font-display text-[20px] italic">
-                            Member registration
-                        </div>
-                        <div
-                            class="text-[12px]"
-                            style="color: hsl(var(--fg-muted))"
-                        >
+                        <h2 class="font-semibold">Member registration</h2>
+                        <p class="text-sm text-muted-foreground">
                             Allow new member signups.
-                            <span
-                                v-if="registrationLocked"
-                                class="mt-1 block font-mono"
-                                style="color: hsl(var(--accent))"
-                                >Locked OFF by env
-                                (REGISTRATION_ENABLED=false)</span
-                            >
-                        </div>
+                        </p>
+                        <p
+                            v-if="registrationLocked"
+                            class="mt-1 text-xs font-medium text-amber-600 dark:text-amber-400"
+                        >
+                            Locked off by env (REGISTRATION_ENABLED=false).
+                        </p>
                     </div>
                     <button
                         type="button"
-                        class="btn"
-                        :class="registration ? 'btn-primary' : 'btn-ghost'"
-                        :disabled="registrationLocked"
+                        role="switch"
+                        :aria-checked="registration"
+                        aria-label="Member registration"
+                        :disabled="registrationLocked || busy"
+                        class="relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:opacity-50"
+                        :class="registration ? 'bg-emerald-500' : 'bg-muted'"
                         @click="toggleRegistration"
                     >
-                        {{ registration ? 'OPEN' : 'CLOSED' }}
+                        <span
+                            class="inline-block size-5 rounded-full bg-white shadow transition-transform"
+                            :class="
+                                registration
+                                    ? 'translate-x-[22px]'
+                                    : 'translate-x-0.5'
+                            "
+                        />
                     </button>
                 </div>
-            </div>
 
-            <div
-                class="rounded-xl p-5"
-                style="
-                    background: hsl(var(--bg-elev));
-                    border: 1px solid hsl(var(--border-ahd));
-                "
-            >
-                <div class="flex items-center justify-between gap-4">
+                <div class="flex items-center justify-between gap-4 p-5">
                     <div>
-                        <div class="font-display text-[20px] italic">
-                            Application cache
-                        </div>
-                        <div
-                            class="text-[12px]"
-                            style="color: hsl(var(--fg-muted))"
-                        >
-                            Flush all cache keys (sitemaps, listings, image
-                            variants).
-                        </div>
+                        <h2 class="font-semibold">Application cache</h2>
+                        <p class="text-sm text-muted-foreground">
+                            Clear this site's cache keys (sitemaps, listings,
+                            image variants). Other sites sharing Redis are not
+                            touched.
+                        </p>
                     </div>
                     <button
                         type="button"
-                        class="btn btn-ghost"
+                        :disabled="busy"
+                        class="inline-flex h-9 shrink-0 items-center justify-center rounded-md border border-input bg-background px-4 text-sm font-medium hover:bg-accent disabled:opacity-50"
                         @click="clearCache"
                     >
                         Clear cache
                     </button>
                 </div>
             </div>
-        </div>
+        </section>
     </AppLayout>
 </template>
