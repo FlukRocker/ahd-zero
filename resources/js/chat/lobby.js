@@ -406,6 +406,29 @@ export default function chatLobby() {
             return part.c ? { color: part.c } : {};
         },
 
+        /** Online members, highest rank first, then by name. */
+        sortedRoster() {
+            return [...this.roster]
+                .filter((p) => p && typeof p.name === 'string')
+                .sort((a, b) => (RANK_LEVEL[b.rank] ?? 1) - (RANK_LEVEL[a.rank] ?? 1) || a.name.localeCompare(b.name));
+        },
+
+        /** The viewer's owned smilies as [{code, url}], each url re-checked against the pawn path. */
+        smileyList() {
+            const owned = this.config?.smilies ?? {};
+
+            return Object.entries(owned)
+                .filter(([code, url]) => code.length <= 16 && !/\s/.test(code) && safeImage({ t: 'img', v: url }) !== null)
+                .map(([code, url]) => ({ code, url }));
+        },
+
+        insertSmiley(code) {
+            const sep = this.draft === '' || this.draft.endsWith(' ') ? '' : ' ';
+
+            this.draft = this.draft + sep + code + ' ';
+            this.$nextTick(() => this.$refs.draftInput?.focus());
+        },
+
         canPin() {
             return (RANK_LEVEL[this.config?.myRank ?? ''] ?? 0) >= 2;
         },

@@ -55,13 +55,14 @@ class ChatController extends Controller
             'canPost' => $member !== null,
             'myRank' => $state['myRank'],
             'meName' => $member?->name,
+            'smilies' => $state['smilies'],
             'pinned' => $state['pinned'],
             'rules' => ChatRules::forClient(),
         ])->header('Cache-Control', 'no-store, private');
     }
 
     /**
-     * @return array{history: array<int, mixed>, myRank: ?string, room: ChatRoom, pinned: array<string, mixed>|null}
+     * @return array{history: array<int, mixed>, myRank: ?string, room: ChatRoom, pinned: array<string, mixed>|null, smilies: array<string, string>}
      */
     private function state(ChatRoom $room): array
     {
@@ -78,6 +79,7 @@ class ChatController extends Controller
             'myRank' => $myRank,
             'room' => $room,
             'pinned' => $this->chat->pinned($room->id),
+            'smilies' => $member === null ? [] : $this->chat->smiliesFor((int) $member->id),
         ];
     }
 

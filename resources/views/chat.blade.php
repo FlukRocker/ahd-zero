@@ -23,6 +23,7 @@
         'myRank' => $myRank,
         'meName' => $member?->name,
         'pinned' => $pinned,
+        'smilies' => $smilies,
         'rules' => \App\Support\Chat\ChatRules::forClient(),
         // No socket config here on purpose: after `artisan optimize` env()
         // returns null outside config files. The browser values are compiled

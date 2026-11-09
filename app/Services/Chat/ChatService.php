@@ -89,6 +89,16 @@ class ChatService
     }
 
     /**
+     * The smiley codes this member owns, as code => asset url, for the picker.
+     *
+     * @return array<string, string>
+     */
+    public function smiliesFor(int $memberId): array
+    {
+        return $this->renderer->smiliesFor($memberId);
+    }
+
+    /**
      * The room's pinned message as a normal record, or null when nothing is
      * pinned (or the pinned message is gone).
      *
