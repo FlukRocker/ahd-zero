@@ -5,7 +5,7 @@
 <aside class="{{ $bare ? '' : 'rounded-2xl border border-white/10 bg-white/[0.03] ' }}p-3">
     <h2 class="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wider opacity-60">
         <span>Online</span>
-        <span class="rounded-full bg-emerald-500/15 px-2 py-0.5 text-emerald-400" x-text="roster.length"></span>
+        <span class="rounded-full bg-emerald-500/15 px-2 py-0.5 text-emerald-400" x-show="config?.canPost" x-text="roster.length"></span>
     </h2>
     <ul class="mt-2 space-y-0.5 text-sm">
         <template x-for="person in sortedRoster()" :key="person.uuid">
@@ -18,6 +18,7 @@
                 <span class="chat-badge" :data-rank="person.rank" x-show="({ main_owner: 'Owner', owner: 'Admin', mod: 'Mod' })[person.rank]" x-text="({ main_owner: 'Owner', owner: 'Admin', mod: 'Mod' })[person.rank]"></span>
             </li>
         </template>
-        <li class="px-1.5 py-1 text-xs opacity-50" x-show="roster.length === 0">ยังไม่มีผู้ออนไลน์</li>
+        <li class="px-1.5 py-1 text-xs opacity-50" x-show="roster.length === 0 && config?.canPost">ยังไม่มีผู้ออนไลน์</li>
+        <li class="px-1.5 py-1 text-xs opacity-60" x-show="!config?.canPost">เข้าสู่ระบบเพื่อดูผู้ออนไลน์</li>
     </ul>
 </aside>
