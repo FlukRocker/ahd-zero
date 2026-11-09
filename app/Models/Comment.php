@@ -15,6 +15,7 @@ use MongoDB\Laravel\Relations\HasMany;
  * @property int $commentable_id
  * @property bool $is_admin
  * @property string|null $deleted_by
+ * @property \Illuminate\Support\Carbon|null $pinned_at
  * @property string|null $parent_id
  * @property string $site
  * @property array<int, array{emoji: string, user_ids: array<int, string>}> $reactions
@@ -41,10 +42,20 @@ class Comment extends Model
         'commentable_id',
         'parent_id',
         'reactions',
+        'pinned_at',
         // Site discriminator so kurokami + ahd can share one Mongo
         // `comments` collection without leaking each other's threads.
         'site',
     ];
+
+    /**
+     * @return array<string, string>
+     */
+    #[\Override]
+    public function casts(): array
+    {
+        return ['pinned_at' => 'datetime'];
+    }
 
     /**
      * @return HasMany<self, $this>

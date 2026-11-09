@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Comment;
 use App\Services\Moderation\CommentModerator;
+use App\Services\Moderation\CommentPinner;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -81,6 +82,7 @@ class CommentManagementController extends Controller
                 'deleted_by' => 'admin',
                 'deleted_at' => now()->toISOString(),
                 'reactions' => [],
+                'pinned_at' => null,
             ]);
 
         return response()->json(['message' => "Deleted {$count} comments"]);
@@ -105,5 +107,19 @@ class CommentManagementController extends Controller
         );
 
         return response()->json(['message' => 'Deleted and banned']);
+    }
+
+    public function pin(string $commentId, CommentModerator $moderator, CommentPinner $pinner): JsonResponse
+    {
+        $result = $pinner->pin($moderator->find($commentId));
+
+        return response()->json(['message' => $result['message']], $result['status']);
+    }
+
+    public function unpin(string $commentId, CommentModerator $moderator, CommentPinner $pinner): JsonResponse
+    {
+        $result = $pinner->unpin($moderator->find($commentId));
+
+        return response()->json(['message' => $result['message']], $result['status']);
     }
 }

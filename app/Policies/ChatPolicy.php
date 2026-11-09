@@ -34,6 +34,11 @@ class ChatPolicy
         return $actor->level() >= ChatRank::Owner->level();
     }
 
+    public function canPin(ChatRank $actor): bool
+    {
+        return $actor->level() >= ChatRank::Mod->level();
+    }
+
     /**
      * Promoting is capped one rung below the actor: an owner makes mods, a
      * main owner makes owners. Nobody mints their own rank. Only owner and above

@@ -26,7 +26,7 @@ class BroadcastPayloadTest extends TestCase
         $keys = array_keys($this->app->make(ChatService::class)->record($message));
         sort($keys);
 
-        $this->assertSame(['at', 'body', 'id', 'name', 'parts', 'rank', 'style', 'uuid'], $keys);
+        $this->assertSame(['at', 'avatar', 'body', 'id', 'name', 'parts', 'rank', 'reply', 'style', 'uuid'], $keys);
     }
 
     public function test_member_sanctioned_goes_to_each_room_with_only_uuid_and_action(): void

@@ -7,6 +7,7 @@ use App\Models\CommentNotification;
 use App\Rules\NoExternalLinks;
 use App\Rules\TurnstileToken;
 use App\Services\Moderation\CommentModerator;
+use App\Services\Moderation\CommentPinner;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -22,22 +23,34 @@ use function response;
 
 class CommentController extends Controller
 {
-    public function index(string $type, int $id): JsonResponse
+    public function index(string $type, int $id, CommentPinner $pinner): JsonResponse
     {
         $commentableType = $this->resolveType($type);
         $site = (string) config('app.site_key');
 
         try {
+            // Pinned comments (max 3) are lifted out of the paginated list and
+            // prepended on page 1 only, so they never repeat on later pages.
+            $pinned = $pinner->pinnedFor($site, $commentableType, $id);
+
             $comments = Comment::query()
                 ->where('site', $site)
                 ->where('commentable_type', $commentableType)
                 ->where('commentable_id', $id)
                 ->whereNull('parent_id')
+                ->whereNull('pinned_at')
                 ->orderByDesc('created_at')
                 ->paginate(20);
 
+            $items = $comments->getCollection();
+            if ($comments->currentPage() === 1) {
+                $items = $pinned->concat($items)->values();
+            }
+            $comments->setCollection($items);
+
             // Load replies for each comment (1 level deep)
             $comments->getCollection()->transform(function (Comment $comment) use ($site): Comment {
+                $comment->setAttribute('pinned', $comment->pinned_at !== null);
                 $comment->setRelation(
                     'replies',
                     Comment::query()

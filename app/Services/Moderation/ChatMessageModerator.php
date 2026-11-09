@@ -7,6 +7,7 @@ use App\Models\ChatMessage;
 use App\Models\ChatModerationLog;
 use App\Models\Report;
 use App\Services\Chat\ChatService;
+use App\Services\Chat\PinService;
 
 /**
  * Admin delete of a chat message, shared by the chat console and the reports
@@ -17,6 +18,7 @@ class ChatMessageModerator
     public function __construct(
         private readonly ChatService $chat,
         private readonly ReportResolver $reports,
+        private readonly PinService $pins,
     ) {}
 
     public function delete(ChatMessage $message, int $adminId): void
@@ -36,6 +38,7 @@ class ChatMessageModerator
         ]);
 
         $this->chat->forgetHistory((int) $message->room_id);
+        $this->pins->forgetMessage($message);
 
         // The room has to hear about it too. Without this an admin delete
         // vanishes from the database but stays on every open screen until

@@ -8,6 +8,7 @@ use App\Models\ChatCosmetic;
 use App\Models\ChatCosmeticMember;
 use App\Models\ChatMember;
 use App\Support\Chat\Bbcode;
+use App\Support\Chat\ReplyToken;
 use App\Support\CosmeticStyle;
 use Illuminate\Support\Collection;
 
@@ -47,6 +48,8 @@ class MessageRenderer
      */
     public function parts(string $body, array $smilies): array
     {
+        [, $body] = ReplyToken::split($body);
+
         $parts = [];
 
         foreach (Bbcode::parse($body) as $segment) {

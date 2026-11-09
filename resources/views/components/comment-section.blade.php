@@ -78,6 +78,10 @@
                                 <span class="rounded px-1.5 py-0.5 font-mono text-[10px]"
                                       style="background: hsl(var(--accent)); color: hsl(var(--accent-fg))">ADMIN</span>
                             </template>
+                            <template x-if="c.pinned">
+                                <span class="rounded px-1.5 py-0.5 text-[10px]"
+                                      style="background: hsl(var(--bg-soft)); color: hsl(var(--fg-muted))">📌 ปักหมุด</span>
+                            </template>
                         </div>
                         <div class="font-mono text-[11px]" style="color: hsl(var(--fg-faint))"
                              x-text="when(c.created_at)"></div>

@@ -57,6 +57,7 @@ class CommentModerator
             'deleted_by' => $deletedBy,
             'deleted_at' => now()->toISOString(),
             'reactions' => [],
+            'pinned_at' => null,
         ];
     }
 }

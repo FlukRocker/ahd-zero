@@ -64,6 +64,9 @@
     }
 
     /* [spoiler]: hidden until clicked. */
+    .chat-mention { font-weight: 600; color: #38bdf8; background: rgb(56 189 248 / 0.12); border-radius: 3px; padding: 0 2px; }
+    .chat-row[data-mention='true'] { background: rgb(56 189 248 / 0.08); box-shadow: inset 2px 0 0 #38bdf8; }
+    .chat-reply { border-left: 2px solid rgb(255 255 255 / 0.25); padding-left: 6px; }
     .chat-spoiler-img { filter: blur(18px); cursor: pointer; }
     .chat-spoiler { background: currentColor; color: transparent !important; border-radius: 3px; cursor: pointer; user-select: none; }
 </style>

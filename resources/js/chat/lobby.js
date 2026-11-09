@@ -7,7 +7,15 @@
  *  2. Echo and pusher-js are imported dynamically, so the ~40 KB socket client
  *     is fetched on /chat only and not on every SEO page.
  */
-import { allowedActions, canReport } from './permissions';
+import { RANK_LEVEL, allowedActions, canReport } from './permissions';
+
+function readAccepted() {
+    try {
+        return localStorage.getItem('ahd.chat.rules') ?? '';
+    } catch {
+        return '';
+    }
+}
 
 // The only custom properties a chat line may set, and the only image path it
 // may load from. The server (CosmeticStyle) already validated the values; this
@@ -18,6 +26,10 @@ const SAFE_IMAGE = /^\/chat-assets\/pawns\/[a-z0-9-]{1,32}\.svg$/;
 // A member-embedded picture: https, no quote/space/bracket/angle/backslash, an
 // image extension. The server vetted it (Bbcode::imageUrl); this is the second gate.
 const SAFE_EMBED = /^https:\/\/[^\s[\]"'<>\\]{4,400}\.(?:jpe?g|png|gif|webp)(?:[?#][^\s[\]"'<>\\]*)?$/i;
+// A member's profile picture: https, no quote/space/bracket/angle/backslash.
+const SAFE_AVATAR = /^https:\/\/[^\s[\]"'<>\\]{4,1024}$/i;
+const MENTION = /@\[([^\]\n]{1,40})\]/g;
+const RULES_KEY = 'ahd.chat.rules';
 const SAFE_COLOR = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
 const FLAGS = ['b', 'i', 'u', 's', 'sp'];
 
@@ -72,7 +84,23 @@ export function safeParts(line) {
                 clean.c = part.c;
             }
 
-            out.push(clean);
+            // "@[Name]" becomes a highlighted mention; still text nodes only.
+            let last = 0;
+
+            for (const match of clean.v.matchAll(MENTION)) {
+                if (match.index > last) {
+                    out.push({ ...clean, v: clean.v.slice(last, match.index) });
+                }
+
+                out.push({ ...clean, t: 'mention', v: '@' + match[1], name: match[1] });
+                last = match.index + match[0].length;
+            }
+
+            if (last === 0) {
+                out.push(clean);
+            } else if (last < clean.v.length) {
+                out.push({ ...clean, v: clean.v.slice(last) });
+            }
         }
     }
 
@@ -81,6 +109,33 @@ export function safeParts(line) {
 
 export function safeImage(part) {
     return part.t === 'img' && typeof part.v === 'string' && SAFE_IMAGE.test(part.v) ? part.v : null;
+}
+
+/** A reply preview with only plain strings/ids; null when absent or malformed. */
+export function safeReply(line) {
+    const reply = line?.reply;
+
+    if (!reply || typeof reply !== 'object' || !Number.isInteger(reply.id)) {
+        return null;
+    }
+
+    return {
+        id: reply.id,
+        name: typeof reply.name === 'string' ? reply.name : null,
+        text: typeof reply.text === 'string' ? reply.text : null,
+    };
+}
+
+/** One-line text of a record for the pinned bar: text parts only, images as a marker. */
+export function plainText(line) {
+    return safeParts(line)
+        .map((part) => (part.t === 'image' ? '[รูป]' : part.t === 'text' || part.t === 'mention' ? part.v : ''))
+        .join('')
+        .trim();
+}
+
+export function safeAvatar(line) {
+    return typeof line?.avatar === 'string' && SAFE_AVATAR.test(line.avatar) ? line.avatar : null;
 }
 
 export function safeEmbed(part) {
@@ -99,6 +154,10 @@ export default function chatLobby() {
         busy: {},
         menuOpen: null,
         menuUp: false,
+        pinned: null,
+        replyTo: null,
+        mentionOptions: [],
+        acceptedRules: '',
         config: null,
         // Report modal state (one shared modal in the page).
         reportLine: null,
@@ -115,6 +174,8 @@ export default function chatLobby() {
         boot(config) {
             this.config = config;
             this.messages = config.history ?? [];
+            this.pinned = config.pinned ?? null;
+            this.acceptedRules = readAccepted();
             this.connect();
         },
 
@@ -158,6 +219,7 @@ export default function chatLobby() {
                 .listen('.message.deleted', ({ id }) => {
                     this.messages = this.messages.filter((line) => line.id !== id);
                 })
+                .listen('.message.pinned', ({ pinned }) => { this.pinned = pinned ?? null; })
                 .listen('.member.sanctioned', (event) => this.onSanctioned(event, echo));
 
             if (this.config.canPost) {
@@ -194,6 +256,18 @@ export default function chatLobby() {
 
             if (canReport(this.config?.me ?? null, !!this.config?.canPost, line)) {
                 actions.push('report');
+            }
+
+            if (this.config?.canPost && this.config?.me) {
+                actions.unshift('reply');
+
+                if (line.uuid !== this.config.me) {
+                    actions.splice(1, 0, 'tag');
+                }
+
+                if (this.canPin()) {
+                    actions.push(this.pinned?.id === line.id ? 'unpin' : 'pin');
+                }
             }
 
             return actions;
@@ -319,6 +393,10 @@ export default function chatLobby() {
             return safeImage(part);
         },
 
+        avatarSrc(line) {
+            return safeAvatar(line);
+        },
+
         embedSrc(part) {
             return safeEmbed(part);
         },
@@ -326,6 +404,92 @@ export default function chatLobby() {
         /** Inline style for a text segment: only a validated hex colour. */
         textStyle(part) {
             return part.c ? { color: part.c } : {};
+        },
+
+        canPin() {
+            return (RANK_LEVEL[this.config?.myRank ?? ''] ?? 0) >= 2;
+        },
+
+        replyOf(line) {
+            return safeReply(line);
+        },
+
+        pinnedText() {
+            return this.pinned ? plainText(this.pinned) : '';
+        },
+
+        /** True when the pinned message is the viewer's mention target or reply parent. */
+        mentionsMe(line) {
+            const me = this.config?.meName;
+
+            return !!me && safeParts(line).some((part) => part.t === 'mention' && part.name === me);
+        },
+
+        startReply(line) {
+            this.replyTo = { id: line.id, name: line.name, text: plainText(line).slice(0, 80) };
+            this.$nextTick(() => this.$refs.draftInput?.focus());
+        },
+
+        jumpTo(id) {
+            const el = document.getElementById('msg-' + id);
+
+            if (el) {
+                el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            }
+        },
+
+        rulesPending() {
+            return !!this.config?.canPost && !!this.config?.rules && this.acceptedRules !== this.config.rules.version;
+        },
+
+        acceptRules() {
+            try {
+                localStorage.setItem(RULES_KEY, this.config.rules.version);
+            } catch {
+                // Private mode: accept for this page view only.
+            }
+
+            this.acceptedRules = this.config.rules.version;
+        },
+
+        /** Suggest online members while the draft ends in "@part". */
+        onDraftInput() {
+            const input = this.$refs.draftInput;
+            const upto = this.draft.slice(0, input?.selectionStart ?? this.draft.length);
+            const match = upto.match(/@([^\s@[\]]{0,20})$/);
+
+            if (!match) {
+                this.mentionOptions = [];
+
+                return;
+            }
+
+            const query = match[1].toLowerCase();
+
+            this.mentionOptions = this.roster
+                .filter((p) => p.uuid !== this.config?.me && typeof p.name === 'string' && p.name.toLowerCase().includes(query))
+                .slice(0, 6);
+        },
+
+        pickMention(person) {
+            const input = this.$refs.draftInput;
+            const caret = input?.selectionStart ?? this.draft.length;
+            const before = this.draft.slice(0, caret).replace(/@[^\s@[\]]{0,20}$/, '');
+
+            this.draft = before + this.mentionToken(person.name) + ' ' + this.draft.slice(caret);
+            this.mentionOptions = [];
+            this.$nextTick(() => input?.focus());
+        },
+
+        insertMention(name) {
+            const sep = this.draft === '' || this.draft.endsWith(' ') ? '' : ' ';
+
+            this.draft = this.draft + sep + this.mentionToken(name) + ' ';
+            this.$nextTick(() => this.$refs.draftInput?.focus());
+        },
+
+        mentionToken(name) {
+            return '@[' + String(name).replace(/[\]\n]/g, '').slice(0, 40) + ']';
         },
 
         /** Wrap the draft selection in a BBCode tag (the toolbar buttons). */
@@ -359,7 +523,7 @@ export default function chatLobby() {
         async send() {
             const body = this.draft.trim();
 
-            if (body === '' || this.sending) {
+            if (body === '' || this.sending || this.rulesPending()) {
                 return;
             }
 
@@ -373,7 +537,11 @@ export default function chatLobby() {
                     'Content-Type': 'application/json',
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content ?? '',
                 };
-                const payload = JSON.stringify({ body, room_id: this.config.room.id });
+                const payload = JSON.stringify(
+                    this.replyTo === null
+                        ? { body, room_id: this.config.room.id }
+                        : { body, room_id: this.config.room.id, reply_to: this.replyTo.id },
+                );
 
                 const response = await fetch('/chat/messages', { method: 'POST', headers, body: payload });
 
@@ -387,6 +555,8 @@ export default function chatLobby() {
                 }
 
                 this.draft = '';
+                this.replyTo = null;
+                this.mentionOptions = [];
 
                 // Show the sender's own line now; if the socket is down it is the only copy they get,
                 // and when the socket echo arrives append() skips it by id.
@@ -415,6 +585,20 @@ export default function chatLobby() {
                 return;
             }
 
+            if (action === 'reply') {
+                this.menuOpen = null;
+                this.startReply(line);
+
+                return;
+            }
+
+            if (action === 'tag') {
+                this.menuOpen = null;
+                this.insertMention(line.name);
+
+                return;
+            }
+
             const own = line.uuid === this.config?.me;
             let request;
 
@@ -424,6 +608,12 @@ export default function chatLobby() {
                 }
 
                 request = { url: '/chat/messages/' + encodeURIComponent(line.id), method: 'DELETE', body: null };
+            } else if (action === 'pin' || action === 'unpin') {
+                request = {
+                    url: '/chat/messages/' + encodeURIComponent(line.id) + '/pin',
+                    method: action === 'pin' ? 'POST' : 'DELETE',
+                    body: null,
+                };
             } else {
                 const body = { action, target_uuid: line.uuid };
 
@@ -477,7 +667,7 @@ export default function chatLobby() {
 
                 if (action === 'delete') {
                     this.messages = this.messages.filter((m) => m.id !== line.id);
-                } else {
+                } else if (action !== 'pin' && action !== 'unpin') {
                     this.notice = 'Done.';
                 }
             } catch {

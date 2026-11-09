@@ -29,6 +29,14 @@
                 โหลดแชทไม่ได้ <button type="button" class="underline" @click="load()">ลองใหม่</button>
             </p>
 
+            <div class="flex items-start gap-2 border-b border-white/10 bg-amber-400/10 px-3 py-2 text-xs" x-show="pinned" x-cloak>
+                <span aria-hidden="true">📌</span>
+                <button type="button" class="min-w-0 flex-1 truncate text-left" @click="jumpTo(pinned.id)">
+                    <strong x-text="pinned?.name"></strong> <span class="opacity-80" x-text="pinnedText()"></span>
+                </button>
+                <button type="button" class="shrink-0 underline opacity-70 hover:opacity-100" x-show="canPin()" @click="moderate(pinned, 'unpin')">เลิกปักหมุด</button>
+            </div>
+
             <ul class="flex-1 space-y-1 overflow-y-auto p-2" x-ref="list" x-show="config !== null">
                 <template x-for="line in messages" :key="line.id">
                     <x-chat.message />

@@ -3,13 +3,26 @@
      through :src of a fixed <img>; styles are an object of server-validated
      custom properties applied with style.setProperty. Never x-html, never a
      built style string. --}}
-<li class="chat-row relative flex items-start gap-3 rounded-lg px-3 py-2 text-sm" :class="{ 'z-20': menuOpen === line.id }" :style="styleOf(line)">
+<li class="chat-row relative flex items-start gap-3 rounded-lg px-3 py-2 text-sm" :class="{ 'z-20': menuOpen === line.id }" :id="'msg-' + line.id" :data-mention="mentionsMe(line)" :style="styleOf(line)">
+    {{-- The initial is always there; the profile picture sits on top of it and
+         hides itself if it fails to load. --}}
     <span
-        class="chat-avatar flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-semibold uppercase"
+        class="chat-avatar relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full text-sm font-semibold uppercase"
         :data-rank="line.rank"
         aria-hidden="true"
-        x-text="(line.name || '?').charAt(0)"
-    ></span>
+        x-data="{ broken: false }"
+    >
+        <span x-text="(line.name || '?').charAt(0)"></span>
+        <img
+            x-show="avatarSrc(line) && !broken"
+            :src="avatarSrc(line)"
+            alt=""
+            loading="lazy"
+            referrerpolicy="no-referrer"
+            class="absolute inset-0 h-full w-full object-cover"
+            x-on:error="broken = true"
+        >
+    </span>
     <div class="min-w-0 flex-1">
         <div class="flex flex-wrap items-center gap-x-2 gap-y-0.5">
             <span
@@ -25,9 +38,29 @@
             ></span>
             <time class="text-[11px] opacity-50" x-text="timeOf(line)"></time>
         </div>
+        {{-- Quoted original: plain text only, click to jump to it. --}}
+        <button
+            type="button"
+            class="chat-reply mb-0.5 block max-w-full truncate text-left text-xs opacity-70 hover:opacity-100"
+            x-show="replyOf(line)"
+            @click="jumpTo(replyOf(line).id)"
+        >
+            <span aria-hidden="true">↪</span>
+            <template x-if="replyOf(line) && replyOf(line).name !== null">
+                <span><strong x-text="replyOf(line).name"></strong> <span x-text="replyOf(line).text"></span></span>
+            </template>
+            <template x-if="replyOf(line) && replyOf(line).name === null">
+                <span class="italic">ข้อความถูกลบแล้ว</span>
+            </template>
+        </button>
         <p class="break-words leading-relaxed opacity-90">
             <template x-for="(part, index) in partsOf(line)" :key="index">
                 <span>
+                    <span
+                        class="chat-mention"
+                        x-show="part.t === 'mention'"
+                        x-text="part.v"
+                    ></span>
                     <span
                         x-show="part.t === 'text'"
                         :class="{ 'font-bold': part.b, 'italic': part.i, 'underline': part.u, 'line-through': part.s, 'chat-spoiler': part.sp && !spoiled[line.id + '-' + index] }"
@@ -79,7 +112,7 @@
                         class="block w-full whitespace-nowrap rounded px-2 py-1 text-left hover:bg-white/10 disabled:opacity-50"
                         @click="moderate(line, action)"
                         :disabled="!!busy[String(line.id) + action]"
-                        x-text="({ delete: 'Delete', gag: 'Gag 10 min', kick: 'Kick', ban: 'Ban 24 h', report: 'รายงาน' })[action]"
+                        x-text="({ reply: 'ตอบกลับ', tag: 'แท็ก', pin: 'ปักหมุด', unpin: 'เลิกปักหมุด', delete: 'Delete', gag: 'Gag 10 min', kick: 'Kick', ban: 'Ban 24 h', report: 'รายงาน' })[action]"
                     ></button>
                 </li>
             </template>

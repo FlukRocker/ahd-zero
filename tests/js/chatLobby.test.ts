@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import chatLobby, { safeEmbed, safeImage, safeParts, safeStyle } from '../../resources/js/chat/lobby';
+import chatLobby, { plainText, safeAvatar, safeReply, safeEmbed, safeImage, safeParts, safeStyle } from '../../resources/js/chat/lobby';
 
 const echoCalls = vi.hoisted(() => ({ channel: [] as string[], join: [] as string[], leave: [] as string[] }));
 
@@ -327,5 +327,41 @@ describe('rich chat parts', () => {
 
         expect(parts).toEqual([{ t: 'image', v: ok, sp: true }]);
         expect(safeEmbed(parts[0])).toBe(ok);
+    });
+});
+
+describe('chat avatar', () => {
+    it('passes only a plain https url', () => {
+        expect(safeAvatar({ avatar: 'https://cdn.example.test/u/1.png' })).toBe('https://cdn.example.test/u/1.png');
+        expect(safeAvatar({ avatar: 'http://cdn.example.test/u/1.png' })).toBeNull();
+        expect(safeAvatar({ avatar: "https://cdn.example.test/a');background:url(x" })).toBeNull();
+        expect(safeAvatar({ avatar: 'javascript:alert(1)' })).toBeNull();
+        expect(safeAvatar({})).toBeNull();
+    });
+});
+
+describe('mentions and replies', () => {
+    it('splits @[Name] into a mention part and keeps formatting flags', () => {
+        const parts = safeParts({ parts: [{ t: 'text', v: 'hi @[Rin Kun] there', b: true }] });
+
+        expect(parts).toEqual([
+            { t: 'text', v: 'hi ', b: true },
+            { t: 'mention', v: '@Rin Kun', name: 'Rin Kun', b: true },
+            { t: 'text', v: ' there', b: true },
+        ]);
+    });
+
+    it('leaves text without a mention untouched', () => {
+        expect(safeParts({ parts: [{ t: 'text', v: 'a @ b [x] @[' }] })).toEqual([{ t: 'text', v: 'a @ b [x] @[' }]);
+    });
+
+    it('keeps only plain strings in a reply preview', () => {
+        expect(safeReply({ reply: { id: 3, name: 'Rin', text: 'hi', evil: '<b>' } })).toEqual({ id: 3, name: 'Rin', text: 'hi' });
+        expect(safeReply({ reply: { id: '3' } })).toBeNull();
+        expect(safeReply({})).toBeNull();
+    });
+
+    it('flattens a record to one line for the pinned bar', () => {
+        expect(plainText({ parts: [{ t: 'text', v: 'look ' }, { t: 'image', v: 'https://i.example.test/a.png' }] })).toBe('look [รูป]');
     });
 });

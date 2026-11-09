@@ -87,27 +87,7 @@ class Bbcode
      */
     public static function imageUrl(string $url): ?string
     {
-        if ($url === '' || strlen($url) > self::MAX_URL || preg_match('~^https://[^\s\[\]"\'<>\\\\]+$~i', $url) !== 1) {
-            return null;
-        }
-
-        $parts = parse_url($url);
-
-        if ($parts === false || isset($parts['user']) || isset($parts['pass']) || isset($parts['port'])) {
-            return null;
-        }
-
-        $host = strtolower((string) ($parts['host'] ?? ''));
-
-        if (preg_match('~^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+(?:[a-z]{2,24}|xn--[a-z0-9-]{1,20})$~', $host) !== 1) {
-            return null;
-        }
-
-        if (preg_match('~\.(?:jpe?g|png|gif|webp)$~i', (string) ($parts['path'] ?? '')) !== 1) {
-            return null;
-        }
-
-        return $url;
+        return SafeUrl::https($url, self::MAX_URL, imageExtension: true);
     }
 
     /**

@@ -13,8 +13,11 @@ use App\Models\ChatRoom;
 use App\Models\Member;
 use App\Rules\CosmeticPayload;
 use App\Services\Chat\ModerationService;
+use App\Services\Chat\PinService;
 use App\Services\Chat\StoreService;
 use App\Services\Moderation\ChatMessageModerator;
+use App\Support\Chat\ChatPins;
+use App\Support\Chat\ChatRules;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -39,6 +42,8 @@ class ChatManagementController extends Controller
     public function index(): Response
     {
         return Inertia::render('admin/Chat', [
+            'rules' => ChatRules::text(),
+            'pinnedIds' => array_values(ChatPins::all()),
             'cosmetics' => ChatCosmetic::query()->orderBy('sort')->get(),
             'rooms' => ChatRoom::query()
                 ->orderBy('sort')
@@ -63,6 +68,30 @@ class ChatManagementController extends Controller
                 ->values()
                 ->all(),
         ]);
+    }
+
+    /** Empty text switches the accept-the-rules gate off. */
+    public function updateRules(Request $request): JsonResponse
+    {
+        $validated = $request->validate(['rules' => ['nullable', 'string', 'max:'.ChatRules::MAX]]);
+
+        ChatRules::set((string) ($validated['rules'] ?? ''));
+
+        return response()->json(['ok' => true]);
+    }
+
+    public function pinMessage(Request $request, int $id, PinService $pins): JsonResponse
+    {
+        $pins->pin(ChatMessage::query()->findOrFail($id), null, (int) $request->user()->id);
+
+        return response()->json(['ok' => true]);
+    }
+
+    public function unpinMessage(Request $request, int $id, PinService $pins): JsonResponse
+    {
+        $pins->unpin((int) ChatMessage::query()->findOrFail($id)->room_id, null, (int) $request->user()->id, $id);
+
+        return response()->json(['ok' => true]);
     }
 
     public function storeRoom(Request $request): JsonResponse
@@ -199,6 +228,31 @@ class ChatManagementController extends Controller
         $this->moderation->setRank($target, ChatRank::from($validated['rank']), null, (int) $request->user()->id);
 
         return response()->json(['ok' => true]);
+    }
+
+    /**
+     * Grant a chat rank to any member by email, including one who has never
+     * opened the chat (and so has no participant row to pick from yet).
+     */
+    public function grantRank(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'email' => ['required', 'string', 'email', 'max:255'],
+            'rank' => ['required', Rule::enum(ChatRank::class)],
+        ]);
+
+        $member = Member::query()->where('email', mb_strtolower(trim($validated['email'])))->first();
+
+        if ($member === null) {
+            return response()->json([
+                'message' => 'No member with that email.',
+                'errors' => ['email' => ['No member with that email.']],
+            ], 422);
+        }
+
+        $this->moderation->setRank($this->walletFor((int) $member->id), ChatRank::from($validated['rank']), null, (int) $request->user()->id);
+
+        return response()->json(['ok' => true, 'name' => $member->name]);
     }
 
     public function ban(Request $request, int $id): JsonResponse

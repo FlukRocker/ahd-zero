@@ -74,7 +74,7 @@ class SendMessageTest extends TestCase
             sort($keys);
 
             return $event->broadcastOn()->name === 'chat.room.'.\App\Models\ChatRoom::lobby()->id
-                && $keys === ['at', 'body', 'id', 'name', 'parts', 'rank', 'style', 'uuid'];
+                && $keys === ['at', 'avatar', 'body', 'id', 'name', 'parts', 'rank', 'reply', 'style', 'uuid'];
         });
     }
 

@@ -61,6 +61,8 @@ const props = defineProps<{
     participants: { data: ParticipantRow[]; links?: PageLink[] };
     messages: MessageRow[];
     log: LogRow[];
+    rules: string;
+    pinnedIds: number[];
 }>();
 
 // Types the admin can author. pawn has no visible effect yet.
@@ -183,6 +185,7 @@ const TABS = [
     { key: 'rooms', label: 'Rooms' },
     { key: 'cosmetics', label: 'Cosmetics' },
     { key: 'messages', label: 'Messages' },
+    { key: 'rules', label: 'Rules' },
     { key: 'log', label: 'Moderation log' },
 ] as const;
 const tab = ref<(typeof TABS)[number]['key']>('participants');
@@ -273,6 +276,27 @@ function grantCosmetic(memberId: number, memberName: string) {
     }
 }
 
+const rulesText = ref(props.rules);
+
+async function saveRules() {
+    await guarded(async () => {
+        await send('POST', '/dashboard/chat/rules', { rules: rulesText.value });
+    });
+}
+
+function isPinned(row: MessageRow): boolean {
+    return props.pinnedIds.includes(row.id);
+}
+
+function togglePin(row: MessageRow) {
+    void guarded(async () => {
+        await send(
+            isPinned(row) ? 'DELETE' : 'POST',
+            `/dashboard/chat/messages/${row.id}/pin`,
+        );
+    });
+}
+
 function deleteMessage(row: MessageRow) {
     if (busy.value) {
         return;
@@ -305,6 +329,27 @@ function grant(memberId: number) {
             amount,
         });
     }
+}
+
+const rankForm = reactive({ email: '', rank: 'owner' });
+
+async function grantRankByEmail() {
+    const email = rankForm.email.trim();
+
+    if (email === '' || busy.value) {
+        return;
+    }
+
+    await guarded(async () => {
+        const { ok } = await send('POST', '/dashboard/chat/rank', {
+            email,
+            rank: rankForm.rank,
+        });
+
+        if (ok) {
+            rankForm.email = '';
+        }
+    });
 }
 
 function setRank(memberId: number, rank: string) {
@@ -433,6 +478,33 @@ function deactivate(id: number) {
 
             <!-- Participants -->
             <div v-show="tab === 'participants'" :class="card">
+                <form
+                    class="flex flex-wrap items-end gap-2 border-b p-4"
+                    @submit.prevent="grantRankByEmail"
+                >
+                    <label class="min-w-56 flex-1 text-xs font-medium">
+                        Grant chat rank to member (email)
+                        <input
+                            v-model="rankForm.email"
+                            type="email"
+                            maxlength="255"
+                            placeholder="member@example.com"
+                            :class="[field, 'mt-1']"
+                        />
+                    </label>
+                    <label class="text-xs font-medium">
+                        Rank
+                        <select v-model="rankForm.rank" :class="[field, 'mt-1 w-40']">
+                            <option value="member">member</option>
+                            <option value="mod">mod</option>
+                            <option value="owner">admin (owner)</option>
+                            <option value="main_owner">main owner</option>
+                        </select>
+                    </label>
+                    <button type="submit" :class="btnPrimary" :disabled="busy">
+                        Grant
+                    </button>
+                </form>
                 <div class="overflow-x-auto">
                     <table class="w-full text-sm">
                         <thead class="border-b bg-muted/40">
@@ -479,7 +551,9 @@ function deactivate(id: number) {
                                     >
                                         <option value="member">member</option>
                                         <option value="mod">mod</option>
-                                        <option value="owner">owner</option>
+                                        <option value="owner">
+                                            admin (owner)
+                                        </option>
                                         <option value="main_owner">
                                             main owner
                                         </option>
@@ -1004,6 +1078,14 @@ function deactivate(id: number) {
                         </div>
                         <button
                             type="button"
+                            :class="btn"
+                            :disabled="busy"
+                            @click="togglePin(m)"
+                        >
+                            {{ isPinned(m) ? 'Unpin' : 'Pin' }}
+                        </button>
+                        <button
+                            type="button"
                             :class="btnDanger"
                             :disabled="busy"
                             @click="deleteMessage(m)"
@@ -1012,6 +1094,29 @@ function deactivate(id: number) {
                         </button>
                     </li>
                 </ul>
+            </div>
+
+            <!-- Rules shown to a member before their first message -->
+            <div v-show="tab === 'rules'" :class="[card, 'space-y-3 p-4']">
+                <p class="text-sm text-muted-foreground">
+                    Shown to each member before they can chat, until they accept.
+                    Editing the text asks everyone to accept again. Leave empty
+                    to turn the gate off. Plain text only.
+                </p>
+                <textarea
+                    v-model="rulesText"
+                    rows="10"
+                    maxlength="2000"
+                    :class="[field, 'h-auto py-2']"
+                ></textarea>
+                <button
+                    type="button"
+                    :class="btnPrimary"
+                    :disabled="busy"
+                    @click="saveRules"
+                >
+                    Save rules
+                </button>
             </div>
 
             <!-- Moderation log -->

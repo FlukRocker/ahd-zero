@@ -13,8 +13,11 @@ use App\Models\Member;
 use App\Policies\ChatPolicy;
 use App\Rules\NoLinks;
 use App\Services\Chat\ChatService;
+use App\Services\Chat\PinService;
 use App\Services\Moderation\ReportResolver;
 use App\Support\Chat\Bbcode;
+use App\Support\Chat\ChatRules;
+use App\Support\Chat\ReplyToken;
 use App\Support\ChatText;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -51,11 +54,14 @@ class ChatController extends Controller
             'me' => $member?->uuid,
             'canPost' => $member !== null,
             'myRank' => $state['myRank'],
+            'meName' => $member?->name,
+            'pinned' => $state['pinned'],
+            'rules' => ChatRules::forClient(),
         ])->header('Cache-Control', 'no-store, private');
     }
 
     /**
-     * @return array{history: array<int, mixed>, myRank: ?string, room: ChatRoom}
+     * @return array{history: array<int, mixed>, myRank: ?string, room: ChatRoom, pinned: array<string, mixed>|null}
      */
     private function state(ChatRoom $room): array
     {
@@ -71,6 +77,7 @@ class ChatController extends Controller
             'history' => $this->chat->history($room->id),
             'myRank' => $myRank,
             'room' => $room,
+            'pinned' => $this->chat->pinned($room->id),
         ];
     }
 
@@ -79,13 +86,21 @@ class ChatController extends Controller
         $request->merge(['body' => ChatText::clean((string) $request->input('body', ''))]);
 
         $validated = $request->validate([
-            'body' => ['required', 'string', 'max:500',
+            // A reply adds a 14-char server token to the stored body, so leave room.
+            'body' => ['required', 'string', $request->filled('reply_to') ? 'max:480' : 'max:500',
                 // Links are blocked everywhere except a vetted [img] embed. Screen
                 // only the text a reader sees outside embeds; BBCode tags and
                 // images can split a link ("evil[b][/b].com"), so the pieces are
                 // joined before the check.
                 function (string $attribute, mixed $value, \Closure $fail): void {
                     if (! is_string($value)) {
+                        return;
+                    }
+
+                    // Only the server writes the reply token.
+                    if (stripos($value, '[re=') !== false) {
+                        $fail('ไม่สามารถใช้แท็ก [re=] ได้');
+
                         return;
                     }
 
@@ -100,6 +115,7 @@ class ChatController extends Controller
                     (new NoLinks)->validate($attribute, Bbcode::plainText($segments), $fail);
                 },
             ],
+            'reply_to' => ['nullable', 'integer', 'min:1'],
             // Optional: a page left open across the deploy posts without it.
             'room_id' => ['nullable', 'integer', 'exists:chat_rooms,id,active,1'],
         ]);
@@ -114,6 +130,19 @@ class ChatController extends Controller
 
         $body = (string) $validated['body'];
 
+        if (isset($validated['reply_to'])) {
+            $target = ChatMessage::query()->where('room_id', $roomId)->find((int) $validated['reply_to']);
+
+            if ($target === null) {
+                return response()->json([
+                    'message' => 'ข้อความที่ตอบกลับไม่มีอยู่แล้ว',
+                    'errors' => ['reply_to' => ['ข้อความที่ตอบกลับไม่มีอยู่แล้ว']],
+                ], 422);
+            }
+
+            $body = ReplyToken::token((int) $target->id).$body;
+        }
+
         $message = ChatMessage::create([
             'member_id' => $member->id,
             'body' => $body,
@@ -127,6 +156,32 @@ class ChatController extends Controller
         MessageSent::dispatch($roomId, $record);
 
         return response()->json($record, 201);
+    }
+
+    public function pin(Request $request, int $id, PinService $pins): JsonResponse
+    {
+        $member = $this->member($request);
+
+        if (! $this->policy->canPin($this->chatMember($member)->rank)) {
+            return response()->json(['message' => 'Your rank does not allow that.'], 403);
+        }
+
+        $pins->pin(ChatMessage::query()->findOrFail($id), (int) $member->id, null);
+
+        return response()->json(['ok' => true]);
+    }
+
+    public function unpin(Request $request, int $id, PinService $pins): JsonResponse
+    {
+        $member = $this->member($request);
+
+        if (! $this->policy->canPin($this->chatMember($member)->rank)) {
+            return response()->json(['message' => 'Your rank does not allow that.'], 403);
+        }
+
+        $pins->unpin((int) ChatMessage::query()->findOrFail($id)->room_id, (int) $member->id, null, $id);
+
+        return response()->json(['ok' => true]);
     }
 
     public function destroy(Request $request, int $id): JsonResponse
@@ -145,6 +200,7 @@ class ChatController extends Controller
         $message->deleted_by = $member->id;
         $message->save();
         $message->delete();
+        app(PinService::class)->forgetMessage($message);
 
         // Drop the whole cached list rather than surgically removing one blob:
         // the next read rebuilds 200 rows from MySQL, excluding soft-deleted

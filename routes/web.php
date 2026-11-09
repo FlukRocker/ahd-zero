@@ -130,6 +130,8 @@ Route::middleware(['auth:member'])->group(function (): void {
         ->middleware('throttle:reports')
         ->name('reports.store');
 
+    Route::post('/chat/messages/{id}/pin', [ChatController::class, 'pin'])->whereNumber('id')->name('chat.messages.pin');
+    Route::delete('/chat/messages/{id}/pin', [ChatController::class, 'unpin'])->whereNumber('id')->name('chat.messages.unpin');
     Route::delete('/chat/messages/{id}', [ChatController::class, 'destroy'])
         ->whereNumber('id')
         ->name('chat.messages.destroy');
@@ -162,6 +164,8 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
 
     Route::get('dashboard/comments', [CommentManagementController::class, 'index'])->name('admin.comments');
     Route::delete('dashboard/comments/{commentId}', [CommentManagementController::class, 'destroy'])->name('admin.comments.destroy');
+    Route::post('dashboard/comments/{commentId}/pin', [CommentManagementController::class, 'pin'])->name('admin.comments.pin');
+    Route::post('dashboard/comments/{commentId}/unpin', [CommentManagementController::class, 'unpin'])->name('admin.comments.unpin');
     Route::post('dashboard/comments/delete-all-by-user', [CommentManagementController::class, 'destroyAllByUser'])->name('admin.comments.destroyAllByUser');
     Route::post('dashboard/comments/{commentId}/delete-and-ban', [CommentManagementController::class, 'destroyAndBan'])->name('admin.comments.destroyAndBan');
 
@@ -182,6 +186,10 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::post('dashboard/chat/members/{id}/grant', [ChatManagementController::class, 'grant'])->whereNumber('id')->name('admin.chat.grant');
     Route::post('dashboard/chat/members/{id}/cosmetics', [ChatManagementController::class, 'grantCosmetic'])->whereNumber('id')->name('admin.chat.grantCosmetic');
     Route::post('dashboard/chat/members/{id}/rank', [ChatManagementController::class, 'setRank'])->whereNumber('id')->name('admin.chat.rank');
+    Route::post('dashboard/chat/rules', [ChatManagementController::class, 'updateRules'])->name('admin.chat.rules');
+    Route::post('dashboard/chat/messages/{id}/pin', [ChatManagementController::class, 'pinMessage'])->whereNumber('id')->name('admin.chat.messages.pin');
+    Route::delete('dashboard/chat/messages/{id}/pin', [ChatManagementController::class, 'unpinMessage'])->whereNumber('id')->name('admin.chat.messages.unpin');
+    Route::post('dashboard/chat/rank', [ChatManagementController::class, 'grantRank'])->name('admin.chat.rank.grant');
     Route::post('dashboard/chat/members/{id}/ban', [ChatManagementController::class, 'ban'])->whereNumber('id')->name('admin.chat.ban');
     Route::delete('dashboard/chat/messages/{id}', [ChatManagementController::class, 'destroyMessage'])->whereNumber('id')->name('admin.chat.messages.destroy');
 

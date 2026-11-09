@@ -16,6 +16,8 @@ interface CommentRow {
     deleted_by: string | null;
     commentable_type: string;
     commentable_id: number;
+    parent_id: string | null;
+    pinned_at: string | null;
     created_at: string;
 }
 
@@ -103,6 +105,32 @@ async function confirmAction() {
     }
 
     actionModal.value = false;
+    router.reload();
+}
+
+const pinError = ref('');
+
+async function togglePin(c: CommentRow) {
+    pinError.value = '';
+    const res = await fetch(
+        `/dashboard/comments/${c.id}/${c.pinned_at ? 'unpin' : 'pin'}`,
+        {
+            method: 'POST',
+            headers: { 'X-XSRF-TOKEN': getCsrf(), Accept: 'application/json' },
+            credentials: 'same-origin',
+        },
+    );
+
+    if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        pinError.value =
+            body.message === 'pin limit'
+                ? 'Pin limit reached (max 3 per thread). Unpin one first.'
+                : body.message || 'Could not update pin.';
+
+        return;
+    }
+
     router.reload();
 }
 
@@ -208,6 +236,10 @@ const breadcrumbs: BreadcrumbItem[] = [
                 </div>
             </div>
 
+            <p v-if="pinError" class="text-sm text-destructive" role="alert">
+                {{ pinError }}
+            </p>
+
             <div
                 class="rounded-xl border bg-card text-card-foreground shadow-sm"
             >
@@ -243,6 +275,11 @@ const breadcrumbs: BreadcrumbItem[] = [
                                     >Admin</span
                                 >
                                 <span
+                                    v-if="c.pinned_at"
+                                    class="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground"
+                                    >📌 Pinned</span
+                                >
+                                <span
                                     v-if="c.deleted_by"
                                     class="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground"
                                     >Deleted by {{ c.deleted_by }}</span
@@ -267,6 +304,14 @@ const breadcrumbs: BreadcrumbItem[] = [
                                 Comment removed.
                             </p>
                         </div>
+                        <button
+                            v-if="!c.deleted_by && !c.parent_id"
+                            type="button"
+                            :class="btn"
+                            @click="togglePin(c)"
+                        >
+                            {{ c.pinned_at ? 'Unpin' : 'Pin' }}
+                        </button>
                         <button
                             v-if="!c.deleted_by"
                             type="button"

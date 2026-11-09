@@ -172,4 +172,15 @@ class RichMessageTest extends TestCase
         $this->send(['body' => $one.$one.$one])->assertCreated();
         $this->send(['body' => $one.$one.$one.$one])->assertStatus(422)->assertJsonValidationErrors('body');
     }
+
+    public function test_the_record_carries_only_a_safe_https_avatar(): void
+    {
+        $this->member->forceFill(['avatar' => 'https://cdn.example.test/u/rin.png'])->save();
+        $this->assertSame('https://cdn.example.test/u/rin.png', $this->send(['body' => 'hi'])->assertCreated()->json('avatar'));
+
+        foreach (['http://cdn.example.test/a.png', "https://cdn.example.test/a');x:url(y", 'javascript:alert(1)', 'https://127.0.0.1/a.png', null] as $bad) {
+            $this->member->forceFill(['avatar' => $bad])->save();
+            $this->assertNull($this->send(['body' => 'hi'])->assertCreated()->json('avatar'), (string) $bad);
+        }
+    }
 }
