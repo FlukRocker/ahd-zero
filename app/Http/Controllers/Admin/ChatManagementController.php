@@ -12,6 +12,7 @@ use App\Models\ChatModerationLog;
 use App\Models\ChatRoom;
 use App\Models\Member;
 use App\Rules\CosmeticPayload;
+use App\Services\Chat\ChatService;
 use App\Services\Chat\ModerationService;
 use App\Services\Chat\PinService;
 use App\Services\Chat\StoreService;
@@ -162,6 +163,7 @@ class ChatManagementController extends Controller
     {
         $validated = $request->validate([
             'name' => ['sometimes', 'string', 'max:60'],
+            'slug' => ['sometimes', 'string', 'max:60', Rule::unique('chat_cosmetics', 'slug')->ignore($cosmetic->id)],
             'price' => ['sometimes', 'integer', 'min:0', 'max:1000000'],
             'active' => ['sometimes', 'boolean'],
             'sort' => ['sometimes', 'integer', 'min:-32768', 'max:32767'],
@@ -169,14 +171,30 @@ class ChatManagementController extends Controller
         ]);
 
         $cosmetic->update($validated);
+        $this->refreshChatStyles();
 
         return response()->json(['ok' => true]);
+    }
+
+    /**
+     * Cached room history carries each message's rendered style, so a changed
+     * cosmetic would keep its old look on existing messages until the cache
+     * expired. Dropping it makes the next load rebuild with the new values.
+     */
+    private function refreshChatStyles(): void
+    {
+        $chat = app(ChatService::class);
+
+        foreach (ChatRoom::query()->pluck('id') as $roomId) {
+            $chat->forgetHistory((int) $roomId);
+        }
     }
 
     /** Deactivate, never delete: inventory and ledger rows must keep meaning. */
     public function destroyCosmetic(ChatCosmetic $cosmetic): JsonResponse
     {
         $cosmetic->update(['active' => false]);
+        $this->refreshChatStyles();
 
         return response()->json(['ok' => true]);
     }

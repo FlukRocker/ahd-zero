@@ -107,4 +107,19 @@ class SiteWidePresenceTest extends TestCase
         $this->assertArrayHasKey('style', $entry);
         $this->assertIsArray($entry['style']);
     }
+
+    public function test_an_equipped_pawn_is_listed_with_its_vetted_path(): void
+    {
+        $a = $this->member('Aki');
+        $pawn = \App\Models\ChatCosmetic::create([
+            'type' => \App\Enums\CosmeticType::Pawn, 'name' => 'Gold', 'slug' => 'gold-pawn',
+            'payload' => ['asset' => 'gold'], 'price' => 0, 'active' => true,
+        ]);
+        \App\Models\ChatCosmeticMember::create([
+            'member_id' => $a->id, 'cosmetic_id' => $pawn->id, 'acquired_at' => now(), 'source' => 'purchase', 'equipped' => true,
+        ]);
+        $this->actingAs($a, 'member')->post('/chat/presence');
+
+        $this->assertSame('/chat-assets/pawns/gold.svg', app(PresenceService::class)->online()[0]['pawn']);
+    }
 }

@@ -11,12 +11,15 @@
         <template x-for="person in sortedRoster()" :key="person.uuid">
             <li class="flex items-center gap-2 rounded px-1.5 py-0.5 hover:bg-white/5">
                 {{-- Small person icon tinted by rank, like xat; no profile picture here. --}}
-                <svg viewBox="0 0 24 24" class="h-4 w-4 shrink-0" :style="{ color: ({ main_owner: '#f59e0b', owner: '#ef4444', mod: '#22c55e' })[person.rank] ?? '#a3a3a3' }" fill="currentColor" aria-hidden="true">
+                <img x-show="pawnOf(person)" :src="pawnOf(person)" alt="" class="h-4 w-4 shrink-0" x-cloak>
+                <svg x-show="!pawnOf(person)" viewBox="0 0 24 24" class="h-4 w-4 shrink-0" :style="{ color: ({ main_owner: '#f59e0b', owner: '#ef4444', mod: '#22c55e' })[person.rank] ?? '#a3a3a3' }" fill="currentColor" aria-hidden="true">
                     <circle cx="12" cy="7" r="4.5" /><path d="M3 22c0-5 4-8 9-8s9 3 9 8z" />
                 </svg>
+                <span class="chat-icon" x-show="iconOf(person)" :data-icon="iconOf(person)" aria-hidden="true"></span>
                 <span
                     class="chat-name chat-online-name min-w-0 flex-1 truncate"
-                    :class="[fxClass(person), hasGradient(person) ? 'chat-name-gradient' : '']"
+                    :data-anim="animOf(person)"
+                    :class="{ 'chat-name-gradient': hasGradient(person) }"
                     :style="styleOf(person)"
                     x-text="person.name"
                 ></span>

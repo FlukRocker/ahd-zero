@@ -61,6 +61,14 @@ export default function chatStore() {
             return item.type === 'background';
         },
 
+        iconOf(item) {
+            return safeStyle(item.style)['--chat-icon'] ?? '';
+        },
+
+        animOf(item) {
+            return safeStyle(item.style)['--chat-anim'] ?? '';
+        },
+
         hasGradient(item) {
             return '--chat-name-gradient' in safeStyle(item.style);
         },

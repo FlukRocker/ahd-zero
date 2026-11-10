@@ -1,8 +1,12 @@
 <script setup lang="ts">
 import AppLayout from '@/layouts/AppLayout.vue';
 import {
+    ANIM_OPTIONS,
+    ICON_OPTIONS,
     buildPayload,
     fieldsFor,
+    supportsExtraGlow,
+    supportsExtras,
     type PayloadFields,
 } from '@/lib/cosmeticPayload';
 import { type BreadcrumbItem } from '@/types';
@@ -13,6 +17,9 @@ interface CosmeticRow {
     id: number;
     name: string;
     type: string;
+    slug: string;
+    sort: number;
+    payload: Record<string, unknown>;
     price: number;
     active: boolean;
 }
@@ -65,13 +72,14 @@ const props = defineProps<{
     pinnedIds: number[];
 }>();
 
-// Types the admin can author. pawn has no visible effect yet.
+// Types the admin can author. A pawn replaces the person icon in the online list; its SVG must already be in public/chat-assets/pawns.
 const TYPE_OPTIONS = [
     { value: 'name_color', label: 'Name colour' },
     { value: 'name_gradient', label: 'Name gradient' },
     { value: 'glow', label: 'Glow' },
     { value: 'smiley', label: 'Smiley' },
     { value: 'background', label: 'Message background' },
+    { value: 'pawn', label: 'Pawn' },
 ];
 
 const activeCosmetics = computed(() => props.cosmetics.filter((c) => c.active));
@@ -109,6 +117,12 @@ const form = reactive({
     code: '',
     asset: '',
     bgMode: 'color',
+    icon: '',
+    anim: '',
+    extraGlow: false,
+    glowColor: '#ffffff',
+    glowStrength: 2,
+    limited: false,
 });
 const grantChoice = reactive<Record<number, string>>({});
 
@@ -218,6 +232,52 @@ async function guarded<T>(fn: () => Promise<T>): Promise<T | undefined> {
     }
 }
 
+// Which cosmetic the form is editing; null means the form creates a new one.
+const editingId = ref<number | null>(null);
+
+function startEdit(item: CosmeticRow) {
+    const p = item.payload ?? {};
+    editingId.value = item.id;
+    fieldErrors.value = {};
+    error.value = '';
+    form.type = item.type;
+    form.name = item.name;
+    form.slug = item.slug;
+    form.price = item.price;
+    form.sort = item.sort;
+    form.bgMode = 'from' in p ? 'gradient' : 'color';
+    form.color = String(p.color ?? form.color);
+    form.from = String(p.from ?? form.from);
+    form.to = String(p.to ?? form.to);
+    form.angle = Number(p.angle ?? form.angle);
+    form.strength = Number(p.strength ?? form.strength);
+    form.code = String(p.code ?? '');
+    form.asset = String(p.asset ?? '');
+    form.icon = String(p.icon ?? '');
+    form.anim = String(p.anim ?? '');
+    const g = (p.glow ?? null) as { color?: string; strength?: number } | null;
+    form.extraGlow = g !== null && typeof g === 'object';
+    form.glowColor = String(g?.color ?? '#ffffff');
+    form.glowStrength = Number(g?.strength ?? 2);
+    form.limited = p.limited === true;
+    document
+        .getElementById('cosmetic-form')
+        ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function cancelEdit() {
+    editingId.value = null;
+    form.name = '';
+    form.slug = '';
+    fieldErrors.value = {};
+}
+
+function setCosmeticActive(item: CosmeticRow, active: boolean) {
+    void guarded(async () => {
+        await send('PATCH', `/dashboard/chat/cosmetics/${item.id}`, { active });
+    });
+}
+
 async function createCosmetic() {
     await guarded(doCreateCosmetic);
 }
@@ -232,18 +292,33 @@ async function doCreateCosmetic() {
         code: form.code,
         asset: form.asset,
         gradient: form.bgMode === 'gradient',
+        icon: form.icon,
+        anim: form.anim,
+        extraGlow: form.extraGlow,
+        glowColor: form.glowColor,
+        glowStrength: form.glowStrength,
+        limited: form.limited,
     };
 
-    const { ok } = await send('POST', '/dashboard/chat/cosmetics', {
-        type: form.type,
+    const editing = editingId.value;
+    const body = {
         name: form.name,
         slug: form.slug,
         price: Number(form.price),
         sort: Number(form.sort),
         payload: buildPayload(form.type, fields),
-    });
+    };
+
+    const { ok } =
+        editing === null
+            ? await send('POST', '/dashboard/chat/cosmetics', {
+                  type: form.type,
+                  ...body,
+              })
+            : await send('PATCH', `/dashboard/chat/cosmetics/${editing}`, body);
 
     if (ok) {
+        editingId.value = null;
         form.name = '';
         form.slug = '';
     }
@@ -837,6 +912,11 @@ function deactivate(id: number) {
                                 <tr v-for="item in cosmetics" :key="item.id">
                                     <td :class="[td, 'font-medium']">
                                         {{ item.name }}
+                                        <span
+                                            v-if="item.payload?.limited === true"
+                                            class="ml-2 rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-bold uppercase text-amber-600 dark:text-amber-400"
+                                            >Limited</span
+                                        >
                                     </td>
                                     <td :class="td">{{ item.type }}</td>
                                     <td :class="[td, 'tabular-nums']">
@@ -858,14 +938,33 @@ function deactivate(id: number) {
                                         >
                                     </td>
                                     <td :class="[td, 'text-right']">
-                                        <button
-                                            v-if="item.active"
-                                            type="button"
-                                            :class="btn"
-                                            @click="deactivate(item.id)"
-                                        >
-                                            Deactivate
-                                        </button>
+                                        <div class="flex justify-end gap-2">
+                                            <button
+                                                type="button"
+                                                :class="btn"
+                                                @click="startEdit(item)"
+                                            >
+                                                Edit
+                                            </button>
+                                            <button
+                                                v-if="item.active"
+                                                type="button"
+                                                :class="btn"
+                                                @click="deactivate(item.id)"
+                                            >
+                                                Deactivate
+                                            </button>
+                                            <button
+                                                v-else
+                                                type="button"
+                                                :class="btn"
+                                                @click="
+                                                    setCosmeticActive(item, true)
+                                                "
+                                            >
+                                                Activate
+                                            </button>
+                                        </div>
                                     </td>
                                 </tr>
                             </tbody>
@@ -873,15 +972,28 @@ function deactivate(id: number) {
                     </div>
                 </div>
 
-                <div :class="[card, 'p-5']">
-                    <h2 class="font-semibold">New cosmetic</h2>
+                <div id="cosmetic-form" :class="[card, 'p-5']">
+                    <h2 class="font-semibold">
+                        {{
+                            editingId === null
+                                ? 'New cosmetic'
+                                : 'Edit cosmetic'
+                        }}
+                    </h2>
                     <form
                         class="mt-3 grid gap-3 sm:grid-cols-2"
                         @submit.prevent="createCosmetic"
                     >
                         <label class="grid gap-1 text-sm font-medium">
                             Type
-                            <select v-model="form.type" :class="field">
+                            <select
+                                v-model="form.type"
+                                :class="field"
+                                :disabled="editingId !== null"
+                            >
+                                <option v-if="form.type === 'pawn'" value="pawn">
+                                    Pawn
+                                </option>
                                 <option
                                     v-for="t in TYPE_OPTIONS"
                                     :key="t.value"
@@ -1035,6 +1147,75 @@ function deactivate(id: number) {
                                 :class="field"
                             />
                         </label>
+                        <label
+                            class="flex items-center gap-2 text-sm font-medium sm:col-span-2"
+                        >
+                            <input v-model="form.limited" type="checkbox" />
+                            Limited edition (shows a "Limited" badge)
+                        </label>
+                        <label
+                            v-if="supportsExtras(form.type)"
+                            class="grid gap-1 text-sm font-medium"
+                        >
+                            Icon (shown before the name)
+                            <select v-model="form.icon" :class="field">
+                                <option value="">None</option>
+                                <option
+                                    v-for="[key, label] in ICON_OPTIONS"
+                                    :key="key"
+                                    :value="key"
+                                >
+                                    {{ label }}
+                                </option>
+                            </select>
+                        </label>
+                        <label
+                            v-if="supportsExtras(form.type)"
+                            class="grid gap-1 text-sm font-medium"
+                        >
+                            Animation
+                            <select v-model="form.anim" :class="field">
+                                <option value="">None</option>
+                                <option
+                                    v-for="[key, label] in ANIM_OPTIONS"
+                                    :key="key"
+                                    :value="key"
+                                >
+                                    {{ label }}
+                                </option>
+                            </select>
+                        </label>
+                        <label
+                            v-if="supportsExtraGlow(form.type)"
+                            class="flex items-center gap-2 text-sm font-medium sm:col-span-2"
+                        >
+                            <input v-model="form.extraGlow" type="checkbox" />
+                            Add a glow too (colour + glow in one cosmetic)
+                        </label>
+                        <label
+                            v-if="supportsExtraGlow(form.type) && form.extraGlow"
+                            class="grid gap-1 text-sm font-medium"
+                        >
+                            Glow colour
+                            <input
+                                v-model="form.glowColor"
+                                type="color"
+                                class="h-9 w-20 cursor-pointer rounded-md border border-input bg-background p-1"
+                            />
+                        </label>
+                        <label
+                            v-if="supportsExtraGlow(form.type) && form.extraGlow"
+                            class="grid gap-1 text-sm font-medium"
+                        >
+                            Glow strength (1-3)
+                            <input
+                                v-model.number="form.glowStrength"
+                                type="number"
+                                min="1"
+                                max="3"
+                                :class="field"
+                            />
+                        </label>
                         <span v-if="payloadError()" class="err sm:col-span-2">{{
                             payloadError()
                         }}</span>
@@ -1044,7 +1225,19 @@ function deactivate(id: number) {
                                 :class="btnPrimary"
                                 :disabled="busy"
                             >
-                                Create cosmetic
+                                {{
+                                    editingId === null
+                                        ? 'Create cosmetic'
+                                        : 'Save changes'
+                                }}
+                            </button>
+                            <button
+                                v-if="editingId !== null"
+                                type="button"
+                                :class="[btn, 'ml-2 h-9']"
+                                @click="cancelEdit"
+                            >
+                                Cancel
                             </button>
                         </div>
                     </form>

@@ -28,6 +28,12 @@ class CosmeticStyle
 
     private const SLUG = '/^[a-z0-9-]{1,32}$/D';
 
+    /** Name icons an admin can attach to a cosmetic: key => glyph (the glyph lives in CSS, keyed by the same name). */
+    public const ICONS = ['crown', 'star', 'heart', 'fire', 'bolt', 'sparkle', 'flower', 'skull', 'moon', 'music', 'diamond', 'ghost'];
+
+    /** Name animations: each maps to a keyframe in name-styles.blade.php. */
+    public const ANIMS = ['blink', 'pulse', 'rainbow', 'shimmer', 'bounce'];
+
     private const SMILEY_CODE = '/^\(\w{2,12}\)$/D';
 
     /**
@@ -44,7 +50,7 @@ class CosmeticStyle
             return [];
         }
 
-        return match ($cosmetic->type) {
+        $base = match ($cosmetic->type) {
             CosmeticType::NameColor => self::hex($payload['color'] ?? null) !== null
                 ? ['--chat-name-color' => (string) $payload['color']]
                 : [],
@@ -59,6 +65,67 @@ class CosmeticStyle
 
             CosmeticType::Smiley => [],
         };
+
+        // Optional extras ride on the name and pawn types only. A bad extra is
+        // dropped on its own and never breaks the base style.
+        if ($base === [] || ! in_array($cosmetic->type, [CosmeticType::NameColor, CosmeticType::NameGradient, CosmeticType::Glow], true)) {
+            return $base;
+        }
+
+        if ($cosmetic->type !== CosmeticType::Glow && is_array($payload['glow'] ?? null)) {
+            $base += self::glow($payload['glow']);
+        }
+
+        return $base + self::extras($payload);
+    }
+
+    /**
+     * Allow-listed icon and animation keywords.
+     *
+     * @param  array<string, mixed>  $payload
+     * @return array<string, string>
+     */
+    public static function extras(array $payload): array
+    {
+        $out = [];
+
+        if (is_string($payload['icon'] ?? null) && in_array($payload['icon'], self::ICONS, true)) {
+            $out['--chat-icon'] = $payload['icon'];
+        }
+
+        if (is_string($payload['anim'] ?? null) && in_array($payload['anim'], self::ANIMS, true)) {
+            $out['--chat-anim'] = $payload['anim'];
+        }
+
+        return $out;
+    }
+
+    /**
+     * Why the optional extras of a payload are invalid, or null when fine.
+     *
+     * @param  array<string, mixed>  $payload
+     */
+    public static function extrasError(array $payload, CosmeticType $type): ?string
+    {
+        if (isset($payload['icon']) && (! is_string($payload['icon']) || ! in_array($payload['icon'], self::ICONS, true))) {
+            return 'Unknown icon.';
+        }
+
+        if (isset($payload['anim']) && (! is_string($payload['anim']) || ! in_array($payload['anim'], self::ANIMS, true))) {
+            return 'Unknown animation.';
+        }
+
+        if (isset($payload['glow'])) {
+            if (! in_array($type, [CosmeticType::NameColor, CosmeticType::NameGradient], true)) {
+                return 'Glow can only be added to a name colour or gradient.';
+            }
+
+            if (! is_array($payload['glow']) || self::glow($payload['glow']) === []) {
+                return 'The extra glow needs a #rrggbb colour and strength 1-3.';
+            }
+        }
+
+        return null;
     }
 
     public static function assetUrl(CosmeticType $type, string $slug): ?string

@@ -20,7 +20,10 @@ function readAccepted() {
 // The only custom properties a chat line may set, and the only image path it
 // may load from. The server (CosmeticStyle) already validated the values; this
 // is a second, independent gate so a malformed cached record cannot reach CSS.
-export const STYLE_KEYS = ['--chat-name-color', '--chat-name-gradient', '--chat-glow', '--chat-background'];
+export const STYLE_KEYS = ['--chat-name-color', '--chat-name-gradient', '--chat-glow', '--chat-background', '--chat-icon', '--chat-anim'];
+export const ICONS = ['crown', 'star', 'heart', 'fire', 'bolt', 'sparkle', 'flower', 'skull', 'moon', 'music', 'diamond', 'ghost'];
+export const ANIMS = ['blink', 'pulse', 'rainbow', 'shimmer', 'bounce'];
+const KEYWORD_ALLOW = { '--chat-icon': ICONS, '--chat-anim': ANIMS };
 const SAFE_VALUE = /^[#a-z0-9 .,()%-]+$/i;
 const SAFE_IMAGE = /^\/chat-assets\/pawns\/[a-z0-9-]{1,32}\.svg$/;
 // A member-embedded picture: https, no quote/space/bracket/angle/backslash, an
@@ -43,7 +46,7 @@ export function safeStyle(style) {
     for (const key of STYLE_KEYS) {
         const value = style[key];
 
-        if (typeof value === 'string' && SAFE_VALUE.test(value)) {
+        if (typeof value === 'string' && SAFE_VALUE.test(value) && (!(key in KEYWORD_ALLOW) || KEYWORD_ALLOW[key].includes(value))) {
             out[key] = value;
         }
     }
@@ -397,27 +400,19 @@ export default function chatLobby() {
             return safeStyle(line.style);
         },
 
-        /**
-         * Name effect in the online list. A member's own equipped style wins;
-         * staff get a rank effect, everyone else one of six stock effects picked from their uuid,
-         * so the list is lively but a name keeps the same look every time.
-         */
-        fxClass(person) {
-            if (Object.keys(safeStyle(person?.style)).length > 0) {
-                return '';
-            }
+        /** An equipped pawn's picture for a roster entry; only the vetted pawn path survives. */
+        pawnOf(person) {
+            return typeof person?.pawn === 'string' && SAFE_IMAGE.test(person.pawn) ? person.pawn : null;
+        },
 
-            if (['main_owner', 'owner', 'mod'].includes(person?.rank)) {
-                return 'chat-fx-rank-' + person.rank;
-            }
+        /** Allow-listed icon keyword for a record or roster entry, or ''. */
+        iconOf(line) {
+            return safeStyle(line?.style)['--chat-icon'] ?? '';
+        },
 
-            let hash = 0;
-
-            for (const ch of String(person?.uuid ?? '')) {
-                hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
-            }
-
-            return 'chat-fx-' + (hash % 6);
+        /** Allow-listed animation keyword for a record or roster entry, or ''. */
+        animOf(line) {
+            return safeStyle(line?.style)['--chat-anim'] ?? '';
         },
 
         hasGradient(line) {

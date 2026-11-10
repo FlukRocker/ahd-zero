@@ -197,6 +197,16 @@ class StoreTest extends TestCase
         $this->assertDatabaseCount('chat_transactions', 0);
     }
 
+    public function test_store_flags_limited_items(): void
+    {
+        $limited = ChatCosmetic::create(['type' => CosmeticType::NameColor, 'name' => 'Rare', 'slug' => 'rare1', 'payload' => ['color' => '#112233', 'limited' => true], 'price' => 9, 'active' => true]);
+
+        $items = collect($this->actingAs($this->member, 'member')->get('/chat/store')->assertOk()->viewData('items'));
+
+        $this->assertTrue($items->firstWhere('id', $limited->id)['limited']);
+        $this->assertFalse($items->firstWhere('id', $this->cosmetic->id)['limited']);
+    }
+
     public function test_store_index_marks_owned_equipped_and_slot_and_hides_pawn(): void
     {
         $pawn = ChatCosmetic::create(['type' => CosmeticType::Pawn, 'name' => 'Pawn', 'slug' => 'pawn1', 'payload' => ['asset' => 'a'], 'price' => 1, 'active' => true]);

@@ -84,12 +84,19 @@ describe('chat lobby rooms', () => {
         expect(lobby.roster).toHaveLength(1);
     });
 
-    it('fxClass() picks rank effect, stock effect, or none when a style is equipped', () => {
+    it('safeStyle keeps only allow-listed icon and animation keywords', () => {
+        expect(safeStyle({ '--chat-icon': 'crown', '--chat-anim': 'rainbow' })).toEqual({ '--chat-icon': 'crown', '--chat-anim': 'rainbow' });
+        expect(safeStyle({ '--chat-icon': 'evil-icon', '--chat-anim': 'spin' })).toEqual({});
         const lobby = room();
-        expect(lobby.fxClass({ uuid: 'a', rank: 'mod', style: {} })).toBe('chat-fx-rank-mod');
-        expect(lobby.fxClass({ uuid: 'abc', rank: 'member', style: {} })).toMatch(/^chat-fx-[0-5]$/);
-        expect(lobby.fxClass({ uuid: 'abc', rank: 'member', style: {} })).toBe(lobby.fxClass({ uuid: 'abc', rank: 'member', style: {} }));
-        expect(lobby.fxClass({ uuid: 'abc', rank: 'member', style: { '--chat-name-color': '#ff8800' } })).toBe('');
+        expect(lobby.iconOf({ style: { '--chat-icon': 'star' } })).toBe('star');
+        expect(lobby.animOf({ style: { '--chat-anim': 'nope' } })).toBe('');
+    });
+
+    it('pawnOf() only accepts the vetted pawn path', () => {
+        const lobby = room();
+        expect(lobby.pawnOf({ pawn: '/chat-assets/pawns/gold.svg' })).toBe('/chat-assets/pawns/gold.svg');
+        expect(lobby.pawnOf({ pawn: 'https://evil.test/x.svg' })).toBeNull();
+        expect(lobby.pawnOf({ pawn: null })).toBeNull();
     });
 
     it('startRoster() does nothing for guests', () => {

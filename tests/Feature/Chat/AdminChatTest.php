@@ -206,6 +206,40 @@ class AdminChatTest extends TestCase
             ->assertStatus(422);
     }
 
+    public function test_admin_can_edit_every_field_of_a_cosmetic_and_reactivate_it(): void
+    {
+        $cosmetic = ChatCosmetic::create([
+            'type' => CosmeticType::NameColor, 'name' => 'Red', 'slug' => 'red',
+            'payload' => ['color' => '#ff0000'], 'price' => 10, 'active' => false,
+        ]);
+        ChatCosmetic::create([
+            'type' => CosmeticType::NameColor, 'name' => 'Blue', 'slug' => 'blue',
+            'payload' => ['color' => '#0000ff'], 'price' => 10, 'active' => true,
+        ]);
+
+        $this->actingAs($this->admin)
+            ->patchJson("/dashboard/chat/cosmetics/{$cosmetic->id}", [
+                'name' => 'Crimson', 'slug' => 'crimson', 'price' => 55, 'sort' => 3,
+                'payload' => ['color' => '#cc0033'], 'active' => true,
+            ])
+            ->assertOk();
+
+        $fresh = $cosmetic->fresh();
+        $this->assertSame(['Crimson', 'crimson', 55, 3, true], [$fresh->name, $fresh->slug, $fresh->price, $fresh->sort, $fresh->active]);
+        $this->assertSame(['color' => '#cc0033'], $fresh->payload);
+
+        // Cached history carries rendered styles: an edit must drop it.
+        $room = \App\Models\ChatRoom::lobby();
+        $chat = app(\App\Services\Chat\ChatService::class);
+        $chat->remember($room->id, ['id' => 1, 'stale' => true]);
+        $this->actingAs($this->admin)->patchJson("/dashboard/chat/cosmetics/{$cosmetic->id}", ['price' => 56])->assertOk();
+        $this->assertNotContains(true, array_column($chat->history($room->id), 'stale'));
+
+        // Keeping its own slug is fine; taking another cosmetic's is not.
+        $this->actingAs($this->admin)->patchJson("/dashboard/chat/cosmetics/{$cosmetic->id}", ['slug' => 'crimson'])->assertOk();
+        $this->actingAs($this->admin)->patchJson("/dashboard/chat/cosmetics/{$cosmetic->id}", ['slug' => 'blue'])->assertStatus(422);
+    }
+
     public function test_deleting_a_cosmetic_only_deactivates_it(): void
     {
         $cosmetic = ChatCosmetic::create([

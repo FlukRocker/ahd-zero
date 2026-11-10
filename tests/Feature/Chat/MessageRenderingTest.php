@@ -107,6 +107,31 @@ class MessageRenderingTest extends TestCase
         $this->assertSame(['--chat-name-color' => '#ff8800'], $record['style']);
     }
 
+    public function test_the_effect_slot_wins_over_the_name_slot_for_glow_regardless_of_row_order(): void
+    {
+        $name = ChatCosmetic::create([
+            'type' => CosmeticType::NameColor, 'name' => 'Combo', 'slug' => 'combo',
+            'payload' => ['color' => '#ffffff', 'icon' => 'crown', 'glow' => ['color' => '#111111', 'strength' => 1]],
+            'price' => 0, 'active' => true,
+        ]);
+        $glow = ChatCosmetic::create([
+            'type' => CosmeticType::Glow, 'name' => 'Neon', 'slug' => 'neon',
+            'payload' => ['color' => '#00ff00', 'strength' => 3, 'anim' => 'pulse'],
+            'price' => 0, 'active' => true,
+        ]);
+        // Name row first: a first-wins merge by insertion order would pick its glow.
+        $this->own($name, equipped: true);
+        $this->own($glow, equipped: true);
+
+        $message = ChatMessage::create(['member_id' => $this->member->id, 'body' => 'hello']);
+        $record = $this->app->make(ChatService::class)->record($message->fresh()->load('member'));
+
+        $this->assertSame('0 0 12px #00ff00', $record['style']['--chat-glow']);
+        $this->assertSame('crown', $record['style']['--chat-icon']);
+        $this->assertSame('pulse', $record['style']['--chat-anim']);
+        $this->assertSame('#ffffff', $record['style']['--chat-name-color']);
+    }
+
     public function test_an_unequipped_cosmetic_does_not_style_anything(): void
     {
         $colour = ChatCosmetic::create([
@@ -184,7 +209,8 @@ class MessageRenderingTest extends TestCase
         $this->assertSame(1, preg_match('#id="chat-bootstrap">(.*?)</script>#s', $html, $m));
         $history = json_decode($m[1], true, 512, JSON_THROW_ON_ERROR)['history'];
 
-        $this->assertSame([
+        // Key order is not part of the contract (the effect slot is merged first).
+        $this->assertEquals([
             '--chat-name-gradient' => 'linear-gradient(90deg, #ff0000, #0000ff)',
             '--chat-glow' => '0 0 8px #00ff00',
         ], $history[0]['style']);

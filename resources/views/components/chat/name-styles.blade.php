@@ -25,6 +25,36 @@
         .chat-name.chat-name-gradient { animation: none; }
     }
 
+    /* Cosmetic icon (own element, so gradient/clip/truncate never touch it) and name animations. */
+    .chat-icon { flex-shrink: 0; font-size: 0.95em; line-height: 1; }
+    .chat-icon[data-icon='crown']::before { content: '👑'; }
+    .chat-icon[data-icon='star']::before { content: '⭐'; }
+    .chat-icon[data-icon='heart']::before { content: '❤️'; }
+    .chat-icon[data-icon='fire']::before { content: '🔥'; }
+    .chat-icon[data-icon='bolt']::before { content: '⚡'; }
+    .chat-icon[data-icon='sparkle']::before { content: '✨'; }
+    .chat-icon[data-icon='flower']::before { content: '🌸'; }
+    .chat-icon[data-icon='skull']::before { content: '💀'; }
+    .chat-icon[data-icon='moon']::before { content: '🌙'; }
+    .chat-icon[data-icon='music']::before { content: '🎵'; }
+    .chat-icon[data-icon='diamond']::before { content: '💎'; }
+    .chat-icon[data-icon='ghost']::before { content: '👻'; }
+    @keyframes chat-blink { 50% { opacity: 0.35; } }
+    @keyframes chat-pulse { 50% { filter: brightness(1.7) drop-shadow(var(--chat-glow, 0 0 0 transparent)); } }
+    @keyframes chat-rainbow {
+        from { filter: hue-rotate(0deg) drop-shadow(var(--chat-glow, 0 0 0 transparent)); }
+        to { filter: hue-rotate(360deg) drop-shadow(var(--chat-glow, 0 0 0 transparent)); }
+    }
+    @keyframes chat-bounce { 50% { transform: translateY(-2px); } }
+    .chat-name[data-anim='blink'] { animation: chat-blink 1.6s ease-in-out infinite; }
+    .chat-name[data-anim='pulse'] { animation: chat-pulse 2s ease-in-out infinite; }
+    .chat-name[data-anim='rainbow'] { animation: chat-rainbow 4s linear infinite; }
+    .chat-name[data-anim='shimmer'] { animation: chat-shimmer 3s ease-in-out infinite alternate; }
+    .chat-name[data-anim='bounce'] { display: inline-block; animation: chat-bounce 1s ease-in-out infinite; }
+    @media (prefers-reduced-motion: reduce) {
+        .chat-name[data-anim] { animation: none; }
+    }
+
     /* Role badges. */
     .chat-badge {
         display: inline-flex;
@@ -63,25 +93,7 @@
         pointer-events: none;
     }
 
-    /* Roster names: xat-style name effects. Rank effects first, then six stock
-       effects for members without an equipped style. */
     .chat-online-name { font-size: 14px; line-height: 1.25; }
-    .chat-fx-rank-main_owner,
-    .chat-fx-rank-owner,
-    .chat-fx-rank-mod { background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: chat-shimmer 3s ease-in-out infinite alternate; }
-    .chat-fx-rank-main_owner { background-image: linear-gradient(90deg, #fde68a, #f59e0b, #ef4444, #fde68a); filter: drop-shadow(0 0 4px rgb(245 158 11 / 0.7)); }
-    .chat-fx-rank-owner { background-image: linear-gradient(90deg, #fecaca, #ef4444, #fecaca); filter: drop-shadow(0 0 4px rgb(239 68 68 / 0.7)); }
-    .chat-fx-rank-mod { background-image: linear-gradient(90deg, #bbf7d0, #22c55e, #bbf7d0); filter: drop-shadow(0 0 3px rgb(34 197 94 / 0.7)); }
-    .chat-fx-0 { color: #fff; text-shadow: 0 0 6px #38bdf8, 0 0 2px #38bdf8; }
-    .chat-fx-1 { color: #fde047; text-shadow: 0 0 6px #f59e0b, 1px 1px 0 #92400e; }
-    .chat-fx-2 { background: linear-gradient(90deg, #f472b6, #a78bfa, #60a5fa, #f472b6); background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: chat-shimmer 3s linear infinite alternate; }
-    .chat-fx-3 { background: linear-gradient(90deg, #fb923c, #ef4444, #fde047, #fb923c); background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: chat-shimmer 2s ease-in-out infinite alternate; }
-    .chat-fx-4 { color: #86efac; text-shadow: 0 0 5px #16a34a; animation: chat-blink 2.4s ease-in-out infinite; }
-    .chat-fx-5 { color: #f5d0fe; text-shadow: 1px 1px 0 #a21caf, -1px -1px 0 #7e22ce; }
-    @keyframes chat-blink { 50% { opacity: 0.55; } }
-    @media (prefers-reduced-motion: reduce) {
-        .chat-online-name, .chat-fx-2, .chat-fx-3, .chat-fx-4 { animation: none !important; }
-    }
 
     /* [spoiler]: hidden until clicked. */
     .chat-mention { font-weight: 600; color: #38bdf8; background: rgb(56 189 248 / 0.12); border-radius: 3px; padding: 0 2px; }

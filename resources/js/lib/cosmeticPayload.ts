@@ -12,6 +12,48 @@ export interface PayloadFields {
     asset?: string;
     /** background only: true builds from/to/angle, false builds a colour. */
     gradient?: boolean;
+    /** Optional extras on name types; empty means none. */
+    icon?: string;
+    anim?: string;
+    /** Adds a glow colour + strength alongside a name colour or gradient. */
+    extraGlow?: boolean;
+    glowColor?: string;
+    glowStrength?: number;
+    /** Marks the item as a limited edition (a badge only; no stock or date). */
+    limited?: boolean;
+}
+
+export const ICON_OPTIONS = [
+    ['crown', '👑 Crown'],
+    ['star', '⭐ Star'],
+    ['heart', '❤️ Heart'],
+    ['fire', '🔥 Fire'],
+    ['bolt', '⚡ Bolt'],
+    ['sparkle', '✨ Sparkle'],
+    ['flower', '🌸 Flower'],
+    ['skull', '💀 Skull'],
+    ['moon', '🌙 Moon'],
+    ['music', '🎵 Music'],
+    ['diamond', '💎 Diamond'],
+    ['ghost', '👻 Ghost'],
+] as const;
+
+export const ANIM_OPTIONS = [
+    ['blink', 'Blink'],
+    ['pulse', 'Pulse'],
+    ['rainbow', 'Rainbow (hue cycle)'],
+    ['shimmer', 'Shimmer (best on gradients)'],
+    ['bounce', 'Bounce'],
+] as const;
+
+/** Types that accept the optional icon / animation extras. */
+export function supportsExtras(type: string): boolean {
+    return ['name_color', 'name_gradient', 'glow'].includes(type);
+}
+
+/** Types that can carry an additional glow (glow itself already is one). */
+export function supportsExtraGlow(type: string): boolean {
+    return ['name_color', 'name_gradient'].includes(type);
 }
 
 export type PayloadField = keyof PayloadFields;
@@ -36,8 +78,8 @@ export function fieldsFor(type: string, gradient = false): PayloadField[] {
 export function buildPayload(
     type: string,
     f: PayloadFields,
-): Record<string, string | number> {
-    const out: Record<string, string | number> = {};
+): Record<string, unknown> {
+    const out: Record<string, unknown> = {};
 
     for (const key of fieldsFor(type, f.gradient === true)) {
         const value = f[key] as string | number | undefined;
@@ -47,6 +89,27 @@ export function buildPayload(
         } else {
             out[key] = value ?? '';
         }
+    }
+
+    if (supportsExtras(type)) {
+        if (f.icon) {
+            out.icon = f.icon;
+        }
+
+        if (f.anim) {
+            out.anim = f.anim;
+        }
+    }
+
+    if (supportsExtraGlow(type) && f.extraGlow) {
+        out.glow = {
+            color: f.glowColor ?? '#ffffff',
+            strength: Math.trunc(Number(f.glowStrength ?? 2)),
+        };
+    }
+
+    if (f.limited) {
+        out.limited = true;
     }
 
     return out;

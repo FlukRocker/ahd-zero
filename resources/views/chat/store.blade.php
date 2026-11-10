@@ -43,13 +43,16 @@
                             x-text="'Sample message from ' + item.name"
                         ></span>
                     </template>
+                    <span class="chat-icon" x-show="!isBackground(item) && iconOf(item)" :data-icon="iconOf(item)" aria-hidden="true"></span>
                     <span
                         x-show="!isBackground(item)"
                         class="chat-name font-medium"
+                        :data-anim="animOf(item)"
                         :class="{ 'chat-name-gradient': hasGradient(item) }"
                         :style="previewStyle(item)"
                         x-text="item.name"
                     ></span>
+                    <span class="ml-1 rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-400" x-show="item.limited">Limited</span>
                     <span class="block text-xs opacity-60" x-text="typeLabel(item)"></span>
                     <span class="text-sm opacity-70"><span x-text="item.price"></span> coins</span>
 

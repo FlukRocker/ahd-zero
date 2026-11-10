@@ -7,6 +7,7 @@ use Closure;
 use Illuminate\Contracts\Validation\ValidationRule;
 
 use function is_array;
+use function is_bool;
 
 /**
  * Validates a cosmetic payload at admin save time.
@@ -23,6 +24,12 @@ class CosmeticPayload implements ValidationRule
     {
         if (! is_array($value)) {
             $fail('The payload must be an object.');
+
+            return;
+        }
+
+        if (array_key_exists('limited', $value) && ! is_bool($value['limited'])) {
+            $fail('Limited must be true or false.');
 
             return;
         }
@@ -48,6 +55,12 @@ class CosmeticPayload implements ValidationRule
 
         if (\App\Support\CosmeticStyle::for($cosmetic) === []) {
             $fail('The payload is not valid for this cosmetic type.');
+
+            return;
+        }
+
+        if (($error = \App\Support\CosmeticStyle::extrasError($value, $this->type)) !== null) {
+            $fail($error);
         }
     }
 }

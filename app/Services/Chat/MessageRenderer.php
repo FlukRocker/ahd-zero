@@ -177,6 +177,14 @@ class MessageRenderer
         $smilies = [];
         $style = [];
 
+        // Deterministic precedence for properties several cosmetics can set
+        // (glow, icon, animation): the effect slot wins, then name, then the rest.
+        $rows = $rows->sortBy(fn ($row): int => match ($row->cosmetic?->type->slot()) {
+            'effect' => 0,
+            'name' => 1,
+            default => 2,
+        })->values();
+
         foreach ($rows as $row) {
             $cosmetic = $row->cosmetic;
 

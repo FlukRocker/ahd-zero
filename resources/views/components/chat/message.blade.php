@@ -31,8 +31,10 @@
                 x-show="rankLabel(line)"
                 x-text="rankLabel(line)"
             ></span>
+            <span class="chat-icon" x-show="iconOf(line)" :data-icon="iconOf(line)" aria-hidden="true"></span>
             <span
                 class="chat-name text-[15px]"
+                :data-anim="animOf(line)"
                 :class="{ 'chat-name-gradient': hasGradient(line) }"
                 x-text="line.name"
             ></span>

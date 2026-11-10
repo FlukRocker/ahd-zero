@@ -218,4 +218,55 @@ class CosmeticStyleTest extends TestCase
             }
         }
     }
+
+    public function test_icon_animation_and_extra_glow_ride_on_a_name_colour(): void
+    {
+        $style = CosmeticStyle::for($this->cosmetic(CosmeticType::NameColor, [
+            'color' => '#ffffff', 'icon' => 'crown', 'anim' => 'pulse', 'glow' => ['color' => '#000001', 'strength' => 2],
+        ]));
+
+        $this->assertSame([
+            '--chat-name-color' => '#ffffff', '--chat-glow' => '0 0 8px #000001', '--chat-icon' => 'crown', '--chat-anim' => 'pulse',
+        ], $style);
+    }
+
+    public function test_a_bad_extra_is_dropped_without_breaking_the_base_style(): void
+    {
+        $style = CosmeticStyle::for($this->cosmetic(CosmeticType::Glow, [
+            'color' => '#00ff00', 'strength' => 1, 'icon' => 'url(x)', 'anim' => 'spin-forever',
+        ]));
+
+        $this->assertSame(['--chat-glow' => '0 0 4px #00ff00'], $style);
+    }
+
+    public function test_the_save_rule_rejects_unknown_extras_with_a_specific_message(): void
+    {
+        $messages = [];
+        $fail = function (string $m) use (&$messages): void {
+            $messages[] = $m;
+        };
+
+        (new CosmeticPayload(CosmeticType::NameColor))->validate('payload', ['color' => '#ff0000', 'icon' => 'poop'], $fail);
+        (new CosmeticPayload(CosmeticType::NameColor))->validate('payload', ['color' => '#ff0000', 'anim' => 'zoom'], $fail);
+        (new CosmeticPayload(CosmeticType::NameColor))->validate('payload', ['color' => '#ff0000', 'glow' => ['color' => 'red', 'strength' => 9]], $fail);
+        (new CosmeticPayload(CosmeticType::Background))->validate('payload', ['color' => '#ff0000', 'glow' => ['color' => '#ffffff', 'strength' => 1]], $fail);
+        (new CosmeticPayload(CosmeticType::NameColor))->validate('payload', ['color' => '#ff0000', 'icon' => 'star', 'anim' => 'blink'], $fail);
+
+        $this->assertSame(['Unknown icon.', 'Unknown animation.', 'The extra glow needs a #rrggbb colour and strength 1-3.', 'Glow can only be added to a name colour or gradient.'], array_slice($messages, 0, 4));
+        $this->assertCount(4, $messages);
+    }
+
+    public function test_limited_must_be_a_boolean_and_does_not_change_the_style(): void
+    {
+        $messages = [];
+        $fail = function (string $m) use (&$messages): void {
+            $messages[] = $m;
+        };
+
+        (new CosmeticPayload(CosmeticType::Pawn))->validate('payload', ['asset' => 'gold', 'limited' => 'yes'], $fail);
+        (new CosmeticPayload(CosmeticType::Pawn))->validate('payload', ['asset' => 'gold', 'limited' => true], $fail);
+
+        $this->assertSame(['Limited must be true or false.'], $messages);
+        $this->assertSame(['--chat-name-color' => '#ff8800'], CosmeticStyle::for($this->cosmetic(CosmeticType::NameColor, ['color' => '#ff8800', 'limited' => true])));
+    }
 }

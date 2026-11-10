@@ -53,7 +53,7 @@ class PresenceService
     /**
      * Online members (unsorted; the client orders them). Banned and kicked members are left out.
      *
-     * @return list<array{uuid: string, name: string, rank: string, style: array<string, string>}>
+     * @return list<array{uuid: string, name: string, rank: string, style: array<string, string>, pawn: string|null}>
      */
     public function online(): array
     {
@@ -78,7 +78,8 @@ class PresenceService
                 'uuid' => (string) $uuid,
                 'name' => (string) $entry['name'],
                 'rank' => ($row?->rank ?? ChatRank::Member)->value,
-                'style' => $this->renderer->styleFor($entry['id']),
+                'style' => $style = $this->renderer->styleFor($entry['id']),
+                'pawn' => preg_match("#^url\('(/chat-assets/pawns/[a-z0-9-]{1,32}\.svg)'\)$#", $style['--chat-pawn'] ?? '', $m) === 1 ? $m[1] : null,
             ];
         }
 

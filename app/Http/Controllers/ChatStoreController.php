@@ -39,6 +39,7 @@ class ChatStoreController extends Controller
                 'name' => $cosmetic->name,
                 'price' => (int) $cosmetic->price,
                 'slot' => $cosmetic->type->slot(),
+                'limited' => ($cosmetic->payload['limited'] ?? false) === true,
                 'style' => CosmeticStyle::for($cosmetic),
                 'owned' => $inventory->has($cosmetic->id),
                 'equipped' => (bool) $inventory->get($cosmetic->id)?->equipped,
