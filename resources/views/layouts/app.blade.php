@@ -7,6 +7,9 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="csrf-token" content="{{ csrf_token() }}">
+    @if (auth('member')->check())
+        <meta name="ahd-presence" content="1">
+    @endif
     <meta name="theme-color" content="#0a0a0a" media="(prefers-color-scheme: dark)">
     <meta name="theme-color" content="#faf7f0" media="(prefers-color-scheme: light)">
     <meta name="color-scheme" content="light dark">

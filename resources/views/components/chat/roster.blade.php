@@ -1,7 +1,7 @@
 @props(['bare' => false])
-{{-- Online list, fed by the per-room chat.roster.{id} presence channel. Highest
-     rank first. x-text only; the list is empty for guests (the presence channel
-     needs a member). --}}
+{{-- Online list for the whole site: members with any page open (heartbeat, see
+     PresenceService), polled by the chat box. Highest rank first. x-text only;
+     the list is empty for guests (the endpoint needs a member). --}}
 <aside class="{{ $bare ? '' : 'rounded-2xl border border-white/10 bg-white/[0.03] ' }}p-3">
     <h2 class="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wider opacity-60">
         <span>Online</span>
@@ -9,13 +9,17 @@
     </h2>
     <ul class="mt-2 space-y-0.5 text-sm">
         <template x-for="person in sortedRoster()" :key="person.uuid">
-            <li class="flex items-center gap-2 rounded-lg px-1.5 py-1 hover:bg-white/5">
-                <span class="chat-avatar relative flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold uppercase" :data-rank="person.rank">
-                    <span x-text="person.name.charAt(0)"></span>
-                    <span class="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-neutral-900 bg-emerald-500" aria-hidden="true"></span>
-                </span>
-                <span class="min-w-0 flex-1 truncate" x-text="person.name"></span>
-                <span class="chat-badge" :data-rank="person.rank" x-show="({ main_owner: 'Owner', owner: 'Admin', mod: 'Mod' })[person.rank]" x-text="({ main_owner: 'Owner', owner: 'Admin', mod: 'Mod' })[person.rank]"></span>
+            <li class="flex items-center gap-2 rounded px-1.5 py-0.5 hover:bg-white/5">
+                {{-- Small person icon tinted by rank, like xat; no profile picture here. --}}
+                <svg viewBox="0 0 24 24" class="h-4 w-4 shrink-0" :style="{ color: ({ main_owner: '#f59e0b', owner: '#ef4444', mod: '#22c55e' })[person.rank] ?? '#a3a3a3' }" fill="currentColor" aria-hidden="true">
+                    <circle cx="12" cy="7" r="4.5" /><path d="M3 22c0-5 4-8 9-8s9 3 9 8z" />
+                </svg>
+                <span
+                    class="chat-name chat-online-name min-w-0 flex-1 truncate"
+                    :class="[fxClass(person), hasGradient(person) ? 'chat-name-gradient' : '']"
+                    :style="styleOf(person)"
+                    x-text="person.name"
+                ></span>
             </li>
         </template>
         <li class="px-1.5 py-1 text-xs opacity-50" x-show="roster.length === 0 && config?.canPost">ยังไม่มีผู้ออนไลน์</li>

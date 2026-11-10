@@ -146,6 +146,7 @@ export default function chatLobby() {
     return {
         messages: [],
         roster: [],
+        rosterTimer: null,
         draft: '',
         spoiled: {},
         sending: false,
@@ -177,6 +178,7 @@ export default function chatLobby() {
             this.pinned = config.pinned ?? null;
             this.acceptedRules = readAccepted();
             this.connect();
+            this.startRoster();
         },
 
         async connect() {
@@ -222,13 +224,42 @@ export default function chatLobby() {
                 .listen('.message.pinned', ({ pinned }) => { this.pinned = pinned ?? null; })
                 .listen('.member.sanctioned', (event) => this.onSanctioned(event, echo));
 
-            if (this.config.canPost) {
-                echo.join(`chat.roster.${roomId}`)
-                    .here((people) => { this.roster = people; })
-                    .joining((person) => { this.roster.push(person); })
-                    .leaving((person) => {
-                        this.roster = this.roster.filter((p) => p.uuid !== person.uuid);
-                    });
+        },
+
+        /**
+         * The online list covers the whole site, not just this chat box: the
+         * server keeps it from the heartbeat every page sends (presence.js).
+         * Poll it while the tab is visible.
+         */
+        startRoster() {
+            if (!this.config?.canPost || this.rosterTimer) {
+                return;
+            }
+
+            const tick = () => {
+                if (document.visibilityState === 'visible') {
+                    this.refreshRoster();
+                }
+            };
+
+            tick();
+            this.rosterTimer = setInterval(tick, 30_000);
+            document.addEventListener('visibilitychange', tick);
+        },
+
+        async refreshRoster() {
+            try {
+                const response = await fetch('/chat/online', {
+                    headers: { Accept: 'application/json' },
+                    credentials: 'same-origin',
+                });
+
+                if (response.ok) {
+                    const payload = await response.json();
+                    this.roster = Array.isArray(payload.online) ? payload.online : [];
+                }
+            } catch {
+                /* keep the last list; the next tick tries again */
             }
         },
 
@@ -243,10 +274,8 @@ export default function chatLobby() {
                 this.notice = '';
             } else if (action === 'ban' || action === 'kick') {
                 // Cosmetic only: the server already refuses their posts and
-                // their next subscribe. Leaving the roster on our own say-so
-                // just stops a banned name sitting in the online list until
-                // the socket drops.
-                echo.leave('chat.roster.' + this.config.room.id);
+                // leaves them out of the online list. Dropping the name now
+                // just saves waiting for the next refresh.
                 this.roster = this.roster.filter((p) => p.uuid !== uuid);
             }
         },
@@ -366,6 +395,29 @@ export default function chatLobby() {
         /** An object of validated custom properties, applied via style.setProperty. */
         styleOf(line) {
             return safeStyle(line.style);
+        },
+
+        /**
+         * Name effect in the online list. A member's own equipped style wins;
+         * staff get a rank effect, everyone else one of six stock effects picked from their uuid,
+         * so the list is lively but a name keeps the same look every time.
+         */
+        fxClass(person) {
+            if (Object.keys(safeStyle(person?.style)).length > 0) {
+                return '';
+            }
+
+            if (['main_owner', 'owner', 'mod'].includes(person?.rank)) {
+                return 'chat-fx-rank-' + person.rank;
+            }
+
+            let hash = 0;
+
+            for (const ch of String(person?.uuid ?? '')) {
+                hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
+            }
+
+            return 'chat-fx-' + (hash % 6);
         },
 
         hasGradient(line) {

@@ -3,6 +3,7 @@ import '../css/app.css';
 import Alpine from 'alpinejs';
 import chatLobby, { chatMini } from './chat/lobby';
 import chatStore from './chat/store';
+import startPresence from './presence';
 
 // Expose Alpine for inline Blade usage and debugging.
 window.Alpine = Alpine;
@@ -176,5 +177,7 @@ Alpine.data('commentSection', (type, id, canPost) => ({
 Alpine.data('chatLobby', chatLobby);
 Alpine.data('chatMini', chatMini);
 Alpine.data('chatStore', chatStore);
+
+startPresence();
 
 Alpine.start();

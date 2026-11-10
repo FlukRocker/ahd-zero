@@ -44,7 +44,7 @@ describe('chat lobby rooms', () => {
         vi.stubEnv('VITE_REVERB_HOST', 'h');
         await room().connect();
         expect(echoCalls.channel).toEqual(['chat.room.7']);
-        expect(echoCalls.join).toEqual(['chat.roster.7']);
+        expect(echoCalls.join).toEqual([]);
     });
 
     it('send() includes room_id', async () => {
@@ -60,11 +60,43 @@ describe('chat lobby rooms', () => {
         expect(JSON.parse((fetchMock.mock.calls[0] as any)[1].body)).toEqual({ body: 'hello', room_id: 7 });
     });
 
-    it('onSanctioned leaves the per-room roster channel', () => {
+    it('onSanctioned drops a banned member from the roster', () => {
         const lobby = room();
-        const echo = { leave: vi.fn() };
-        lobby.onSanctioned({ uuid: 'me', action: 'ban' }, echo);
-        expect(echo.leave).toHaveBeenCalledWith('chat.roster.7');
+        lobby.roster = [{ uuid: 'me', name: 'Me', rank: 'member' }, { uuid: 'x', name: 'X', rank: 'member' }];
+        lobby.onSanctioned({ uuid: 'me', action: 'ban' }, {});
+        expect(lobby.roster.map((p: any) => p.uuid)).toEqual(['x']);
+    });
+
+    it('refreshRoster() takes the site-wide online list from /chat/online', async () => {
+        const fetchMock = vi.fn(async () => ({ ok: true, json: async () => ({ online: [{ uuid: 'a', name: 'A', rank: 'member' }] }) }));
+        vi.stubGlobal('fetch', fetchMock);
+        const lobby = room();
+        await lobby.refreshRoster();
+        expect((fetchMock.mock.calls[0] as any)[0]).toBe('/chat/online');
+        expect(lobby.roster).toEqual([{ uuid: 'a', name: 'A', rank: 'member' }]);
+    });
+
+    it('refreshRoster() keeps the last list when the request fails', async () => {
+        vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('offline'); }));
+        const lobby = room();
+        lobby.roster = [{ uuid: 'a', name: 'A', rank: 'member' }];
+        await lobby.refreshRoster();
+        expect(lobby.roster).toHaveLength(1);
+    });
+
+    it('fxClass() picks rank effect, stock effect, or none when a style is equipped', () => {
+        const lobby = room();
+        expect(lobby.fxClass({ uuid: 'a', rank: 'mod', style: {} })).toBe('chat-fx-rank-mod');
+        expect(lobby.fxClass({ uuid: 'abc', rank: 'member', style: {} })).toMatch(/^chat-fx-[0-5]$/);
+        expect(lobby.fxClass({ uuid: 'abc', rank: 'member', style: {} })).toBe(lobby.fxClass({ uuid: 'abc', rank: 'member', style: {} }));
+        expect(lobby.fxClass({ uuid: 'abc', rank: 'member', style: { '--chat-name-color': '#ff8800' } })).toBe('');
+    });
+
+    it('startRoster() does nothing for guests', () => {
+        const fetchMock = vi.fn();
+        vi.stubGlobal('fetch', fetchMock);
+        room(false).startRoster();
+        expect(fetchMock).not.toHaveBeenCalled();
     });
 });
 

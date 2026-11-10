@@ -9,6 +9,7 @@ use App\Http\Controllers\AnimeController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\ChatController;
 use App\Http\Controllers\ChatModerationController;
+use App\Http\Controllers\ChatPresenceController;
 use App\Http\Controllers\ChatStoreController;
 use App\Http\Controllers\CommentController;
 use App\Http\Controllers\DashboardController;
@@ -139,6 +140,13 @@ Route::middleware(['auth:member'])->group(function (): void {
     Route::post('/chat/moderate', ChatModerationController::class)
         ->middleware('throttle:30,1')
         ->name('chat.moderate');
+
+    Route::post('/chat/presence', [ChatPresenceController::class, 'ping'])
+        ->middleware('throttle:chat-presence')
+        ->name('chat.presence');
+    Route::get('/chat/online', [ChatPresenceController::class, 'online'])
+        ->middleware('throttle:chat-presence')
+        ->name('chat.online');
 
     Route::get('/chat/store', [ChatStoreController::class, 'index'])->name('chat.store');
 
