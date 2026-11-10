@@ -17,11 +17,13 @@ use App\Services\Chat\PinService;
 use App\Services\Moderation\ReportResolver;
 use App\Support\Chat\Bbcode;
 use App\Support\Chat\ChatRules;
+use App\Support\Chat\ChatSettings;
 use App\Support\Chat\ReplyToken;
 use App\Support\ChatText;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\View\View;
 
 class ChatController extends Controller
@@ -58,6 +60,7 @@ class ChatController extends Controller
             'smilies' => $state['smilies'],
             'pinned' => $state['pinned'],
             'rules' => ChatRules::forClient(),
+            'announcement' => ChatSettings::announcement(),
         ])->header('Cache-Control', 'no-store, private');
     }
 
@@ -80,6 +83,7 @@ class ChatController extends Controller
             'room' => $room,
             'pinned' => $this->chat->pinned($room->id),
             'smilies' => $member === null ? [] : $this->chat->smiliesFor((int) $member->id),
+            'announcement' => ChatSettings::announcement(),
         ];
     }
 
@@ -132,6 +136,22 @@ class ChatController extends Controller
 
         $body = (string) $validated['body'];
 
+        // Room controls and the word filter. Mods and above are exempt from the
+        // lock and slow mode so they can still steer a locked room.
+        $staff = $this->policy->canPin($chatMember->rank);
+        $controls = ChatSettings::room($roomId);
+
+        if ($controls['locked'] && ! $staff) {
+            return response()->json(['message' => 'ห้องนี้ถูกล็อกชั่วคราว ยังพิมพ์ไม่ได้'], 403);
+        }
+
+        if (! $staff && ChatSettings::bannedWordIn(Bbcode::plainText(Bbcode::parse($body))) !== null) {
+            return response()->json([
+                'message' => 'ข้อความมีคำที่ไม่อนุญาต',
+                'errors' => ['body' => ['ข้อความมีคำที่ไม่อนุญาต']],
+            ], 422);
+        }
+
         if (isset($validated['reply_to'])) {
             $target = ChatMessage::query()->where('room_id', $roomId)->find((int) $validated['reply_to']);
 
@@ -143,6 +163,11 @@ class ChatController extends Controller
             }
 
             $body = ReplyToken::token((int) $target->id).$body;
+        }
+
+        // Cache::add is atomic: only the first message inside the window gets the slot.
+        if ($controls['slow'] > 0 && ! $staff && ! Cache::add("chat:slow:{$roomId}:{$member->id}", 1, $controls['slow'])) {
+            return response()->json(['message' => "โหมดช้า: รอ {$controls['slow']} วินาทีระหว่างข้อความ"], 429);
         }
 
         $message = ChatMessage::create([

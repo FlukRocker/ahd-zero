@@ -1,4 +1,8 @@
 <script setup lang="ts">
+import ChatLiveTab from '@/components/admin/chat/ChatLiveTab.vue';
+import ChatMemberDrawer from '@/components/admin/chat/ChatMemberDrawer.vue';
+import ChatSearchTab from '@/components/admin/chat/ChatSearchTab.vue';
+import ChatToolsTab from '@/components/admin/chat/ChatToolsTab.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 import {
     ANIM_OPTIONS,
@@ -195,14 +199,23 @@ async function send(
 const busy = ref(false);
 
 const TABS = [
+    { key: 'live', label: 'Live & stats' },
     { key: 'participants', label: 'Participants' },
     { key: 'rooms', label: 'Rooms' },
     { key: 'cosmetics', label: 'Cosmetics' },
     { key: 'messages', label: 'Messages' },
+    { key: 'search', label: 'Search' },
+    { key: 'tools', label: 'Tools' },
     { key: 'rules', label: 'Rules' },
     { key: 'log', label: 'Moderation log' },
 ] as const;
 const tab = ref<(typeof TABS)[number]['key']>('participants');
+// Member whose detail drawer is open (any tab can open it).
+const drawerId = ref<number | null>(null);
+
+function reloadProps() {
+    router.reload();
+}
 
 const field =
     'h-9 w-full rounded-md border border-input bg-background px-3 text-sm shadow-xs outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50';
@@ -658,6 +671,13 @@ function deactivate(id: number) {
                                         <button
                                             type="button"
                                             :class="btn"
+                                            @click="drawerId = row.member_id"
+                                        >
+                                            Details
+                                        </button>
+                                        <button
+                                            type="button"
+                                            :class="btn"
                                             @click="grant(row.member_id)"
                                         >
                                             Grant coins
@@ -884,6 +904,19 @@ function deactivate(id: number) {
                     </form>
                 </div>
             </div>
+
+            <ChatLiveTab v-if="tab === 'live'" @details="drawerId = $event" />
+            <ChatSearchTab
+                v-if="tab === 'search'"
+                :rooms="rooms"
+                @details="drawerId = $event"
+            />
+            <ChatToolsTab v-if="tab === 'tools'" />
+            <ChatMemberDrawer
+                :member-id="drawerId"
+                @close="drawerId = null"
+                @changed="reloadProps"
+            />
 
             <!-- Cosmetics -->
             <div v-show="tab === 'cosmetics'" class="space-y-5">

@@ -159,6 +159,7 @@ export default function chatLobby() {
         menuOpen: null,
         menuUp: false,
         pinned: null,
+        announcement: null,
         replyTo: null,
         mentionOptions: [],
         acceptedRules: '',
@@ -179,6 +180,7 @@ export default function chatLobby() {
             this.config = config;
             this.messages = config.history ?? [];
             this.pinned = config.pinned ?? null;
+            this.announcement = typeof config.announcement === 'string' ? config.announcement : null;
             this.acceptedRules = readAccepted();
             this.connect();
             this.startRoster();
@@ -223,6 +225,10 @@ export default function chatLobby() {
                 .listen('.message.sent', (line) => this.append(line))
                 .listen('.message.deleted', ({ id }) => {
                     this.messages = this.messages.filter((line) => line.id !== id);
+                })
+                .listen('.messages.purged', ({ uuid }) => {
+                    // One member's lines, or every line when the room was cleared.
+                    this.messages = typeof uuid === 'string' ? this.messages.filter((line) => line.uuid !== uuid) : [];
                 })
                 .listen('.message.pinned', ({ pinned }) => { this.pinned = pinned ?? null; })
                 .listen('.member.sanctioned', (event) => this.onSanctioned(event, echo));

@@ -53,9 +53,9 @@ class PresenceService
     /**
      * Online members (unsorted; the client orders them). Banned and kicked members are left out.
      *
-     * @return list<array{uuid: string, name: string, rank: string, style: array<string, string>, pawn: string|null}>
+     * @return list<array{uuid: string, name: string, rank: string, style: array<string, string>, pawn: string|null, id?: int}>
      */
-    public function online(): array
+    public function online(bool $withIds = false): array
     {
         $map = $this->fresh(Cache::get(self::KEY, []), now()->getTimestamp());
 
@@ -74,7 +74,7 @@ class PresenceService
                 continue;
             }
 
-            $people[] = [
+            $people[] = ($withIds ? ['id' => (int) $entry['id']] : []) + [
                 'uuid' => (string) $uuid,
                 'name' => (string) $entry['name'],
                 'rank' => ($row?->rank ?? ChatRank::Member)->value,

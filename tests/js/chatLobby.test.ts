@@ -99,6 +99,16 @@ describe('chat lobby rooms', () => {
         expect(lobby.pawnOf({ pawn: null })).toBeNull();
     });
 
+    it('boot() keeps the announcement as plain text and ignores a non-string', () => {
+        const lobby = chatLobby() as any;
+        lobby.connect = () => {};
+        lobby.startRoster = () => {};
+        lobby.boot({ room: { id: 1 }, announcement: 'Maintenance tonight' });
+        expect(lobby.announcement).toBe('Maintenance tonight');
+        lobby.boot({ room: { id: 1 }, announcement: { x: 1 } });
+        expect(lobby.announcement).toBeNull();
+    });
+
     it('startRoster() does nothing for guests', () => {
         const fetchMock = vi.fn();
         vi.stubGlobal('fetch', fetchMock);

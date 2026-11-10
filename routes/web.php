@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\ChatManagementController;
+use App\Http\Controllers\Admin\ChatToolsController;
 use App\Http\Controllers\Admin\CommentManagementController;
 use App\Http\Controllers\Admin\MemberManagementController;
 use App\Http\Controllers\Admin\ReportManagementController;
@@ -199,6 +200,22 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::delete('dashboard/chat/messages/{id}/pin', [ChatManagementController::class, 'unpinMessage'])->whereNumber('id')->name('admin.chat.messages.unpin');
     Route::post('dashboard/chat/rank', [ChatManagementController::class, 'grantRank'])->name('admin.chat.rank.grant');
     Route::post('dashboard/chat/members/{id}/ban', [ChatManagementController::class, 'ban'])->whereNumber('id')->name('admin.chat.ban');
+    Route::prefix('dashboard/chat/tools')->name('admin.chat.tools.')->group(function (): void {
+        Route::get('online', [ChatToolsController::class, 'online'])->name('online');
+        Route::get('stats', [ChatToolsController::class, 'stats'])->name('stats');
+        Route::get('messages', [ChatToolsController::class, 'messages'])->name('messages');
+        Route::get('members/{id}', [ChatToolsController::class, 'member'])->whereNumber('id')->name('member');
+        Route::get('settings', [ChatToolsController::class, 'settings'])->name('settings');
+        Route::post('announcement', [ChatToolsController::class, 'updateAnnouncement'])->name('announcement');
+        Route::post('words', [ChatToolsController::class, 'updateWords'])->name('words');
+        Route::post('rooms/{room}/controls', [ChatToolsController::class, 'updateRoomControls'])->whereNumber('room')->name('controls');
+        Route::post('rooms/{room}/clear', [ChatToolsController::class, 'clearRoom'])->whereNumber('room')->name('clear');
+        Route::post('members/{id}/kick', [ChatToolsController::class, 'kick'])->whereNumber('id')->name('kick');
+        Route::post('members/{id}/gag', [ChatToolsController::class, 'gag'])->whereNumber('id')->name('gag');
+        Route::post('members/{id}/take-coins', [ChatToolsController::class, 'takeCoins'])->whereNumber('id')->name('take');
+        Route::post('members/{id}/revoke-cosmetic', [ChatToolsController::class, 'revokeCosmetic'])->whereNumber('id')->name('revoke');
+        Route::post('members/{id}/purge', [ChatToolsController::class, 'purgeMemberMessages'])->whereNumber('id')->name('purge');
+    });
     Route::delete('dashboard/chat/messages/{id}', [ChatManagementController::class, 'destroyMessage'])->whereNumber('id')->name('admin.chat.messages.destroy');
 
     Route::get('dashboard/site-settings', [SiteSettingsController::class, 'index'])->name('admin.settings');

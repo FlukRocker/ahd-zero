@@ -25,6 +25,7 @@
         'pinned' => $pinned,
         'smilies' => $smilies,
         'rules' => \App\Support\Chat\ChatRules::forClient(),
+        'announcement' => $announcement ?? null,
         // No socket config here on purpose: after `artisan optimize` env()
         // returns null outside config files. The browser values are compiled
         // into the bundle by Vite instead; see lobby.js.
@@ -55,6 +56,7 @@
 
             <div class="grid gap-3 p-3 lg:grid-cols-[minmax(0,1fr)_16rem]">
                 <section class="flex h-[min(40rem,78vh)] min-w-0 flex-col overflow-hidden rounded-2xl border border-white/15 backdrop-blur" style="background: rgba(20, 10, 16, 0.6);">
+                    <x-chat.announcement />
                     <div class="flex items-start gap-2 border-b border-white/10 bg-amber-400/10 px-3 py-2 text-xs" x-show="pinned" x-cloak>
                         <span aria-hidden="true">📌</span>
                         <button type="button" class="min-w-0 flex-1 truncate text-left" @click="jumpTo(pinned.id)">

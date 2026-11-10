@@ -54,12 +54,25 @@ class PinService
 
     private function log(string $action, mixed $targetMemberId, ?int $actorMemberId, ?int $adminId, int $messageId): void
     {
-        ChatModerationLog::create([
-            'actor_member_id' => $actorMemberId,
-            'admin_id' => $adminId,
-            'target_member_id' => $targetMemberId,
-            'action' => $action,
-            'meta' => ['message_id' => $messageId],
-        ]);
+        // chat_moderation_log.action is an ENUM in production that may not list
+        // pin_message / unpin_message. A refused audit row must never break the
+        // pin itself, so fall back to the application log.
+        try {
+            ChatModerationLog::create([
+                'actor_member_id' => $actorMemberId,
+                'admin_id' => $adminId,
+                'target_member_id' => $targetMemberId,
+                'action' => $action,
+                'meta' => ['message_id' => $messageId],
+            ]);
+        } catch (\Illuminate\Database\QueryException $e) {
+            \Illuminate\Support\Facades\Log::warning('chat moderation log row refused', [
+                'action' => $action,
+                'message_id' => $messageId,
+                'admin_id' => $adminId,
+                'actor_member_id' => $actorMemberId,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 }

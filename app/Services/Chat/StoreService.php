@@ -183,6 +183,69 @@ class StoreService
         }, 3);
     }
 
+    /**
+     * Take coins back. Same lock discipline as grantCoins (call outside a
+     * transaction). The ledger reason column is an ENUM in production, so this
+     * reuses 'admin_grant' with a negative delta and says what it is in the note.
+     */
+    public function debitCoins(int $memberId, int $amount, int $adminId, ?string $note = null): void
+    {
+        if ($amount < 1) {
+            throw new StoreException('A deduction must be a positive number of coins.');
+        }
+
+        $this->ensureWallet($memberId);
+
+        DB::transaction(function () use ($memberId, $amount, $adminId, $note): void {
+            $wallet = $this->lockWallet($memberId);
+
+            if ($wallet->balance < $amount) {
+                throw new StoreException('The member only has '.$wallet->balance.' coins.');
+            }
+
+            $balance = $wallet->balance - $amount;
+            $wallet->update(['balance' => $balance]);
+
+            ChatTransaction::create([
+                'member_id' => $memberId,
+                'delta' => -$amount,
+                'balance_after' => $balance,
+                'reason' => 'admin_grant',
+                'admin_id' => $adminId,
+                'note' => mb_substr('Taken back'.($note !== null && $note !== '' ? ': '.$note : ''), 0, 255),
+            ]);
+
+            ChatModerationLog::create([
+                'admin_id' => $adminId,
+                'target_member_id' => $memberId,
+                'action' => 'grant_coins',
+                'meta' => ['amount' => -$amount, 'note' => $note, 'op' => 'take_coins'],
+            ]);
+        }, 3);
+    }
+
+    /** Remove an owned cosmetic. The log action column is an ENUM, so it reuses 'grant_cosmetic'. */
+    public function revokeCosmetic(int $memberId, ChatCosmetic $cosmetic, int $adminId): bool
+    {
+        return DB::transaction(function () use ($memberId, $cosmetic, $adminId): bool {
+            $deleted = ChatCosmeticMember::query()
+                ->where('member_id', $memberId)
+                ->where('cosmetic_id', $cosmetic->id)
+                ->delete() > 0;
+
+            if ($deleted) {
+                ChatModerationLog::create([
+                    'admin_id' => $adminId,
+                    'target_member_id' => $memberId,
+                    'action' => 'grant_cosmetic',
+                    'meta' => ['cosmetic_id' => $cosmetic->id, 'op' => 'revoke_cosmetic'],
+                ]);
+            }
+
+            return $deleted;
+        });
+    }
+
     public function grantCosmetic(int $memberId, ChatCosmetic $cosmetic, int $adminId): void
     {
         DB::transaction(function () use ($memberId, $cosmetic, $adminId): void {
