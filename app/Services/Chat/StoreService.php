@@ -61,10 +61,21 @@ class StoreService
 
             // Re-read under the lock: the route-bound model may be stale, so
             // active/price/type must come from the row as it is now.
-            $cosmetic = ChatCosmetic::query()->whereKey($cosmetic->id)->firstOrFail();
+            // The row lock also serialises buyers of a limited-stock item.
+            $cosmetic = ChatCosmetic::query()->whereKey($cosmetic->id)->lockForUpdate()->firstOrFail();
 
             if (! $cosmetic->active) {
                 throw new StoreException('That item is not available.');
+            }
+
+            if (($cosmetic->payload['show_only'] ?? false) === true) {
+                throw new StoreException('That item is not for sale.');
+            }
+
+            $stock = $cosmetic->payload['stock'] ?? null;
+
+            if (is_int($stock) && $stock < 1) {
+                throw new StoreException('Sold out.');
             }
 
             $owned = ChatCosmeticMember::query()
@@ -96,6 +107,12 @@ class StoreService
                 }
 
                 throw $e;
+            }
+
+            if (is_int($stock)) {
+                $payload = $cosmetic->payload;
+                $payload['stock'] = $stock - 1;
+                $cosmetic->update(['payload' => $payload]);
             }
 
             $balance = $wallet->balance - $cosmetic->price;

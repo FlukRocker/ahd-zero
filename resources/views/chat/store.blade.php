@@ -56,7 +56,9 @@
                     <span class="block text-xs opacity-60" x-text="typeLabel(item)"></span>
                     <span class="text-sm opacity-70"><span x-text="item.price"></span> coins</span>
 
-                    <template x-if="!item.owned">
+                    <span class="mt-2 block text-xs font-semibold text-amber-400" x-show="!item.owned && item.show_only">Not for sale</span>
+                    <span class="mt-2 block text-xs font-semibold text-red-400" x-show="!item.owned && !item.show_only && item.sold_out">Sold out</span>
+                    <template x-if="!item.owned && !item.show_only && !item.sold_out">
                         <button
                             type="button"
                             class="mt-2 block rounded-md px-3 py-1 text-sm font-medium disabled:opacity-50"

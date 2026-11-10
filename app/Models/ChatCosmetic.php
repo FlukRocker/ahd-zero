@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\CosmeticType;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * An admin-authored cosmetic. Members never create these — see
@@ -30,4 +31,12 @@ class ChatCosmetic extends Model
         'active' => 'boolean',
         'sort' => 'integer',
     ];
+
+    /**
+     * @return HasMany<ChatCosmeticMember, $this>
+     */
+    public function owners(): HasMany
+    {
+        return $this->hasMany(ChatCosmeticMember::class, 'cosmetic_id');
+    }
 }

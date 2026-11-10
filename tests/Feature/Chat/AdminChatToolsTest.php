@@ -64,6 +64,27 @@ class AdminChatToolsTest extends TestCase
         $this->actingAs($this->member('Aki'), 'member')->getJson('/dashboard/chat/tools/stats')->assertForbidden();
     }
 
+    public function test_owners_endpoint_lists_who_owns_a_cosmetic_and_is_admin_only(): void
+    {
+        $aki = $this->member('Aki');
+        $red = $this->cosmetic();
+        ChatCosmeticMember::create(['member_id' => $aki->id, 'cosmetic_id' => $red->id, 'acquired_at' => now(), 'source' => 'purchase', 'equipped' => true]);
+
+        $this->getJson("/dashboard/chat/tools/cosmetics/{$red->id}/owners")->assertUnauthorized();
+        $this->actingAs($aki, 'member')->getJson("/dashboard/chat/tools/cosmetics/{$red->id}/owners")->assertForbidden();
+
+        $this->actingAs($this->admin)->getJson("/dashboard/chat/tools/cosmetics/{$red->id}/owners")
+            ->assertOk()
+            ->assertJsonPath('total', 1)
+            ->assertJsonPath('owners.0.name', 'Aki')
+            ->assertJsonPath('owners.0.source', 'purchase')
+            ->assertJsonPath('owners.0.equipped', true);
+
+        $this->actingAs($this->admin)->get('/dashboard/chat')->assertInertia(
+            fn ($page) => $page->where('cosmetics.0.owners_count', 1)
+        );
+    }
+
     public function test_online_endpoint_lists_ids_for_admins_while_the_public_list_has_none(): void
     {
         $aki = $this->member('Aki');

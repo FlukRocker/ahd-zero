@@ -197,6 +197,65 @@ class StoreTest extends TestCase
         $this->assertDatabaseCount('chat_transactions', 0);
     }
 
+    public function test_a_show_only_item_cannot_be_bought_but_can_be_granted(): void
+    {
+        $this->fund(500);
+        $this->cosmetic->update(['payload' => ['color' => '#ff8800', 'show_only' => true]]);
+
+        $this->actingAs($this->member, 'member')->postJson("/chat/store/{$this->cosmetic->id}/buy")->assertStatus(422);
+        $this->assertSame(500, ChatMember::query()->find($this->member->id)->balance);
+
+        $this->app->make(\App\Services\Chat\StoreService::class)->grantCosmetic($this->member->id, $this->cosmetic, 1);
+        $this->assertDatabaseHas('chat_cosmetic_member', ['member_id' => $this->member->id, 'cosmetic_id' => $this->cosmetic->id]);
+    }
+
+    public function test_stock_counts_down_per_purchase_then_sells_out_and_grants_do_not_use_it(): void
+    {
+        $other = Member::create(['name' => 'Bo', 'email' => 'bo@example.test', 'password' => 'password123!', 'email_verified_at' => now()]);
+        $third = Member::create(['name' => 'Cy', 'email' => 'cy@example.test', 'password' => 'password123!', 'email_verified_at' => now()]);
+        foreach ([$this->member, $other, $third] as $m) {
+            ChatMember::updateOrCreate(['member_id' => $m->id], ['balance' => 500]);
+        }
+        $this->cosmetic->update(['payload' => ['color' => '#ff8800', 'stock' => 1]]);
+
+        $this->actingAs($this->member, 'member')->postJson("/chat/store/{$this->cosmetic->id}/buy")->assertOk();
+        $this->assertSame(0, $this->cosmetic->fresh()->payload['stock']);
+
+        $this->actingAs($other, 'member')->postJson("/chat/store/{$this->cosmetic->id}/buy")->assertStatus(422);
+        $this->assertSame(500, ChatMember::query()->find($other->id)->balance);
+
+        $this->app->make(\App\Services\Chat\StoreService::class)->grantCosmetic($third->id, $this->cosmetic, 1);
+        $this->assertSame(0, $this->cosmetic->fresh()->payload['stock']);
+    }
+
+    public function test_store_shows_sold_out_and_show_only_flags_but_never_the_stock_number(): void
+    {
+        $this->cosmetic->update(['payload' => ['color' => '#ff8800', 'stock' => 0]]);
+        $shown = ChatCosmetic::create(['type' => CosmeticType::NameColor, 'name' => 'Prize', 'slug' => 'prize', 'payload' => ['color' => '#112233', 'show_only' => true, 'stock' => 5], 'price' => 0, 'active' => true]);
+
+        $response = $this->actingAs($this->member, 'member')->get('/chat/store')->assertOk();
+        $items = collect($response->viewData('items'));
+
+        $this->assertTrue($items->firstWhere('id', $this->cosmetic->id)['sold_out']);
+        $this->assertTrue($items->firstWhere('id', $shown->id)['show_only']);
+        $this->assertStringNotContainsString('"stock"', json_encode($items->all()));
+    }
+
+    public function test_payload_rejects_a_bad_stock_or_show_only(): void
+    {
+        $messages = [];
+        $fail = function (string $m) use (&$messages): void {
+            $messages[] = $m;
+        };
+        $rule = new \App\Rules\CosmeticPayload(CosmeticType::NameColor);
+        $rule->validate('payload', ['color' => '#ff0000', 'stock' => -1], $fail);
+        $rule->validate('payload', ['color' => '#ff0000', 'stock' => '5'], $fail);
+        $rule->validate('payload', ['color' => '#ff0000', 'show_only' => 'yes'], $fail);
+        $rule->validate('payload', ['color' => '#ff0000', 'stock' => 3, 'show_only' => true], $fail);
+
+        $this->assertCount(3, $messages);
+    }
+
     public function test_store_flags_limited_items(): void
     {
         $limited = ChatCosmetic::create(['type' => CosmeticType::NameColor, 'name' => 'Rare', 'slug' => 'rare1', 'payload' => ['color' => '#112233', 'limited' => true], 'price' => 9, 'active' => true]);

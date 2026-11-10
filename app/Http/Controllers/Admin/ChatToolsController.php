@@ -164,6 +164,24 @@ class ChatToolsController extends Controller
         ]);
     }
 
+    /** Everyone who owns one cosmetic, newest first (capped), with how they got it. */
+    public function cosmeticOwners(ChatCosmetic $cosmetic): JsonResponse
+    {
+        $rows = ChatCosmeticMember::query()->where('cosmetic_id', $cosmetic->id)->orderByDesc('acquired_at')->limit(500)->get();
+        $names = Member::query()->whereIn('id', $rows->pluck('member_id'))->pluck('name', 'id');
+
+        return response()->json([
+            'total' => ChatCosmeticMember::query()->where('cosmetic_id', $cosmetic->id)->count(),
+            'owners' => $rows->map(fn ($row): array => [
+                'member_id' => (int) $row->member_id,
+                'name' => (string) ($names[$row->member_id] ?? 'Member #'.$row->member_id),
+                'source' => (string) $row->source,
+                'equipped' => (bool) $row->equipped,
+                'acquired_at' => $row->acquired_at?->toIso8601String(),
+            ])->values()->all(),
+        ]);
+    }
+
     public function kick(Request $request, int $id): JsonResponse
     {
         $this->moderation->kick($this->wallet($id), null, (int) $request->user()->id);

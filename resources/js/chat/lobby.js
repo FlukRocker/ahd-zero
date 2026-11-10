@@ -184,6 +184,17 @@ export default function chatLobby() {
             this.acceptedRules = readAccepted();
             this.connect();
             this.startRoster();
+            // Open on the newest line; again once images/layout have settled.
+            this.$nextTick?.(() => this.scrollDown());
+            setTimeout(() => this.scrollDown?.(), 400);
+        },
+
+        scrollDown() {
+            const list = this.$refs?.list;
+
+            if (list) {
+                list.scrollTop = list.scrollHeight;
+            }
         },
 
         async connect() {

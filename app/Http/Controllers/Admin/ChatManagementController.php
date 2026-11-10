@@ -45,7 +45,7 @@ class ChatManagementController extends Controller
         return Inertia::render('admin/Chat', [
             'rules' => ChatRules::text(),
             'pinnedIds' => array_values(ChatPins::all()),
-            'cosmetics' => ChatCosmetic::query()->orderBy('sort')->get(),
+            'cosmetics' => ChatCosmetic::query()->withCount('owners')->orderBy('sort')->get(),
             'rooms' => ChatRoom::query()
                 ->orderBy('sort')
                 ->orderBy('id')

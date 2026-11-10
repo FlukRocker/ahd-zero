@@ -21,6 +21,10 @@ export interface PayloadFields {
     glowStrength?: number;
     /** Marks the item as a limited edition (a badge only; no stock or date). */
     limited?: boolean;
+    /** Listed in the store but not buyable; admin grant only. */
+    showOnly?: boolean;
+    /** Units left to buy; undefined/null = unlimited. */
+    stock?: number | null;
 }
 
 export const ICON_OPTIONS = [
@@ -110,6 +114,14 @@ export function buildPayload(
 
     if (f.limited) {
         out.limited = true;
+    }
+
+    if (f.showOnly) {
+        out.show_only = true;
+    }
+
+    if (f.stock !== undefined && f.stock !== null && Number.isFinite(Number(f.stock))) {
+        out.stock = Math.max(0, Math.trunc(Number(f.stock)));
     }
 
     return out;

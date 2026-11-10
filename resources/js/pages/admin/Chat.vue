@@ -13,6 +13,7 @@ import {
     supportsExtras,
     type PayloadFields,
 } from '@/lib/cosmeticPayload';
+import { adminCall } from '@/lib/adminFetch';
 import { type BreadcrumbItem } from '@/types';
 import { Head, Link, router } from '@inertiajs/vue3';
 import { computed, reactive, ref } from 'vue';
@@ -26,6 +27,15 @@ interface CosmeticRow {
     payload: Record<string, unknown>;
     price: number;
     active: boolean;
+    owners_count?: number;
+}
+
+interface OwnerRow {
+    member_id: number;
+    name: string;
+    source: string;
+    equipped: boolean;
+    acquired_at: string | null;
 }
 
 interface RoomRow {
@@ -127,6 +137,8 @@ const form = reactive({
     glowColor: '#ffffff',
     glowStrength: 2,
     limited: false,
+    showOnly: false,
+    stock: null as number | null,
 });
 const grantChoice = reactive<Record<number, string>>({});
 
@@ -273,6 +285,8 @@ function startEdit(item: CosmeticRow) {
     form.glowColor = String(g?.color ?? '#ffffff');
     form.glowStrength = Number(g?.strength ?? 2);
     form.limited = p.limited === true;
+    form.showOnly = p.show_only === true;
+    form.stock = typeof p.stock === 'number' ? p.stock : null;
     document
         .getElementById('cosmetic-form')
         ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -283,6 +297,63 @@ function cancelEdit() {
     form.name = '';
     form.slug = '';
     fieldErrors.value = {};
+}
+
+// Who owns a cosmetic: one open panel at a time, loaded on demand.
+const ownersFor = ref<number | null>(null);
+const owners = ref<OwnerRow[]>([]);
+const ownersTotal = ref(0);
+const ownersBusy = ref(false);
+const ownersError = ref('');
+
+async function loadOwners(id: number) {
+    ownersBusy.value = true;
+    ownersError.value = '';
+    const r = await adminCall<{ owners: OwnerRow[]; total: number }>(
+        'GET',
+        `/dashboard/chat/tools/cosmetics/${id}/owners`,
+    );
+    ownersBusy.value = false;
+
+    if (r.ok && r.data) {
+        owners.value = r.data.owners;
+        ownersTotal.value = r.data.total;
+    } else {
+        ownersError.value = r.error;
+    }
+}
+
+async function toggleOwners(item: CosmeticRow) {
+    if (ownersFor.value === item.id) {
+        ownersFor.value = null;
+
+        return;
+    }
+
+    ownersFor.value = item.id;
+    owners.value = [];
+    await loadOwners(item.id);
+}
+
+async function revokeOwner(item: CosmeticRow, o: OwnerRow) {
+    if (!window.confirm(`Take "${item.name}" away from ${o.name}? Coins are not refunded.`)) {
+        return;
+    }
+
+    const r = await adminCall(
+        'POST',
+        `/dashboard/chat/tools/members/${o.member_id}/revoke-cosmetic`,
+        { cosmetic_id: item.id },
+    );
+
+    if (!r.ok) {
+        ownersError.value = r.error;
+
+        return;
+    }
+
+    await loadOwners(item.id);
+    router.reload({ only: ['cosmetics'] });
 }
 
 function setCosmeticActive(item: CosmeticRow, active: boolean) {
@@ -311,6 +382,8 @@ async function doCreateCosmetic() {
         glowColor: form.glowColor,
         glowStrength: form.glowStrength,
         limited: form.limited,
+        showOnly: form.showOnly,
+        stock: form.stock === ('' as unknown) ? null : form.stock,
     };
 
     const editing = editingId.value;
@@ -942,13 +1015,28 @@ function deactivate(id: number) {
                                         below.
                                     </td>
                                 </tr>
-                                <tr v-for="item in cosmetics" :key="item.id">
+                                <template v-for="item in cosmetics" :key="item.id">
+                                <tr>
                                     <td :class="[td, 'font-medium']">
                                         {{ item.name }}
                                         <span
                                             v-if="item.payload?.limited === true"
                                             class="ml-2 rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-bold uppercase text-amber-600 dark:text-amber-400"
                                             >Limited</span
+                                        >
+                                        <span
+                                            v-if="item.payload?.show_only === true"
+                                            class="ml-2 rounded bg-sky-500/20 px-1.5 py-0.5 text-[10px] font-bold uppercase text-sky-600 dark:text-sky-400"
+                                            >Show only</span
+                                        >
+                                        <span
+                                            v-if="typeof item.payload?.stock === 'number'"
+                                            class="ml-2 rounded bg-muted px-1.5 py-0.5 text-[10px] font-bold uppercase text-muted-foreground"
+                                            >{{
+                                                item.payload.stock < 1
+                                                    ? 'Sold out'
+                                                    : item.payload.stock + ' left'
+                                            }}</span
                                         >
                                     </td>
                                     <td :class="td">{{ item.type }}</td>
@@ -972,6 +1060,13 @@ function deactivate(id: number) {
                                     </td>
                                     <td :class="[td, 'text-right']">
                                         <div class="flex justify-end gap-2">
+                                            <button
+                                                type="button"
+                                                :class="btn"
+                                                @click="toggleOwners(item)"
+                                            >
+                                                Owners ({{ item.owners_count ?? 0 }})
+                                            </button>
                                             <button
                                                 type="button"
                                                 :class="btn"
@@ -1000,6 +1095,28 @@ function deactivate(id: number) {
                                         </div>
                                     </td>
                                 </tr>
+                                <tr v-if="ownersFor === item.id">
+                                    <td colspan="5" class="bg-muted/30 px-4 py-3">
+                                        <p v-if="ownersBusy" class="text-xs text-muted-foreground">Loading…</p>
+                                        <p v-else-if="ownersError" class="text-xs text-destructive">{{ ownersError }}</p>
+                                        <p v-else-if="owners.length === 0" class="text-xs text-muted-foreground">Nobody owns this yet.</p>
+                                        <div v-else>
+                                            <p class="mb-2 text-xs text-muted-foreground">
+                                                {{ ownersTotal }} owner{{ ownersTotal === 1 ? '' : 's' }}<span v-if="ownersTotal > owners.length"> (showing newest {{ owners.length }})</span>
+                                            </p>
+                                            <ul class="space-y-1 text-xs">
+                                                <li v-for="o in owners" :key="o.member_id" class="flex items-center gap-3">
+                                                    <span class="min-w-0 flex-1 truncate font-medium">{{ o.name }}</span>
+                                                    <span class="rounded bg-muted px-1.5 py-0.5">{{ o.source }}</span>
+                                                    <span v-if="o.equipped" class="text-emerald-600 dark:text-emerald-400">equipped</span>
+                                                    <span class="tabular-nums text-muted-foreground">{{ o.acquired_at ? new Date(o.acquired_at).toLocaleString() : '' }}</span>
+                                                    <button type="button" :class="btnDanger" @click="revokeOwner(item, o)">Revoke</button>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                    </td>
+                                </tr>
+                                </template>
                             </tbody>
                         </table>
                     </div>
@@ -1185,6 +1302,23 @@ function deactivate(id: number) {
                         >
                             <input v-model="form.limited" type="checkbox" />
                             Limited edition (shows a "Limited" badge)
+                        </label>
+                        <label
+                            class="flex items-center gap-2 text-sm font-medium sm:col-span-2"
+                        >
+                            <input v-model="form.showOnly" type="checkbox" />
+                            Show only (listed in the store but not buyable;
+                            grant it from Participants)
+                        </label>
+                        <label class="grid gap-1 text-sm font-medium">
+                            Stock (units left; empty = unlimited)
+                            <input
+                                v-model.number="form.stock"
+                                type="number"
+                                min="0"
+                                max="1000000"
+                                :class="field"
+                            />
                         </label>
                         <label
                             v-if="supportsExtras(form.type)"

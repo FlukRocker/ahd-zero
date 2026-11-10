@@ -74,7 +74,7 @@ export default function chatStore() {
         },
 
         canBuy(item) {
-            return !item.owned && this.busy === null && this.balance >= item.price;
+            return !item.owned && !item.show_only && !item.sold_out && this.busy === null && this.balance >= item.price;
         },
 
         async request(url, id) {

@@ -34,6 +34,18 @@ class CosmeticPayload implements ValidationRule
             return;
         }
 
+        if (array_key_exists('show_only', $value) && ! is_bool($value['show_only'])) {
+            $fail('Show only must be true or false.');
+
+            return;
+        }
+
+        if (array_key_exists('stock', $value) && (! is_int($value['stock']) || $value['stock'] < 0 || $value['stock'] > 1000000)) {
+            $fail('Stock must be a whole number from 0 to 1,000,000, or left empty for unlimited.');
+
+            return;
+        }
+
         $cosmetic = new \App\Models\ChatCosmetic;
         $cosmetic->type = $this->type;
         $cosmetic->payload = $value;

@@ -206,6 +206,7 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
         Route::get('messages', [ChatToolsController::class, 'messages'])->name('messages');
         Route::get('members/{id}', [ChatToolsController::class, 'member'])->whereNumber('id')->name('member');
         Route::get('settings', [ChatToolsController::class, 'settings'])->name('settings');
+        Route::get('cosmetics/{cosmetic}/owners', [ChatToolsController::class, 'cosmeticOwners'])->whereNumber('cosmetic')->name('owners');
         Route::post('announcement', [ChatToolsController::class, 'updateAnnouncement'])->name('announcement');
         Route::post('words', [ChatToolsController::class, 'updateWords'])->name('words');
         Route::post('rooms/{room}/controls', [ChatToolsController::class, 'updateRoomControls'])->whereNumber('room')->name('controls');
