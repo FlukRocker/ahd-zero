@@ -107,7 +107,8 @@ watch(() => props.memberId, load, { immediate: true });
                     <li v-for="c in detail.cosmetics" :key="c.id" class="flex items-center gap-2">
                         <span>{{ c.name }}</span>
                         <span class="text-xs text-muted-foreground">{{ c.type }}{{ c.equipped ? ' · equipped' : '' }}</span>
-                        <button type="button" :class="[ui.btnDanger, 'ml-auto']" :disabled="busy" @click="act('POST', `${base()}/revoke-cosmetic`, { cosmetic_id: c.id }, `Remove ${c.name} from ${detail.name}?`, 'Cosmetic removed.')">Revoke</button>
+                        <button type="button" :class="[ui.btn, 'ml-auto']" :disabled="busy" @click="act('POST', `${base()}/equip-cosmetic`, { cosmetic_id: c.id, equipped: !c.equipped }, undefined, c.equipped ? 'Unequipped.' : 'Equipped.')">{{ c.equipped ? 'Unequip' : 'Equip' }}</button>
+                        <button type="button" :class="ui.btnDanger" :disabled="busy" @click="act('POST', `${base()}/revoke-cosmetic`, { cosmetic_id: c.id }, `Remove ${c.name} from ${detail.name}?`, 'Cosmetic removed.')">Revoke</button>
                     </li>
                 </ul>
 

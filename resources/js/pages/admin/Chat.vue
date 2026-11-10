@@ -300,6 +300,7 @@ function cancelEdit() {
 }
 
 // Who owns a cosmetic: one open panel at a time, loaded on demand.
+const savedNote = ref(false);
 const ownersFor = ref<number | null>(null);
 const owners = ref<OwnerRow[]>([]);
 const ownersTotal = ref(0);
@@ -332,6 +333,22 @@ async function toggleOwners(item: CosmeticRow) {
 
     ownersFor.value = item.id;
     owners.value = [];
+    await loadOwners(item.id);
+}
+
+async function equipOwner(item: CosmeticRow, o: OwnerRow) {
+    const r = await adminCall(
+        'POST',
+        `/dashboard/chat/tools/members/${o.member_id}/equip-cosmetic`,
+        { cosmetic_id: item.id, equipped: !o.equipped },
+    );
+
+    if (!r.ok) {
+        ownersError.value = r.error;
+
+        return;
+    }
+
     await loadOwners(item.id);
 }
 
@@ -403,10 +420,13 @@ async function doCreateCosmetic() {
               })
             : await send('PATCH', `/dashboard/chat/cosmetics/${editing}`, body);
 
-    if (ok) {
-        editingId.value = null;
+    if (ok && editing === null) {
         form.name = '';
         form.slug = '';
+    } else if (ok) {
+        // Stay on the item being edited so more changes can follow.
+        savedNote.value = true;
+        setTimeout(() => (savedNote.value = false), 2500);
     }
 }
 
@@ -1110,6 +1130,7 @@ function deactivate(id: number) {
                                                     <span class="rounded bg-muted px-1.5 py-0.5">{{ o.source }}</span>
                                                     <span v-if="o.equipped" class="text-emerald-600 dark:text-emerald-400">equipped</span>
                                                     <span class="tabular-nums text-muted-foreground">{{ o.acquired_at ? new Date(o.acquired_at).toLocaleString() : '' }}</span>
+                                                    <button type="button" :class="btn" @click="equipOwner(item, o)">{{ o.equipped ? 'Unequip' : 'Equip' }}</button>
                                                     <button type="button" :class="btnDanger" @click="revokeOwner(item, o)">Revoke</button>
                                                 </li>
                                             </ul>
@@ -1404,8 +1425,13 @@ function deactivate(id: number) {
                                 :class="[btn, 'ml-2 h-9']"
                                 @click="cancelEdit"
                             >
-                                Cancel
+                                {{ savedNote ? 'Close' : 'Cancel' }}
                             </button>
+                            <span
+                                v-if="savedNote"
+                                class="ml-3 text-xs text-emerald-600 dark:text-emerald-400"
+                                >Saved</span
+                            >
                         </div>
                     </form>
                 </div>

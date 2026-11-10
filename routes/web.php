@@ -214,6 +214,7 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
         Route::post('members/{id}/kick', [ChatToolsController::class, 'kick'])->whereNumber('id')->name('kick');
         Route::post('members/{id}/gag', [ChatToolsController::class, 'gag'])->whereNumber('id')->name('gag');
         Route::post('members/{id}/take-coins', [ChatToolsController::class, 'takeCoins'])->whereNumber('id')->name('take');
+        Route::post('members/{id}/equip-cosmetic', [ChatToolsController::class, 'setEquipped'])->whereNumber('id')->name('equip');
         Route::post('members/{id}/revoke-cosmetic', [ChatToolsController::class, 'revokeCosmetic'])->whereNumber('id')->name('revoke');
         Route::post('members/{id}/purge', [ChatToolsController::class, 'purgeMemberMessages'])->whereNumber('id')->name('purge');
     });

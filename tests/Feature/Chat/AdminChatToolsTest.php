@@ -85,6 +85,26 @@ class AdminChatToolsTest extends TestCase
         );
     }
 
+    public function test_admin_can_equip_and_unequip_an_owned_cosmetic(): void
+    {
+        $aki = $this->member('Aki');
+        $red = $this->cosmetic();
+        $other = $this->member('Bo');
+        ChatCosmeticMember::create(['member_id' => $aki->id, 'cosmetic_id' => $red->id, 'acquired_at' => now(), 'source' => 'grant', 'equipped' => false]);
+        $url = "/dashboard/chat/tools/members/{$aki->id}/equip-cosmetic";
+
+        $this->actingAs($aki, 'member')->postJson($url, ['cosmetic_id' => $red->id, 'equipped' => true])->assertForbidden();
+
+        $this->actingAs($this->admin)->postJson($url, ['cosmetic_id' => $red->id, 'equipped' => true])->assertOk();
+        $this->assertTrue(ChatCosmeticMember::query()->where('member_id', $aki->id)->value('equipped'));
+
+        $this->actingAs($this->admin)->postJson($url, ['cosmetic_id' => $red->id, 'equipped' => false])->assertOk();
+        $this->assertFalse(ChatCosmeticMember::query()->where('member_id', $aki->id)->value('equipped'));
+
+        $this->actingAs($this->admin)->postJson("/dashboard/chat/tools/members/{$other->id}/equip-cosmetic", ['cosmetic_id' => $red->id, 'equipped' => true])->assertStatus(422);
+        $this->actingAs($this->admin)->postJson("/dashboard/chat/tools/members/{$other->id}/equip-cosmetic", ['cosmetic_id' => $red->id, 'equipped' => false])->assertStatus(422);
+    }
+
     public function test_online_endpoint_lists_ids_for_admins_while_the_public_list_has_none(): void
     {
         $aki = $this->member('Aki');

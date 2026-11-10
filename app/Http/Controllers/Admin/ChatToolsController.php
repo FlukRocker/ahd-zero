@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Events\Chat\MessagesPurged;
+use App\Exceptions\NotOwnedException;
 use App\Exceptions\StoreException;
 use App\Http\Controllers\Controller;
 use App\Models\ChatCosmetic;
@@ -237,6 +238,37 @@ class ChatToolsController extends Controller
         }
 
         return response()->json(['ok' => $removed]);
+    }
+
+    /** Equip (replacing the same slot) or unequip a cosmetic the member owns. */
+    public function setEquipped(Request $request, int $id): JsonResponse
+    {
+        $validated = $request->validate([
+            'cosmetic_id' => ['required', 'integer', 'exists:chat_cosmetics,id'],
+            'equipped' => ['required', 'boolean'],
+        ]);
+        Member::query()->findOrFail($id);
+        $cosmetic = ChatCosmetic::query()->findOrFail($validated['cosmetic_id']);
+
+        if ($validated['equipped']) {
+            try {
+                $this->store->equip($id, $cosmetic);
+            } catch (NotOwnedException|StoreException $e) {
+                return response()->json(['message' => $e->getMessage()], 422);
+            }
+        } else {
+            $changed = ChatCosmeticMember::query()
+                ->where('member_id', $id)->where('cosmetic_id', $cosmetic->id)
+                ->update(['equipped' => false]);
+
+            if ($changed === 0) {
+                return response()->json(['message' => 'Member does not own that item.'], 422);
+            }
+        }
+
+        $this->forgetAllHistory(); // cached lines carry the rendered style
+
+        return response()->json(['ok' => true]);
     }
 
     /** Delete every message one member has written, in one pass. */
