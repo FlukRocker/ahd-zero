@@ -239,6 +239,18 @@ export default function chatLobby() {
                         this.roster = [...this.roster.filter((p) => p.uuid !== person.uuid), person];
                     }
                 })
+                .listen('.member.restyled', ({ uuid, style, pawn }) => {
+                    if (typeof uuid !== 'string' || typeof style !== 'object' || style === null) {
+                        return;
+                    }
+
+                    // The same safeStyle gate as every other style applies at render time.
+                    const restyle = (line) => (line?.uuid === uuid ? { ...line, style } : line);
+
+                    this.messages = this.messages.map(restyle);
+                    this.pinned = this.pinned ? restyle(this.pinned) : this.pinned;
+                    this.roster = this.roster.map((p) => (p.uuid === uuid ? { ...p, style, pawn: pawn ?? null } : p));
+                })
                 .listen('.presence.left', ({ uuids }) => {
                     if (Array.isArray(uuids)) {
                         this.roster = this.roster.filter((p) => !uuids.includes(p.uuid));

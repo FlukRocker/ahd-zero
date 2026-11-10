@@ -3,8 +3,10 @@
 namespace App\Services\Chat;
 
 use App\Enums\ChatRank;
+use App\Events\Chat\MemberRestyled;
 use App\Events\Chat\PresenceJoined;
 use App\Events\Chat\PresenceLeft;
+use App\Models\ChatCosmeticMember;
 use App\Models\ChatMember;
 use App\Models\Member;
 use Illuminate\Contracts\Cache\LockTimeoutException;
@@ -99,6 +101,31 @@ class PresenceService
         return $people;
     }
 
+    /** Tell open chat boxes that these members now look different. */
+    public function announceStyle(int ...$memberIds): void
+    {
+        $members = Member::query()->whereIn('id', $memberIds)->get(['id', 'uuid']);
+
+        foreach ($members as $member) {
+            $style = $this->renderer->styleFor((int) $member->id);
+            MemberRestyled::dispatch((string) $member->uuid, $style, $this->pawnOf($style));
+        }
+    }
+
+    /** A cosmetic changed: restyle its owners (capped; the rest catch up on reload). */
+    public function announceOwners(int $cosmeticId, int $cap = 200): void
+    {
+        $this->announceStyle(...ChatCosmeticMember::query()->where('cosmetic_id', $cosmeticId)->limit($cap)->pluck('member_id')->map(fn ($id) => (int) $id)->all());
+    }
+
+    /**
+     * @param  array<string, string>  $style
+     */
+    private function pawnOf(array $style): ?string
+    {
+        return preg_match("#^url\('(/chat-assets/pawns/[a-z0-9-]{1,32}\.svg)'\)$#", $style['--chat-pawn'] ?? '', $m) === 1 ? $m[1] : null;
+    }
+
     /**
      * @return array{uuid: string, name: string, rank: string, style: array<string, string>, pawn: string|null}
      */
@@ -111,7 +138,7 @@ class PresenceService
             'name' => $name,
             'rank' => $rank->value,
             'style' => $style,
-            'pawn' => preg_match("#^url\('(/chat-assets/pawns/[a-z0-9-]{1,32}\.svg)'\)$#", $style['--chat-pawn'] ?? '', $m) === 1 ? $m[1] : null,
+            'pawn' => $this->pawnOf($style),
         ];
     }
 

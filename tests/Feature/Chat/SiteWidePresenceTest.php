@@ -2,8 +2,12 @@
 
 namespace Tests\Feature\Chat;
 
+use App\Enums\CosmeticType;
+use App\Events\Chat\MemberRestyled;
 use App\Events\Chat\PresenceJoined;
 use App\Events\Chat\PresenceLeft;
+use App\Models\ChatCosmetic;
+use App\Models\ChatCosmeticMember;
 use App\Models\ChatMember;
 use App\Models\Member;
 use App\Services\Chat\PresenceService;
@@ -72,6 +76,19 @@ class SiteWidePresenceTest extends TestCase
         $this->actingAs($b, 'member')->post('/chat/presence');
 
         Event::assertDispatched(PresenceLeft::class, fn (PresenceLeft $e) => $e->uuids === [$a->uuid]);
+    }
+
+    public function test_equipping_pushes_the_new_look_and_unequipping_again_pushes_the_plain_one(): void
+    {
+        Event::fake([MemberRestyled::class, PresenceJoined::class, PresenceLeft::class]);
+        $a = $this->member('Aki');
+        $red = ChatCosmetic::create(['type' => CosmeticType::NameColor, 'name' => 'Red', 'slug' => 'red', 'payload' => ['color' => '#ff0000'], 'price' => 1, 'active' => true]);
+        ChatCosmeticMember::create(['member_id' => $a->id, 'cosmetic_id' => $red->id, 'acquired_at' => now(), 'source' => 'grant', 'equipped' => false]);
+
+        $this->actingAs($a, 'member')->postJson("/chat/cosmetics/{$red->id}/equip")->assertOk();
+
+        Event::assertDispatched(MemberRestyled::class, fn (MemberRestyled $e) => $e->uuid === $a->uuid
+            && ($e->style['--chat-name-color'] ?? null) === '#ff0000');
     }
 
     public function test_online_endpoint_returns_list_and_counts_the_asker(): void

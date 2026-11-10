@@ -8,7 +8,10 @@ use App\Exceptions\StoreException;
 use App\Models\ChatCosmetic;
 use App\Models\ChatCosmeticMember;
 use App\Models\ChatMember;
+use App\Models\ChatRoom;
 use App\Models\Member;
+use App\Services\Chat\ChatService;
+use App\Services\Chat\PresenceService;
 use App\Services\Chat\StoreService;
 use App\Support\CosmeticStyle;
 use Illuminate\Http\JsonResponse;
@@ -18,7 +21,11 @@ use Illuminate\View\View;
 
 class ChatStoreController extends Controller
 {
-    public function __construct(private readonly StoreService $store) {}
+    public function __construct(
+        private readonly StoreService $store,
+        private readonly PresenceService $presence,
+        private readonly ChatService $chat,
+    ) {}
 
     public function index(): View
     {
@@ -78,7 +85,19 @@ class ChatStoreController extends Controller
             return response()->json(['message' => $e->getMessage()], 422);
         }
 
+        $this->restyle($this->member()->id);
+
         return response()->json(['ok' => true]);
+    }
+
+    /** Cached history bakes in styles: rebuild it, then push the new look to open chat boxes. */
+    private function restyle(int $memberId): void
+    {
+        foreach (ChatRoom::query()->pluck('id') as $roomId) {
+            $this->chat->forgetHistory((int) $roomId);
+        }
+
+        $this->presence->announceStyle($memberId);
     }
 
     private function balance(int $memberId): int

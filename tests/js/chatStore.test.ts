@@ -97,7 +97,7 @@ describe('chat store requests', () => {
 
         await store.buy(store.items[0]);
 
-        expect(store.error).toBe('You do not have enough coins.');
+        expect(store.error).toBe('เหรียญไม่พอ');
         expect(store.balance).toBe(130);
         expect(store.items[0].owned).toBe(false);
         expect(store.busy).toBeNull();
@@ -109,7 +109,7 @@ describe('chat store requests', () => {
 
         await store.buy(store.items[0]);
 
-        expect(store.error).toBe('That did not work.');
+        expect(store.error).toBe('ทำรายการไม่สำเร็จ');
     });
 
     it('test_double_click_buy_sends_one_request', async () => {
@@ -133,7 +133,7 @@ describe('chat store requests', () => {
 
         await store.equip(store.items[0]);
 
-        expect(store.error).toBe('You do not own that item.');
+        expect(store.error).toBe('คุณยังไม่มีไอเทมนี้');
         expect(store.items[0].equipped).toBe(false);
         expect(store.items[1].equipped).toBe(true);
     });
@@ -157,7 +157,7 @@ describe('chat store backgrounds', () => {
             style: { '--chat-background': '#112233', 'background-image': 'url(x)' },
         });
 
-        expect(store.typeLabel(bg)).toBe('Message background');
+        expect(store.typeLabel(bg)).toBe('พื้นหลังข้อความ');
         expect(store.previewStyle(bg)).toEqual({ '--chat-background': '#112233' });
         expect(store.isBackground(bg)).toBe(true);
         expect(store.isBackground(item({}))).toBe(false);

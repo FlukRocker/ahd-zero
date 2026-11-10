@@ -45,6 +45,7 @@ class ChatToolsController extends Controller
         private readonly StoreService $store,
         private readonly ChatService $chat,
         private readonly ReportResolver $reports,
+        private readonly PresenceService $presence,
     ) {}
 
     /** Everyone online site-wide, with member ids for the action buttons. */
@@ -235,6 +236,7 @@ class ChatToolsController extends Controller
 
         if ($removed) {
             $this->forgetAllHistory(); // it may have been equipped: rebuild the cached styles
+            $this->presence->announceStyle($id);
         }
 
         return response()->json(['ok' => $removed]);
@@ -267,6 +269,7 @@ class ChatToolsController extends Controller
         }
 
         $this->forgetAllHistory(); // cached lines carry the rendered style
+        $this->presence->announceStyle($id);
 
         return response()->json(['ok' => true]);
     }

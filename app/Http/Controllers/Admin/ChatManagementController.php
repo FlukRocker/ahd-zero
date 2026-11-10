@@ -172,6 +172,7 @@ class ChatManagementController extends Controller
 
         $cosmetic->update($validated);
         $this->refreshChatStyles();
+        app(\App\Services\Chat\PresenceService::class)->announceOwners((int) $cosmetic->id);
 
         return response()->json(['ok' => true]);
     }
@@ -195,6 +196,7 @@ class ChatManagementController extends Controller
     {
         $cosmetic->update(['active' => false]);
         $this->refreshChatStyles();
+        app(\App\Services\Chat\PresenceService::class)->announceOwners((int) $cosmetic->id);
 
         return response()->json(['ok' => true]);
     }
