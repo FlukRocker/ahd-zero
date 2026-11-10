@@ -39,11 +39,11 @@ describe('chat lobby rooms', () => {
         return lobby;
     }
 
-    it('connect() subscribes to the per-room channel names', async () => {
+    it('connect() subscribes to the presence and per-room channels', async () => {
         vi.stubEnv('VITE_REVERB_APP_KEY', 'k');
         vi.stubEnv('VITE_REVERB_HOST', 'h');
         await room().connect();
-        expect(echoCalls.channel).toEqual(['chat.room.7']);
+        expect(echoCalls.channel).toEqual(['chat.presence', 'chat.room.7']);
         expect(echoCalls.join).toEqual([]);
     });
 

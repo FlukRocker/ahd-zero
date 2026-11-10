@@ -3,6 +3,8 @@
 namespace App\Services\Chat;
 
 use App\Enums\ChatRank;
+use App\Events\Chat\PresenceJoined;
+use App\Events\Chat\PresenceLeft;
 use App\Models\ChatMember;
 use App\Models\Member;
 use Illuminate\Contracts\Cache\LockTimeoutException;
@@ -38,15 +40,32 @@ class PresenceService
         }
 
         $now = now()->getTimestamp();
+        $joined = false;
+        $gone = [];
 
         try {
-            Cache::lock(self::KEY.':lock', 5)->block(1, function () use ($member, $now): void {
-                $map = $this->fresh(Cache::get(self::KEY, []), $now);
+            Cache::lock(self::KEY.':lock', 5)->block(1, function () use ($member, $now, &$joined, &$gone): void {
+                $stored = Cache::get(self::KEY, []);
+                $map = $this->fresh($stored, $now);
+                $gone = array_keys(array_diff_key($stored, $map));
+                $joined = ! isset($map[$member->uuid]);
                 $map[$member->uuid] = ['id' => $member->id, 'name' => $member->name, 'at' => $now];
                 Cache::put(self::KEY, $map, self::TTL * 3);
             });
         } catch (LockTimeoutException) {
             // Someone else holds the lock; the next heartbeat will land.
+            return;
+        }
+
+        // Push the change so open lists update at once. The poll stays the
+        // source of truth, so a lost event only delays the update.
+        if ($gone !== []) {
+            PresenceLeft::dispatch(array_values(array_map('strval', $gone)));
+        }
+
+        if ($joined) {
+            $this->renderer->preload([(int) $member->id]);
+            PresenceJoined::dispatch($this->person((int) $member->id, $member->uuid, $member->name, $chat?->rank ?? ChatRank::Member));
         }
     }
 
@@ -74,16 +93,26 @@ class PresenceService
                 continue;
             }
 
-            $people[] = ($withIds ? ['id' => (int) $entry['id']] : []) + [
-                'uuid' => (string) $uuid,
-                'name' => (string) $entry['name'],
-                'rank' => ($row?->rank ?? ChatRank::Member)->value,
-                'style' => $style = $this->renderer->styleFor($entry['id']),
-                'pawn' => preg_match("#^url\('(/chat-assets/pawns/[a-z0-9-]{1,32}\.svg)'\)$#", $style['--chat-pawn'] ?? '', $m) === 1 ? $m[1] : null,
-            ];
+            $people[] = ($withIds ? ['id' => (int) $entry['id']] : []) + $this->person((int) $entry['id'], (string) $uuid, (string) $entry['name'], $row?->rank ?? ChatRank::Member);
         }
 
         return $people;
+    }
+
+    /**
+     * @return array{uuid: string, name: string, rank: string, style: array<string, string>, pawn: string|null}
+     */
+    private function person(int $id, string $uuid, string $name, ChatRank $rank): array
+    {
+        $style = $this->renderer->styleFor($id);
+
+        return [
+            'uuid' => $uuid,
+            'name' => $name,
+            'rank' => $rank->value,
+            'style' => $style,
+            'pawn' => preg_match("#^url\('(/chat-assets/pawns/[a-z0-9-]{1,32}\.svg)'\)$#", $style['--chat-pawn'] ?? '', $m) === 1 ? $m[1] : null,
+        ];
     }
 
     /**

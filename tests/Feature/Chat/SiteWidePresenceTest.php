@@ -2,11 +2,14 @@
 
 namespace Tests\Feature\Chat;
 
+use App\Events\Chat\PresenceJoined;
+use App\Events\Chat\PresenceLeft;
 use App\Models\ChatMember;
 use App\Models\Member;
 use App\Services\Chat\PresenceService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Event;
 use Tests\TestCase;
 
 class SiteWidePresenceTest extends TestCase
@@ -40,6 +43,35 @@ class SiteWidePresenceTest extends TestCase
         $names = array_column(app(PresenceService::class)->online(), 'name');
         sort($names);
         $this->assertSame(['Aki', 'Bo'], $names);
+    }
+
+    public function test_first_heartbeat_pushes_a_join_but_repeats_do_not(): void
+    {
+        Event::fake([PresenceJoined::class, PresenceLeft::class]);
+        $a = $this->member('Aki');
+
+        $this->actingAs($a, 'member')->post('/chat/presence')->assertNoContent();
+        $this->actingAs($a, 'member')->post('/chat/presence')->assertNoContent();
+
+        Event::assertDispatchedTimes(PresenceJoined::class, 1);
+        Event::assertDispatched(PresenceJoined::class, fn (PresenceJoined $e) => $e->person['name'] === 'Aki'
+            && $e->person['uuid'] === $a->uuid
+            && ! array_key_exists('id', $e->person)
+            && ! array_key_exists('email', $e->person));
+        Event::assertNotDispatched(PresenceLeft::class);
+    }
+
+    public function test_an_expired_member_is_pushed_as_left_when_someone_else_pings(): void
+    {
+        Event::fake([PresenceJoined::class, PresenceLeft::class]);
+        $a = $this->member('Aki');
+        $b = $this->member('Bo');
+        $this->actingAs($a, 'member')->post('/chat/presence');
+
+        $this->travel(PresenceService::TTL + 5)->seconds();
+        $this->actingAs($b, 'member')->post('/chat/presence');
+
+        Event::assertDispatched(PresenceLeft::class, fn (PresenceLeft $e) => $e->uuids === [$a->uuid]);
     }
 
     public function test_online_endpoint_returns_list_and_counts_the_asker(): void

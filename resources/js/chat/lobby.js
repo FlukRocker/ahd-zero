@@ -232,6 +232,19 @@ export default function chatLobby() {
 
             const roomId = this.config.room.id;
 
+            // Online list pushes; the 30s poll stays as the source of truth.
+            echo.channel('chat.presence')
+                .listen('.presence.joined', ({ person }) => {
+                    if (person && typeof person.uuid === 'string' && this.config?.canPost) {
+                        this.roster = [...this.roster.filter((p) => p.uuid !== person.uuid), person];
+                    }
+                })
+                .listen('.presence.left', ({ uuids }) => {
+                    if (Array.isArray(uuids)) {
+                        this.roster = this.roster.filter((p) => !uuids.includes(p.uuid));
+                    }
+                });
+
             echo.channel(`chat.room.${roomId}`)
                 .listen('.message.sent', (line) => this.append(line))
                 .listen('.message.deleted', ({ id }) => {
