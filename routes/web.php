@@ -119,9 +119,15 @@ Route::prefix('api')->group(function (): void {
 
 // Live chat lobby. Guests read; any logged-in member posts — email
 // verification is not required (it is informational, see MemberAuthController).
-Route::get('/chat', [ChatController::class, 'show'])->name('chat.show');
-Route::get('/chat/mini', [ChatController::class, 'mini'])->name('chat.mini');
-Route::get('/chat/room/{slug}', [ChatController::class, 'show'])->name('chat.room');
+// Chat is not for search engines: robots.txt disallows /chat and every chat
+// response carries X-Robots-Tag: noindex, nofollow.
+Route::get('/chat', [ChatController::class, 'show'])->middleware(\App\Http\Middleware\NoIndex::class)->name('chat.show');
+Route::get('/chat/mini', [ChatController::class, 'mini'])->middleware(\App\Http\Middleware\NoIndex::class)->name('chat.mini');
+Route::get('/chat/room/{slug}', [ChatController::class, 'show'])->middleware(\App\Http\Middleware\NoIndex::class)->name('chat.room');
+// The online list is public: guests see who is here; only members count as online.
+Route::get('/chat/online', [ChatPresenceController::class, 'online'])
+    ->middleware(['throttle:chat-presence', \App\Http\Middleware\NoIndex::class])
+    ->name('chat.online');
 
 Route::middleware(['auth:member'])->group(function (): void {
     Route::post('/chat/messages', [ChatController::class, 'store'])
@@ -145,10 +151,6 @@ Route::middleware(['auth:member'])->group(function (): void {
     Route::post('/chat/presence', [ChatPresenceController::class, 'ping'])
         ->middleware('throttle:chat-presence')
         ->name('chat.presence');
-    Route::get('/chat/online', [ChatPresenceController::class, 'online'])
-        ->middleware('throttle:chat-presence')
-        ->name('chat.online');
-
     Route::get('/chat/store', [ChatStoreController::class, 'index'])->name('chat.store');
 
     Route::post('/chat/store/{cosmetic}/buy', [ChatStoreController::class, 'buy'])

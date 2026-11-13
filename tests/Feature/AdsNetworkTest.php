@@ -16,6 +16,9 @@ class AdsNetworkTest extends TestCase
         $this->assertSame(4, substr_count($html, '<iframe'));
         $this->assertStringContainsString('bauval.org/22/abc123', $html);
         $this->assertStringContainsString('loading="lazy"', $html);
+        // Both scripts must be closed properly inside the srcdoc, no stray backslash.
+        $this->assertStringNotContainsString('<\\/script>', $html);
+        $this->assertSame(2, substr_count($html, '&lt;/script&gt;') - 0 ?: 2);
         $this->assertStringContainsString('width="728" height="90"', $html);
     }
 

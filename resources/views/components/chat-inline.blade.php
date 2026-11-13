@@ -22,7 +22,7 @@
                 <span class="opacity-50">#</span>
                 <span x-text="config?.room?.name ?? 'Lobby'"></span>
             </span>
-            <span class="flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-2.5 py-1 text-xs font-medium text-emerald-400" x-show="config?.canPost" x-cloak>
+            <span class="flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-2.5 py-1 text-xs font-medium text-emerald-400" x-cloak>
                 <span class="h-1.5 w-1.5 rounded-full bg-emerald-400" aria-hidden="true"></span>
                 <span x-text="roster.length"></span> ออนไลน์
             </span>

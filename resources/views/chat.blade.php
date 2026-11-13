@@ -48,7 +48,7 @@
 
             <header class="flex items-center justify-between gap-3 border-b border-white/15 bg-black/25 px-4 py-2.5 text-sm backdrop-blur">
                 <span class="flex items-center gap-2 font-semibold"><span class="opacity-50">#</span> {{ $room->name }}</span>
-                <span class="flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-2.5 py-1 text-xs font-medium text-emerald-400" x-show="config?.canPost" x-cloak>
+                <span class="flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-2.5 py-1 text-xs font-medium text-emerald-400" x-cloak>
                     <span class="h-1.5 w-1.5 rounded-full bg-emerald-400" aria-hidden="true"></span>
                     <span x-text="roster.length"></span> ออนไลน์
                 </span>

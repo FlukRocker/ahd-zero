@@ -109,11 +109,11 @@ describe('chat lobby rooms', () => {
         expect(lobby.announcement).toBeNull();
     });
 
-    it('startRoster() does nothing for guests', () => {
-        const fetchMock = vi.fn();
+    it('startRoster() also loads the online list for guests', () => {
+        const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ online: [] }) });
         vi.stubGlobal('fetch', fetchMock);
         room(false).startRoster();
-        expect(fetchMock).not.toHaveBeenCalled();
+        expect(fetchMock).toHaveBeenCalledWith('/chat/online', expect.anything());
     });
 });
 

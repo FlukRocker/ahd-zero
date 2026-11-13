@@ -19,10 +19,12 @@ class ChatPresenceController extends Controller
         return response()->noContent();
     }
 
-    /** The site-wide online list. Asking also counts as being online. */
+    /** The site-wide online list. Public; a member asking also counts as online. */
     public function online(Request $request): JsonResponse
     {
-        $this->presence->touch($request->user('member'));
+        if ($member = $request->user('member')) {
+            $this->presence->touch($member);
+        }
 
         return response()->json(['online' => $this->presence->online()])
             ->header('Cache-Control', 'no-store, private');

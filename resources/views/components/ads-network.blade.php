@@ -11,8 +11,8 @@
     $n = $count ?? (int) $cfg['slots'];
     $src = sprintf((string) $cfg['src'], $key);
     $doc = '<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;padding:0;overflow:hidden;background:transparent}</style></head><body>'
-        .'<script>atOptions='.json_encode(['key' => $key, 'format' => 'iframe', 'height' => $h, 'width' => $w, 'params' => new \stdClass], JSON_UNESCAPED_SLASHES).';<\/script>'
-        .'<script src="'.e($src).'"><\/script></body></html>';
+        .'<script>atOptions='.json_encode(['key' => $key, 'format' => 'iframe', 'height' => $h, 'width' => $w, 'params' => new \stdClass], JSON_UNESCAPED_SLASHES).';</script>'
+        .'<script src="'.e($src).'"></script></body></html>';
 @endphp
 
 @if ($key !== '' && $n > 0)

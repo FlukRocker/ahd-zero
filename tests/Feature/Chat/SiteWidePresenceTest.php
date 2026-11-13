@@ -101,10 +101,10 @@ class SiteWidePresenceTest extends TestCase
         $this->assertStringContainsString('no-store', (string) $response->headers->get('Cache-Control'));
     }
 
-    public function test_guests_cannot_ping_or_read_the_list(): void
+    public function test_guests_cannot_ping_but_can_read_the_list(): void
     {
         $this->post('/chat/presence')->assertRedirect();
-        $this->getJson('/chat/online')->assertUnauthorized();
+        $this->getJson('/chat/online')->assertOk();
     }
 
     public function test_member_drops_off_after_heartbeats_stop(): void

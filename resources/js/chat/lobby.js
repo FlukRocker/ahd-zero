@@ -235,7 +235,7 @@ export default function chatLobby() {
             // Online list pushes; the 30s poll stays as the source of truth.
             echo.channel('chat.presence')
                 .listen('.presence.joined', ({ person }) => {
-                    if (person && typeof person.uuid === 'string' && this.config?.canPost) {
+                    if (person && typeof person.uuid === 'string') {
                         this.roster = [...this.roster.filter((p) => p.uuid !== person.uuid), person];
                     }
                 })
@@ -277,7 +277,7 @@ export default function chatLobby() {
          * Poll it while the tab is visible.
          */
         startRoster() {
-            if (!this.config?.canPost || this.rosterTimer) {
+            if (this.rosterTimer) {
                 return;
             }
 

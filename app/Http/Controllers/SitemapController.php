@@ -359,11 +359,12 @@ class SitemapController extends Controller
         $content .= "Disallow: /member/\n";
         $content .= "Disallow: /api/\n";
         $content .= "Disallow: /search/results\n";
+        $content .= "Disallow: /chat\n";
         $content .= "Disallow: /*?page=\n";
         $content .= "\n";
         foreach (['GPTBot', 'OAI-SearchBot', 'ChatGPT-User', 'ClaudeBot', 'Claude-Web', 'anthropic-ai', 'PerplexityBot', 'Google-Extended', 'Applebot-Extended', 'CCBot', 'cohere-ai', 'Bytespider'] as $bot) {
             $content .= "User-agent: {$bot}\n";
-            $content .= "Allow: /\n\n";
+            $content .= "Allow: /\nDisallow: /chat\nDisallow: /dashboard\nDisallow: /member/\n\n";
         }
         $content .= "Sitemap: {$baseUrl}/sitemap.xml\n";
 
