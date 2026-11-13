@@ -61,6 +61,10 @@
         </section>
     @endif
 
+    <section class="mx-auto mt-8 max-w-[1440px] px-6 lg:px-10">
+        <x-ads-network />
+    </section>
+
     @if ($videoObject)
         <x-json-ld :data="$videoObject" />
     @endif

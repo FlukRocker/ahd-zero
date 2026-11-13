@@ -166,6 +166,10 @@
         </section>
     @endif
 
+    <section class="mt-8">
+        <x-ads-network />
+    </section>
+
     @if (! empty($anime['episode_list']))
         <section class="mt-10">
             <x-section-header eyebrow="สตรีม" :title="'ตอนทั้งหมด (' . count($anime['episode_list']) . ')'" />

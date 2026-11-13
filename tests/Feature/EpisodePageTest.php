@@ -101,6 +101,8 @@ class EpisodePageTest extends TestCase
         ]);
         // No persisted row, and the API answers "nothing ready".
         Http::fake(['*' => Http::response(['status' => 'processing'], 200)]);
+        // Ad slots are iframes too; this test is about the player embed only.
+        config(['ads.network.slots' => 0]);
 
         $response = $this->get("/anime/{$animeId}/episode/{$ep}");
 
