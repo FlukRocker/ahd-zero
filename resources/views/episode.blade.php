@@ -55,13 +55,10 @@
 
 @section('content')
 
-    @if (! empty($adsBanners))
-        <section class="mx-auto mt-8 max-w-[1440px] px-6 lg:px-10">
-            <x-ads-banner :banners="$adsBanners" />
-        </section>
-    @endif
-
     <section class="mx-auto mt-8 max-w-[1440px] px-6 lg:px-10">
+        @if (! empty($adsBanners))
+            <x-ads-banner :banners="$adsBanners" />
+        @endif
         <x-ads-network />
     </section>
 

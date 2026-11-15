@@ -160,13 +160,10 @@
     {{-- Everything below the hero shares the sidebar column; the hero above
          keeps the full width so its preloaded LCP image is unaffected. --}}
     <x-content-with-sidebar>
-    @if (! empty($adsBanners))
-        <section class="mt-8">
-            <x-ads-banner :banners="$adsBanners" />
-        </section>
-    @endif
-
     <section class="mt-8">
+        @if (! empty($adsBanners))
+            <x-ads-banner :banners="$adsBanners" />
+        @endif
         <x-ads-network />
     </section>
 
