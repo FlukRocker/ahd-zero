@@ -53,4 +53,16 @@ class AdsUnitTest extends TestCase
 
         $this->assertSame('', trim(Blade::render('<x-ads-floating />')));
     }
+
+    public function test_fit_unit_scales_to_the_available_width(): void
+    {
+        config(['ads.units_enabled' => true]);
+
+        $html = Blade::render('<x-ads-unit name="b468x60" :fit="true" />');
+
+        $this->assertStringContainsString('class="xu-fit"', $html);
+        $this->assertStringContainsString('aspect-ratio:468 / 60', $html);
+        $this->assertStringContainsString('clientWidth / 468', $html);
+        $this->assertStringContainsString('bauval.org/22/a494aa020bb35c259505733d239fc947', $html);
+    }
 }

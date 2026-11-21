@@ -165,7 +165,7 @@
             <x-ads-banner :banners="$adsBanners" />
         @endif
         <x-ads-network />
-        <x-ads-unit name="b468x60" class="xu-unit xu-468" style="margin-top:8px" />
+        <x-ads-unit name="b468x60" :fit="true" style="margin-top:8px" />
     </section>
 
     @if (! empty($anime['episode_list']))

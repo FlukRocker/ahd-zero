@@ -861,8 +861,6 @@ input:focus-visible {
 .floating-b-dock { display: flex; justify-content: center; flex: 0 0 auto; }
 .xu-unit { display: flex; justify-content: center; }
 .xu-rail { position: fixed; top: 96px; display: none; pointer-events: auto; }
-.xu-468 { display: none; }
-@media (min-width: 640px) { .xu-468 { display: flex; } }
 @media (min-width: 1800px) { .xu-rail { display: block; } }
 .strip-close { position: absolute; top: 4px; right: 4px; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; background: hsl(354 78% 56%); color: #fff; font-size: 18px; font-weight: 800; line-height: 1; border-radius: 50%; cursor: pointer; border: 2px solid #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.3); transition: background 0.15s; z-index: 2; }
 .strip-close:hover { background: hsl(354 78% 48%); }
