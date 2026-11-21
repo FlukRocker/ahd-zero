@@ -39,7 +39,7 @@ class AdsUnitTest extends TestCase
         $html = Blade::render('<x-ads-floating />');
 
         $this->assertSame(3, substr_count($html, '<iframe'));
-        $this->assertStringContainsString('floating-b-solo', $html);
+        $this->assertStringContainsString('floating-b-dock', $html);
         $this->assertStringContainsString('strip-close', $html);
         $this->assertSame(1, substr_count($html, 'strip-close"'));
         $this->assertStringContainsString('bauval.org/22/bba56c449cea79d568a35635be965663', $html);

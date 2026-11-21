@@ -31,7 +31,7 @@
         @endif
 
         @if (! empty($d['bottom']) || $dock)
-            <div class="floating-b {{ empty($d['bottom']) ? 'floating-b-solo' : '' }}">
+            <div class="floating-b">
                 <button type="button" class="strip-close" aria-label="ปิดโฆษณา" @click="show = false">×</button>
                 @foreach ($d['bottom'] as $it)
                     @php $dim = \App\Support\AdImage::dimensions($it['src']); @endphp
