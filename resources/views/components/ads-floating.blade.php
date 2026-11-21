@@ -3,7 +3,9 @@
 @php
     $d = $payload ?? ['left' => null, 'right' => null, 'bottom' => []];
     $rel = fn ($r) => ($r ?? '') !== '' ? $r : 'nofollow noopener sponsored noreferrer ugc';
-    $has = ! empty($d['left']) || ! empty($d['right']) || ! empty($d['bottom']);
+    $units = (bool) config('ads.units_enabled');
+    $dock = $units && (string) config('ads.units.b320x50.key') !== '';
+    $has = ! empty($d['left']) || ! empty($d['right']) || ! empty($d['bottom']) || $units;
 @endphp
 
 @if ($has)
@@ -22,8 +24,14 @@
             @endif
         @endforeach
 
-        @if (! empty($d['bottom']))
-            <div class="floating-b">
+        @if ($units)
+            {{-- Wide screens only: bauval skyscrapers in the gutters beside the content. --}}
+            <x-ads-unit name="b160x600" class="xu-rail" style="left:calc(50% - 720px - 176px)" />
+            <x-ads-unit name="b160x300" class="xu-rail" style="left:calc(50% + 720px + 16px)" />
+        @endif
+
+        @if (! empty($d['bottom']) || $dock)
+            <div class="floating-b {{ empty($d['bottom']) ? 'floating-b-solo' : '' }}">
                 <button type="button" class="strip-close" aria-label="ปิดโฆษณา" @click="show = false">×</button>
                 @foreach ($d['bottom'] as $it)
                     @php $dim = \App\Support\AdImage::dimensions($it['src']); @endphp
@@ -33,6 +41,10 @@
                             decoding="async">
                     </a>
                 @endforeach
+                @if ($dock)
+                    {{-- Same bar, same ×: the 320x50 network unit closes with the rest. --}}
+                    <div class="floating-b-dock"><x-ads-unit name="b320x50" /></div>
+                @endif
             </div>
         @endif
     </div>

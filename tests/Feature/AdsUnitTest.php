@@ -32,23 +32,25 @@ class AdsUnitTest extends TestCase
         $this->assertSame('', trim(Blade::render('<x-ads-unit name="b300x250" />')));
     }
 
-    public function test_extras_render_two_rails_and_the_sticky_320_unit(): void
+    public function test_floating_renders_two_rails_and_the_320_unit_in_one_closable_bar(): void
     {
         config(['ads.units_enabled' => true]);
 
-        $html = Blade::render('<x-ads-extras />');
+        $html = Blade::render('<x-ads-floating />');
 
         $this->assertSame(3, substr_count($html, '<iframe'));
-        $this->assertStringContainsString('xu-dock', $html);
+        $this->assertStringContainsString('floating-b-solo', $html);
+        $this->assertStringContainsString('strip-close', $html);
+        $this->assertSame(1, substr_count($html, 'strip-close"'));
         $this->assertStringContainsString('bauval.org/22/bba56c449cea79d568a35635be965663', $html);
         $this->assertStringContainsString('bauval.org/22/1d831b51a62666c84af3ad63d0e4c414', $html);
         $this->assertStringContainsString('bauval.org/22/304b8a073f1f1b759f06c18aa636b3d4', $html);
     }
 
-    public function test_extras_render_nothing_when_units_are_off(): void
+    public function test_floating_renders_nothing_when_units_are_off_and_no_payload(): void
     {
         config(['ads.units_enabled' => false]);
 
-        $this->assertSame('', trim(Blade::render('<x-ads-extras />')));
+        $this->assertSame('', trim(Blade::render('<x-ads-floating />')));
     }
 }
