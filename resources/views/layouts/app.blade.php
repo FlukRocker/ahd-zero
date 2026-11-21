@@ -155,6 +155,7 @@
         @keydown.window.ctrl.k.prevent="searchOpen = true"
     >
         <x-ads-navbar />
+        <x-ads-extras />
         <x-site-header />
 
         <main class="flex-1">

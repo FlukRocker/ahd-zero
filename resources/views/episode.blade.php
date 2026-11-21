@@ -60,6 +60,7 @@
             <x-ads-banner :banners="$adsBanners" />
         @endif
         <x-ads-network />
+        <x-ads-unit name="b468x60" class="xu-unit xu-468" style="margin-top:8px" />
     </section>
 
     @if ($videoObject)
@@ -164,6 +165,8 @@
         <x-comment-section type="episode" :id="$currentEpisode['list_id']" />
     </div>
     </x-content-with-sidebar>
+
+    <section class="mx-auto mt-8 max-w-[1440px] px-6 lg:px-10"><x-ads-unit name="b300x250" /></section>
 
     <x-ads-floating :payload="$floatingAds ?? null" />
 @endsection
