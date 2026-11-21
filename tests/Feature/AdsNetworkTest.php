@@ -22,9 +22,9 @@ class AdsNetworkTest extends TestCase
         $this->assertStringContainsString('width="728" height="90"', $html);
     }
 
-    public function test_defaults_to_two_slots(): void
+    public function test_defaults_to_one_slot(): void
     {
-        $this->assertSame(2, config('ads.network.slots'));
+        $this->assertSame(1, config('ads.network.slots'));
     }
 
     public function test_empty_key_renders_nothing(): void

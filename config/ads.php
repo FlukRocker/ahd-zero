@@ -7,6 +7,6 @@ return [
         'src' => env('ADS_NETWORK_SRC', 'https://bauval.org/22/%s'),
         'width' => 728,
         'height' => 90,
-        'slots' => (int) env('ADS_NETWORK_SLOTS', 2),
+        'slots' => (int) env('ADS_NETWORK_SLOTS', 1),
     ],
 ];
